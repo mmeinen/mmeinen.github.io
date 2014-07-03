@@ -45,16 +45,20 @@
 						<p> Select your tempo and away you go! </p>
 					</div>
 					<div class="text-center btn-vert-block">
-					
+						
+			
+0<input type="range" ID="points" min="1" max="10">10
+<input type="submit" onClick="start();">
+
 					</div>
                 </div>		
-			</div>		
+			</div>	
 		<table>	
 			<tr>
 				<td>
 					<iframe width="560" height="315" src="//www.youtube.com/embed/idYP-LaPghg?rel=0" frameborder="0" allowfullscreen></iframe>
 				</td>
-				<td><marquee  behavior="scroll" direction="up">
+				<td><marquee  behavior="scroll" scrollamount="1" direction="up">
 Go, go, go, go, go, go                                                 </br>
 Go shawty, it's your birthday                                          </br>
 We gon' party like it's your birthday                                  </br>
@@ -155,7 +159,15 @@ UNIVERSAL MUSIC CORPORATION;50 CENT MUSIC;WB MUSIC CORP.;MUSIC OF WINDSWEPT;ELVI
         </div>
     </body>
 	
-	<javascript>
-	
+	<script type="JavaScript">
+		
+		function start(){
+		var scroll = document.getElementById('scrollText');
+		scroll.start();
+		
+		scroll.scrollamount = document.getElementById('points').value;
+		
+		}
+		
 	</script>
-</html>C:\Users\Matthew\Documents\GitHub\mmeinen.github.io\funnel.html
+</html>
