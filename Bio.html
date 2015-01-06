@@ -11,8 +11,8 @@
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
         <link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">		
 		<link href='http://fonts.googleapis.com/css?family=Raleway:400,300,500' rel='stylesheet' type='text/css'>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
 		<script src="./js/lightbox.min.js"></script>
 		<link href="./css/lightbox.css" rel="stylesheet" />
         <style type="text/css">
@@ -50,6 +50,12 @@
 			p {
 				font-weight: 400; 
 				font-size: 150%; 
+			}
+			
+			.columns {			
+				-webkit-column-count: 2; /* Chrome, Safari, Opera */
+				-moz-column-count: 2; /* Firefox */
+				column-count: 2;
 			}
 						
 			.navbar-default {
@@ -107,10 +113,34 @@
 			}
 			#fixedbutton {
 				position: fixed;
-				bottom: 20px;
+				top: 100px;
 				left: 20px; 
 			}
-			
+			.panel-heading.accordion-toggle:after {
+    /* symbol for "opening" panels */
+    font-family:'Glyphicons Halflings';
+    /* essential for enabling glyphicon */
+    content:"\e114";
+    /* adjust as needed, taken from bootstrap.css */
+    float: right;
+    position: relative;
+    bottom: 23px;
+    font-size: 15pt;
+    /* adjust as needed */
+    color: grey;
+    /* adjust as needed */
+}
+.panel-heading.accordion-toggle.collapsed:after {
+    /* symbol for "collapsed" panels */
+    content:"\e080";
+    /* adjust as needed, taken from bootstrap.css */
+}
+.panel-heading:hover {
+    cursor: pointer;
+}
+.panel-heading:hover h4 {
+    text-decoration: underline;
+}
         </style>
 		<script>
 		</script>		
@@ -140,21 +170,15 @@
 		</div>	
 		
 		<a id="fixedbutton" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./funnel.html#Involved"><i class="glyphicon glyphicon-chevron-left"></i> Back</a>	
-					
-		<div class="row" >
-			<div class="jumbotron background" style="background-image: url(./img/Thoughtful.jpg);">	
-				<div class="col-sm-12 powerStatement"
-				style="background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)); border-radius:5px 5px 5px 5px; text-align:center;" >
-					<h2> I support the carefully thought out policies developed with the citizens of this country in mind.</h2>
-				</div>
-			</div>	
-		</div>
-		
-		<div class="container" 
-				style="background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)); border-radius:5px 5px 5px 5px; padding:40px;">
-		<!-- this will be the footer -->
-		<p style="font-size: 100%;"> Page by Matthew Meinen </p>
-		</div>
+		<div class="row" style="padding-top:80px">
+		<div class="container">
+			<h1 class="text-center"> Signup Instructions </h1>
+			<p class="columns">
+			At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat.
+			
+			</p>
+			</div>
+		</div>			
     </body>
 	
 </html>
