@@ -4,25 +4,415 @@
 <html>
     <head>
         <link rel="shortcut icon" href="https://dl.dropboxusercontent.com/u/51498033/information.ico">
-        <title>Marian Gagn&#233 </title>
+		<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+        <title> Marian Gagn&#233 </title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <!-- Bootstrap -->
-        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css">
-        <link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+        <link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">		
+		<link href='http://fonts.googleapis.com/css?family=Raleway:400,300,500' rel='stylesheet' type='text/css'>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+		<script src="./js/lightbox.min.js"></script>
+		<link href="./css/lightbox.css" rel="stylesheet" />
         <style type="text/css">
+			body {
+				font-family: 'Raleway', sans-serif; 
+				color: 	#242a31;			
+			}
+			a:link  {
+				color: 	#242a31;			
+			}
+			a:visited {
+				color: 	#242a31;			
+			}
+			a:hover {
+				color: #FF0000;
+			}
+			a:active { 
+				color: #242a31; 
+			}
+			h1 {
+				font-weight: 500; 
+				font-size: 40px; 
+			}
+
+			h2 {
+				font-weight: 400; 
+				font-size: 30px; 
+				color: rgb(13,83,172); 
+			}
+
+			h3 {
+				font-weight: 400; 
+				font-size: 20px; 
+			}
+			
+			h4 {
+				font-weight: 400; 
+				font-size: 20px; 
+				color: rgb(13,83,172); 
+			}
+			
+			p {
+				font-weight: 400; 
+				font-size: 125%; 
+				text-align: justify;
+			}
+			
+			.columns {			
+				-webkit-column-count: 2; /* Chrome, Safari, Opera */
+				-moz-column-count: 2; /* Firefox */
+				column-count: 2;
+			}
+						
+			.navbar-default {
+				font-weight: 400; 
+				color: #ff0000;			
+			}
+
 			.fill {
 				min-height: 100%;
 				height: 100%;
 			}
+			
+			.background {
+				background-size: cover;
+				background-position: top;
+				background-repeat: no-repeat;
+				min-height: 500px;
+				height: 100vh;
+			}
+			
+			.backgroundInvolved {
+				background-image: url('./img/localBusiness.jpg');
+				margin-left: auto;
+				margin-right: auto;
+				background-size: cover;
+				background-position: top;
+				background-repeat: no-repeat;
+				min-height: 200px;
+			}
+			
+			
+			.backgroundFamily {
+				background-image: url('./img/Family.jpg');
+				margin-left: auto;
+				margin-right: auto;
+				background-size: cover;
+				background-position: top;
+				background-repeat: no-repeat;
+				min-height: 200px;
+			}
+			
+			.anchor {
+			  display: block;
+			  height: 80px; /*same height as header*/
+			  margin-top: -80px; /*same height as header*/
+			  visibility: hidden;
+			}
+			
+			.powerStatement {
+				margin-top: 20vh;
+				margin-left: 5vw;
+				color: 	#242a31;			
+				width: 35vw;
+			}
+			
+			.whiteBackground {
+				background-image: linear-gradient(rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.75)); 
+				border-radius:5px 5px 5px 5px; 
+				padding: 10px;
+			}
+			
+			.solidWhiteBackground {
+				background-image: linear-gradient(rgb(255, 255, 255), rgb(255, 255, 255)); 
+				border-radius:5px 5px 5px 5px; 
+				padding: 10px;
+			}
+			
+			.grayBackground {
+				background-image: linear-gradient(rgba(189,189,189,0.5), rgba(189,189,189,0.5)); 
+				border-radius:5px 5px 5px 5px; 
+				padding: 10px;
+			}
+			
+			.panel-heading.accordion-toggle:after {
+				/* symbol for "opening" panels */
+				font-family:'Glyphicons Halflings';
+				/* essential for enabling glyphicon */
+				content:"\e114";
+				/* adjust as needed, taken from bootstrap.css */
+				float: right;
+				position: relative;
+				bottom: 23px;
+				font-size: 15pt;
+				/* adjust as needed */
+				color: grey;
+				/* adjust as needed */
+			}
+			
+			.panel-heading.accordion-toggle.collapsed:after {
+				/* symbol for "collapsed" panels */
+				content:"\e080";
+				/* adjust as needed, taken from bootstrap.css */
+			}
+			
+			.panel-heading:hover {
+				cursor: pointer;
+			}
+			
+			.panel-heading:hover h4 {
+				text-decoration: underline;
+			}
         </style>
 		<script>
-			//prolly won't need anything here
 		</script>		
     </head>
-    <body>		
-		<div class="jumbotron fill" style="background-image: url('http://placehold.it/1200x480');">			
-			<h1 class="text-center"> Site Under Construction </h1>
-		</div>			
+    <body>
+		<div class="navbar navbar-default navbar-fixed-top" style="height:80px; background: rgba(13,83,172,0.9);">
+			<div class="container" >
+			  <div class="navbar-header">
+				<button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+				  <span class="icon-bar"></span>
+				  <span class="icon-bar"></span>
+				  <span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand" style="font-weight: 500; font-size: 40px;  color: white; margin-top:15px;" href="#"> Marian Gagn&#233 </a>
+			  </div>
+			  <div class="collapse navbar-collapse">
+				<ul class="nav navbar-nav" style="margin-top:15px; float:right; margin-right: 15px;">
+				  <li><a style="font-weight: 500; color: white;" href="#Bio" >About Marian</a></li>
+				  <li><a style="font-weight: 500; color: white;" href="#Involved" >Get Involved</a></li>
+				  <li><a style="font-weight: 500; color: white;" href="#Riding" >New Riding</a></li>
+				  <li><a style="font-weight: 500; color: white;" href="./News.html" >News</a></li>
+				  <li><a style="font-weight: 500; color: white;" href="http://ca.linkedin.com/pub/marian-meinen-gagn%C3%A9/70/479/a16?domainCountryName=Canada&csrfToken=guest_token&domainCountryCode=ca" target="_blank">LinkedIn <i class="fa fa-linkedin-square"></i></a></li>
+				  <li><a style="font-weight: 500; color: white;" href="https://www.facebook.com/profile.php?id=100008704474862" target="_blank">Facebook <i class="fa fa-facebook-square"></i></a></li>
+				</ul>
+			  </div>
+			</div>
+		</div>	
+		
+		
+		<div class="row" style="padding-top:80px;">
+			<div class="row background" style="background-image: url(./img/ProfessionalMain.jpg);">	
+				<div class="col-sm-12 powerStatement"
+				style="background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)); border-radius:5px 5px 5px 5px; text-align:center;" >
+					<h2 style="color: #242a31;padding-bottom:10px;"> Seeking the Conservative nomination in </br> Kitchener South-Hespeler</h2>
+				</div>
+			</div>	
+		</div>
+		
+		<div class="anchor" id="Bio"></div>
+		<div class="row" style="height:20px; background: rgba(13,83,172,0.9);"></div>
+		<div class="row background" >
+			<div class="col-sm-2">
+				<h2 class="text-center" style="color: 	#242a31;"> Get to know Marian </h2>
+				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#about" aria-expanded="true">
+					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500;">About</h4>
+				</div>
+				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#policies">
+					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500;">Policies</h4>
+				</div>
+				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#whynow">
+					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500; ">Why Now?</h4>
+				</div>
+				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#family">
+					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500; ">Family</h4>
+				</div>
+				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#endorsements">
+					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500;">Endorsements</h4>
+				</div>			
+			</div>				
+			<div class="col-sm-10">
+				<div class="panel-group" id="accordion1">				
+					<div class="panel panel-default">
+						<div id="about" class="panel-collapse collapse in" aria-expanded="true">
+							<div class="panel-body">
+								<h1 class="text-center"> About Marian </h1>
+								<div class="row">
+									<div class="col-sm-8">
+										 <p class="columns" style="font-size:100%;font-weight:500;">					 
+												Marian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked.
+Marian met her husband Scott in the church they both attended. They built a business-carpentry at first-while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes.
+During her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees.
+Marian's interest in politics grew over the years. She first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge.
+Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.</p>
+									</div>
+									<div class="col-sm-4">
+										<img src="./img/Casual.jpg" class="img-circle img-responsive center-block">
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="panel panel-default">
+						<div id="policies" class="panel-collapse collapse">
+							<div class="panel-body">
+								<h1 class="text-center"> Policies </h1>
+							
+							</div>
+						</div>
+					</div>
+					<div class="panel panel-default">
+						<div id="whynow" class="panel-collapse collapse">
+							<div class="panel-body">
+								<h1 class="text-center"> Why Now </h1>
+								<div class="col-sm-7">
+									<p class="columns">
+									With my sons grown and on their own, and the support of a loving spouse, the time is certainly right for me to seek the nomination in our riding. I believe that my years of business, volunteer and government experience give me the background necessary to become a Member of Parliament. I've helped create and grow a small business with a strong emphasis on customer satisfaction. I've made connections with the Members of Parliament in the Southwestern Ontario caucus and with many cabinet Ministers over my years of involvement with both the Conservative Party and the government. My knowledge of campaigning is from the ground up. I've worked the phones, knocked on doors, served as election day chair, coloured in poll maps-no job was too big or too small. This background will allow me to hit the ground running as a candidate and then-if the voters decide-as your Member of Parliament.
+									
+									</p>
+								</div>
+								<div class="col-sm-5">
+									<img src="./img/ProfessionalBig.jpg" class="img-circle img-responsive center-block">
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="panel panel-default">
+						<div id="family" class="panel-collapse collapse">
+							<div class="panel-body">
+								<div class="row">
+									<div class="row backgroundFamily" style="height:40vh;" >
+									</div>
+								</div>
+								<h1 class="text-center"> Meet the Family </h1>
+								<p>
+								Marian's sons Jonathan, James, Greg, Daniel, Matthew and Benjamin are grown and living across Canada. Four are married and the family now includes six grandchildren with three more on the way.</p>
+							</div>
+						</div>
+					</div>
+					<div class="panel panel-default">
+						<div id="endorsements" class="panel-collapse collapse">
+							<div class="panel-body">
+								<div class="row">
+									<div class="col-sm-8">
+										<h1 class="text-center"> Endorsements </h1>
+										<div class="container" style="width:50vw;" >
+											<p>
+											"Since I first met Marian seven years ago, she has consistently demonstrated her deep understanding of the issues and her commitment to improving the lives of Canadians. Marian has been a true friend to me, offering her support at every opportunity. She would be a great asset for the Party as a Member of Parliament."
+											 </p>
+											 <ul>
+												<li>
+													<p style="color:rgb(13,83,172);">
+													Stephen Woodworth, Member of Parliament for Kitchener Centre
+													</p>
+												</li>
+											</ul>
+											<div class="row" style="height:2px; background: rgba(13,83,172,0.5);"></div>
+										</div>
+										<div class="container" style="padding-top:5px;width:50vw;" >
+											<p>
+											"I have had the pleasure to work with Marian Gagne for several years in my role as an MP. I have always found her to be professional, thorough and accessible. In my opinion, these are all great attributes for a Member of Parliament to have." 
+											 </p>
+											 <ul>
+												<li>
+													<p style="color:rgb(13,83,172);">
+													 Larry Miller, Member of Parliament for Bruce-Grey-Owen Sound
+													</p>
+												</li>
+											</ul>
+											<div class="row" style="height:2px; background: rgba(13,83,172,0.5);"></div>
+										</div>								 
+										<div class="container" style="padding-top:5px;width:50vw;" >
+											<ul>
+												<li>
+													 <p style="color:rgb(13,83,172);">
+													 Susan Truppe, Member of Parliament and Parliamentary Secretary for Status of Women
+													 </p>
+												</li>
+												<li>
+													 <p style="color:rgb(13,83,172); ">
+													Karen Vecchio, Conservative Candidate for Elgin-Middlesex-London
+													 </p>
+												</li>
+											</ul>
+										</div>	
+									</div>
+									<div class="col-sm-4">
+										<img src="./img/EndorseDFSquare.jpg" class="img-circle img-responsive center-block">									
+									</div>
+								</div>								 
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>			
+		</div>
+		
+		<div class="row" style="height:100vh" >
+			<div class="anchor" id="Involved" ></div>
+			<div class="row backgroundInvolved" style="height:40vh;" >
+			</div>
+			<div class="row" style="height:20px; background: rgba(13,83,172,0.9);"></div>
+			<div class="container">
+				<div class="row" style="height:55vh;">
+					<div class="col-sm-8" style="height:100%">
+						<h2 class="text-center"> Membership Matters </h2>
+						<div class="col-sm-6">
+							<p> 
+	Become a member; encourage friends and family to take out a membership.  In a contested nomination, every vote counts, and you can only vote if you are a member.
+	See signup instructions for details. Please email me at <a href="mailto:mariangagne1@gmail.com?Subject=Membership%20Signup" target="_top">mariangagne1@gmail.com <i class="glyphicon glyphicon-envelope"></i></a>
+							 when you've filled out your membership form, and someone will stop by to pick it up.
+							</p><p>
+	Check back here for the date of the nomination meeting (the date has not yet been set).
+							</p>
+						</div>
+						<div class="col-sm-6">
+							<div class="row">
+								<div class="col-sm-6">
+									<a href="./img/MembershipFamily.pdf" target="_blank"> 
+										<img src="./img/FamMemberPreview.jpg" class="img-responsive center-block"></img>
+										<p class="text-center" style="font-size:100%;">Family Membership</p>
+									</a>
+								</div>
+								<div class="col-sm-6">
+									<a href="./img/MembershipIndividual.pdf" target="_blank"> 
+										<img src="./img/IndMemberPreview.jpg" class="img-responsive center-block"></img>
+										<p class="text-center" style="font-size:100%;" >Individual Membership</p>								
+									</a>	
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="col-sm-4 ">		
+						<h2 class="text-center"> Volunteer </h2>		
+						<p>
+							It's a good idea to help me out. Join our mailing list here:
+							<a href="mailto:the_big_-m-@ehotmail.com?Subject=Volunteer%20Signup" target="_top">example@example.com <i class="glyphicon glyphicon-envelope"></i></a>
+							
+						</p>	
+					</div>
+				</div>
+			</div>	
+		</div>
+		<div class="row background" >
+			<div class="anchor" id="Riding" ></div>
+			<div class="container">				
+				<h1 class="text-center" style="color: rgb(13,83,172);">Kitchener South-Hespeler</h1>
+				<div class="col-sm-12 col-md-7">
+					<p class="columns">
+					The Constitution of Canada requires that the number of seats in the House of Commons be recalculated and the boundaries of federal electoral districts be reviewed after each 10-year census to reflect changes and movements in Canada's population. This process is known as the redistribution of federal electoral districts. The recalculating process after the 2011 census led to one new riding being created in our area for the 2015 election, called Kitchener South-Hespeler.
+The new riding's boundaries as described by Elections Canada:
+(a) the part of the City of Cambridge lying northerly of Highway No. 401 (Hespeler)
+(b) the part of the City of Kitchener lying easterly and southerly of a line described as follows: commencing at the intersection of the southerly limit of said city with Fischer-Hallman Road; thence generally northerly along said road to Conestoga Parkway; thence generally northeasterly along said parkway to Highway No. 8; thence southeasterly along said highway to Fairway Road South; thence generally northeasterly along said road, Fairway Road North and Woolner Drive to Zeller Drive; thence southeasterly along Kossuth Road and its southeasterly production to the easterly limit of said city (Grand River).</p>
+				</div>
+				<div class="col-sm-0 col-md-5 container" >
+				<a href="./img/RidingMap.png" data-lightbox="image-1" data-title="Kitchener South-Hespeler">
+								<img src="./img/RidingMap.png" class="img img-responsive center-block"></img>
+					 <p style="font-weight: 500; text-align: center;">Click to enlarge</p>
+				</a>
+				</div>
+			</div>	
+		</div>
+		
+		
+		<div class="container" 
+				style="background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)); border-radius:5px 5px 5px 5px; padding:40px;">
+		<!-- this will be the footer -->
+		<p style="font-size: 100%;"> Page by Matthew Meinen </p>
+		</div>
     </body>
 	
 </html>
