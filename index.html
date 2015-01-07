@@ -11,7 +11,7 @@
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
         <link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">		
 		<link href='http://fonts.googleapis.com/css?family=Raleway:400,300,500' rel='stylesheet' type='text/css'>
-		<script src="https://code.jquery.com/jquery-1.8.3.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
 		<script src="./js/lightbox.min.js"></script>
 		<link href="./css/lightbox.css" rel="stylesheet" />
@@ -173,8 +173,11 @@
 			}
         </style>
 		<script>
-			function nextBio(){
 			
+			$(window).on('shown.bs.collapse' function () {
+				$(this).trigger('resize');
+			});
+			function nextBio(){
 				document.getElementById("bioText").innerHTML = "<span class='bigger'>S</span>he first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge. Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.";
 				document.getElementById("next").style.visibility = 'hidden';
 				document.getElementById("prev").style.visibility = 'visible';
