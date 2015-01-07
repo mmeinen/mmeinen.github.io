@@ -11,8 +11,8 @@
         <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
         <link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">		
 		<link href='http://fonts.googleapis.com/css?family=Raleway:400,300,500' rel='stylesheet' type='text/css'>
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+		<script src="https://code.jquery.com/jquery-1.8.3.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
 		<script src="./js/lightbox.min.js"></script>
 		<link href="./css/lightbox.css" rel="stylesheet" />
         <style type="text/css">
@@ -58,6 +58,12 @@
 				font-weight: 400; 
 				font-size: 125%; 
 				text-align: justify;
+			}
+			
+			.bigger {			
+				font-weight: 400; 
+				font-size: 30px; 
+				color: rgb(13,83,172); 
 			}
 			
 			.columns {			
@@ -168,13 +174,14 @@
         </style>
 		<script>
 			function nextBio(){
-				document.getElementById("bioText").innerHTML = "She first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge. Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.";
+			
+				document.getElementById("bioText").innerHTML = "<span class='bigger'>S</span>he first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge. Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.";
 				document.getElementById("next").style.visibility = 'hidden';
 				document.getElementById("prev").style.visibility = 'visible';
 			}
 			
 			function prevBio(){
-				document.getElementById("bioText").innerHTML = "Marian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked. Marian met her husband Scott in the church they both attended. They built a carpentry business while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes. During her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees. Marian's interest in politics grew over the years...";
+				document.getElementById("bioText").innerHTML = "<span class='bigger'>M</span>arian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked. Marian met her husband Scott in the church they both attended. They built a carpentry business while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes. During her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees. Marian's interest in politics grew over the years...";
 				document.getElementById("next").style.visibility = 'visible';
 				document.getElementById("prev").style.visibility = 'hidden';			
 			}
