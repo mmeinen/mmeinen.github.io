@@ -167,6 +167,18 @@
 			}
         </style>
 		<script>
+			function nextBio(){
+				document.getElementById("bioText").innerHTML = "She first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge. Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.";
+				document.getElementById("next").style.visibility = 'hidden';
+				document.getElementById("prev").style.visibility = 'visible';
+			}
+			
+			function prevBio(){
+				document.getElementById("bioText").innerHTML = "Marian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked. Marian met her husband Scott in the church they both attended. They built a carpentry business while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes. During her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees. Marian's interest in politics grew over the years...";
+				document.getElementById("next").style.visibility = 'visible';
+				document.getElementById("prev").style.visibility = 'hidden';			
+			}
+		
 		</script>		
     </head>
     <body>
@@ -208,7 +220,7 @@
 		<div class="row background" >
 			<div class="col-sm-2">
 				<h2 class="text-center" style="color: 	#242a31;"> Get to know Marian </h2>
-				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#about" aria-expanded="true">
+				<div class="panel-heading accordion-toggle" data-toggle="collapse" data-parent="#accordion1" data-target="#about" aria-expanded="true">
 					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500;">About</h4>
 				</div>
 				<div class="panel-heading accordion-toggle collapsed" data-toggle="collapse" data-parent="#accordion1" data-target="#policies">
@@ -232,15 +244,20 @@
 								<h1 class="text-center"> About Marian </h1>
 								<div class="row">
 									<div class="col-sm-8">
-										 <p class="columns" style="font-size:100%;font-weight:500;">					 
+										 <p id="bioText" class="columns">					 
 												Marian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked.
 Marian met her husband Scott in the church they both attended. They built a business-carpentry at first-while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes.
 During her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees.
-Marian's interest in politics grew over the years. She first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge.
-Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.</p>
+Marian's interest in politics grew over the years. . . 
+</p>
 									</div>
 									<div class="col-sm-4">
 										<img src="./img/Casual.jpg" class="img-circle img-responsive center-block">
+										
+									<div class="text-center"  style="padding-top:15px;">
+		<a id="prev" type="button"  style="color:#ffffff; visibility:hidden;" class="btn btn-primary text-center" href="./index.html#" onclick="prevBio();return false;"><i class="glyphicon glyphicon-chevron-left"></i> Previous Page </a>	
+		<a id="next" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./index.html#" onclick="nextBio();return false;"> Next Page <i class="glyphicon glyphicon-chevron-right"></i></a>	
+									</div>
 									</div>
 								</div>
 							</div>
@@ -251,29 +268,37 @@ Marian wound up the construction business after her husband lost his long battle
 							<div class="panel-body">
 								<h1 class="text-center"> Policies </h1>
 							
-										<div class="container" style="padding-top:5px; width:80vw;" >
+										<div class="container" style="padding-top:5px; width:78vw;" >
+											<ul><li>
 											<p>
 											As a candidate, I will be proud to run on the record of our government under Prime Minister Harper. Some of the policies I'm particularly proud of include policies that make the lives of families better, that build and maintain our infrastructure, and economic policies that continue to keep taxes low while leading us back to surplus. I support policies that cut the GST from 7 to 5%; created Tax-Free Savings Accounts, which now benefit nearly 11 million Canadians; and reduced the lowest personal income tax rate and increased the basic personal amount. I was a member of the policy committee which proposed this last policy, built support for it from ridings across Canada, and brought the proposal to the floor of a policy convention. It was thrilling to see the delegates' voting cards go up in a yes vote for this policy, and even better when our government implemented the policy.
-											</p>											 
+											</p>
+											</li></ul>												 
 											<div class="row" style="height:2px; background: rgba(13,83,172,0.5);"></div>
 										</div>
-										<div class="container" style="padding-top:5px; width:80vw;" >
+										<div class="container" style="padding-top:5px; width:78vw;" >
+											<ul><li>
 											<p>
 											I support increased benefits for families-a number of these will take effect as of January 1, 2015 and I look forward to knocking on doors to discuss these benefits. Parents will receive an enhanced Universal Child Care benefit of $160 per month for each child under the age of six -and a new benefit of up to $720 a year for children aged six through 17.  The Family Tax Cut is a federal tax credit of up to $2,000 for couples with children under the age of 18, effective for the 2014 tax year.
-											</p>											 
+											</p>	
+											</li></ul>											 
 											<div class="row" style="height:2px; background: rgba(13,83,172,0.5);"></div>
 										</div>
-										<div class="container" style="padding-top:5px; width:80vw;" >
+										<div class="container" style="padding-top:5px; width:78vw;" >
+											<ul><li>
 											<p>
 											As the mother of a veteran of the war in Afghanistan, I've seen the programs that work for our vets as well as those that may need some fine tuning. I'd like to champion our government's compassionate care for the vets who have come back wounded in body or spirit.
  
-											</p>											 
+											</p>
+											</li></ul>												 
 											<div class="row" style="height:2px; background: rgba(13,83,172,0.5);"></div>
 										</div>
-										<div class="container" style="padding-top:5px; width:80vw;" >
-											<p>
-											I'm pleased to have been able to attend a number of our government's local pre-budget consultations which listened to Canadians and heard their views on how Canada can create jobs, growth and long-term prosperity. I've heard that we need to reduce red tape and make government more nimble for business, big and small, and I've seen our government respond to these challenges. I've also heard that we need policies to keep taxes low, and heard plaudits about the expected return to surplus after the government invested in infrastructure during difficult economic times worldwide.  The focus has on been creating jobs and growth, and as someone who's operated a small business, I will keep this a clear focus in our new riding of Kitchener South-Hespeler.
-											</p>											 
+										<div class="container" style="padding-top:5px; width:78vw;" >
+											<ul><li>
+												<p>
+												I'm pleased to have been able to attend a number of our government's local pre-budget consultations which listened to Canadians and heard their views on how Canada can create jobs, growth and long-term prosperity. I've heard that we need to reduce red tape and make government more nimble for business, big and small, and I've seen our government respond to these challenges. I've also heard that we need policies to keep taxes low, and heard plaudits about the expected return to surplus after the government invested in infrastructure during difficult economic times worldwide.  The focus is on creating jobs and growth, and as someone who's operated a small business, I will keep this a clear focus in our new riding of Kitchener South-Hespeler.
+												</p>
+											</li></ul>											
 										</div>
 										
 									
@@ -307,7 +332,8 @@ Marian wound up the construction business after her husband lost his long battle
 								</div>
 								<h1 class="text-center"> Meet the Family </h1>
 								<p>
-								Marian's sons Jonathan, James, Greg, Daniel, Matthew and Benjamin are grown and living across Canada. Four are married and the family now includes six grandchildren with three more on the way.</p>
+								Marian's sons Jonathan (Andrea), James (Kim), Greg (Jourdan), Daniel, Matthew (Ainsley) and Benjamin are grown and living across Canada. Four are married and the family now includes six grandchildren with three more on the way. James, Kim and their children were not able to make it to Ontario for this family portrait.
+								</p>
 							</div>
 						</div>
 					</div>
