@@ -36,6 +36,12 @@
 				document.getElementById("next").style.visibility = 'visible';
 				document.getElementById("prev").style.visibility = 'hidden';			
 			}	
+			
+			$(document).on('click','.navbar-collapse.in',function(e) {
+				if( $(e.target).is('a') ) {
+					$(this).collapse('hide');
+				}
+			});
 		
 		</script>		
     </head>
@@ -48,10 +54,11 @@
 				  <span class="icon-bar"></span>
 				  <span class="icon-bar"></span>
 				</button>
-				<a class="navbar-brand" style="font-weight: 500; font-size: 35px;  color: white; margin-top:15px;" href="#"> Marian Meinen-Gagn&#233 </a>
+				<a class="navbar-brand hidden-xs" style="font-weight: 500; font-size: 35px;  color: white; margin-top:15px;" href="#"> Marian Meinen-Gagn&#233 </a>
+				<a class="navbar-brand hidden-lg hidden-md hidden-sm" style="font-weight: 500; font-size: 32px;  color: white; margin-top:15px;" href="#">Meinen-Gagn&#233 </a>
 			  </div>
 			  <div class="collapse navbar-collapse">
-				<ul class="nav navbar-nav" style="margin-top:15px; float:right;">
+				<ul class="nav navbar-nav hidden-xs" style="margin-top:15px; float:right;">
 				    <li class="hidden-md hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="#Bio" >About Marian</a></li>
 				    <li><a style="font-weight: 500; color: white;" href="#Involved" >Get Involved</a></li>
 				    <li class="hidden-md hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="#Riding" >New Riding</a></li>
@@ -66,18 +73,34 @@
 						</form>
 					</li>
 				</ul>
+				
+				<ul class="nav navbar-nav hidden-lg hidden-md hidden-sm" style="margin-top:15px; float:right;  background: rgba(13,83,172,0.9);">
+				    <li><a style="font-weight: 500; color: white;" href="#Bio" >About Marian</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="#Involved" >Get Involved</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="#Riding" >New Riding</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="./News.html" >News</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="http://ca.linkedin.com/pub/marian-meinen-gagn%C3%A9/70/479/a16?domainCountryName=Canada&csrfToken=guest_token&domainCountryCode=ca" target="_blank">LinkedIn <i class="fa fa-linkedin-square"></i></a></li>
+				    <li><a style="font-weight: 500; color: white;" href="https://www.facebook.com/profile.php?id=100008704474862" target="_blank">Facebook <i class="fa fa-facebook-square"></i></a></li>
+					<li> 				
+						<a style="font-weight: 500; color: white;" href="#" onclick="$('#donate').submit();" >Donate <i class="fa fa-paypal"></i></a>
+						<form id="donate" action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+							<input type="hidden" name="cmd" value="_s-xclick">
+							<input type="hidden" name="encrypted" value="-----BEGIN PKCS7-----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-----END PKCS7-----">
+						</form>
+					</li>
+				</ul>
 			  </div>
 			</div>
 		</div>	
 		
-		
+				
 		<div class="row hidden-sm hidden-xs" style="padding-top:80px;">
-			<div class="row background" style="background-image: url(./img/ProfessionalMain.jpg);">	
-				<div class="col-lg-12 col-md-12 hidden-sm hidden-xs powerStatement" >
-					<h1 style="color: #242a31; padding-top:15px; padding-bottom:10px;"> The Right Experience</br> and the Right Choice</h1>
-					<h3 style="color: #242a31; padding-bottom:10px;"> Seeking the Conservative nomination </br>in Kitchener South-Hespeler</h3>
+			<div class="row background"  style="background-image: url(./img/ProfessionalMain.jpg);">	
+				<div class="col-lg-12 col-md-12 powerStatement" >
+					<h1 style="color:  #242a31;  padding-top:15px; padding-bottom:10px;"> The Right Experience</br> and the Right Choice</h1>
+					<h3 style="color: #242a31;  padding-bottom:10px;"> Seeking the Conservative nomination </br>in Kitchener South-Hespeler</h3>
 				</div>
-			</div>	
+			</div>
 		</div>
 		
 		<div class="hidden-lg hidden-md" style="padding-top:80px"></div>
@@ -85,7 +108,7 @@
 		<div class="anchor" id="Bio"></div>
 		<div class="row" style="height:20px; background: rgba(13,83,172,0.9);"></div>
 		<div class="row background" style="padding-left:30px;" >
-			<div class="col-lg-2 col-md-2 col-sm-3">
+			<div class="col-lg-2 col-md-2 col-sm-3 co-xs-12">
 				<h2 class="text-center" style="color: 	#242a31;"> Get to know Marian </h2>
 				<div class="panel-heading accordion-toggle" data-toggle="collapse" data-parent="#accordion1" data-target="#about" aria-expanded="true">
 					 <h4 class="panel-title" style="color: rgb(13,83,172); font-weight:500;">About</h4>
@@ -104,12 +127,12 @@
 					 <h4 class="panel-title hidden-lg" style="color: rgb(13,83,172); font-weight:500;">Endorsed</h4>
 				</div>					
 			</div>				
-			<div class="col-lg-10 col-md-10 col-sm-9">
+			<div class="col-lg-10 col-md-10 col-sm-9 col-xs-12">
 				<div class="panel-group" id="accordion1">				
 					<div class="panel panel-default">
 						<div id="about" class="panel-collapse collapse in" aria-expanded="true">
 							<div class="panel-body">
-								<img id="aboutImage" src="./img/ProfessionalMain.jpg" class="img-responsive center-block hidden-md hidden-lg hidden-xs">
+								<img id="aboutImage" src="./img/ProfessionalMain.jpg" class="img-responsive center-block hidden-md hidden-lg hidden-xs"></img>
 								<h1 > About Marian </h1>
 								<div class="row">
 									<div class="col-lg-8 col-md-12 col-sm-12 colxs-12">
@@ -330,35 +353,40 @@ Marian met her husband Scott in the church they both attended. They built a carp
 			<div class="container">
 				<div class="row" style="height:55vh;">
 					<div class="col-lg-8 col-md-12" style="height:100%">
-						<h2 class="text-center"> Membership Matters </h2>
-						<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
-							<p> 
-							Become a member; encourage friends and family to take out a membership.  In a contested nomination, every vote counts, and you can only vote if you are a member. 
-							Membership forms can be found to the right. Please email me at <a href="mailto:MarianforMP@gmail.com?Subject=Membership%20Signup" target="_top">MarianforMP@gmail.com <i class="glyphicon glyphicon-envelope"></i></a>
-							 when you've filled out your membership form, and someone will stop by to pick it up.
-							</p>
-							<p>
-							Check back here for the date of the nomination meeting (the date has not yet been set).
-							</p>
-						</div>
-						<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
-							<div class="row">
-								<div class="col-lg-6 col-md-6 col-sm-6">
-									<a href="./img/MembershipFamily.pdf" target="_blank"> 
-										<img src="./img/FamMemberPreview.jpg" class="img-responsive center-block"></img>
-										<p class="text-center" style="font-size:100%;">Family Membership</p>
-									</a>
+						<div class="row">
+							<h2 class="text-center"> Membership Matters </h2>
+							<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
+								<p> 
+								Become a member; encourage friends and family to take out a membership.  In a contested nomination, every vote counts, and you can only vote if you are a member. 
+								Membership forms can be found to the right. Please email me at <a href="mailto:MarianforMP@gmail.com?Subject=Membership%20Signup" target="_top">MarianforMP@gmail.com <i class="glyphicon glyphicon-envelope"></i></a>
+								 when you've filled out your membership form, and someone will stop by to pick it up. 
+								</p>								
+								<p>
+								Check back here for the date of the nomination meeting (the date has not yet been set).
+								</p>
+							</div>
+							<div class="col-lg-6 col-md-6 col-sm-12 col-xs-12">
+								<div class="row">
+									<div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
+										<a href="./img/MembershipFamily.pdf" target="_blank"> 
+											<img src="./img/FamMemberPreview.jpg" class="img-responsive center-block"></img>
+											<p class="text-center" style="font-size:100%;">Family Membership</p>
+										</a>
+									</div>
+									<div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
+										<a href="./img/MembershipIndividual.pdf" target="_blank"> 
+											<img src="./img/IndMemberPreview.jpg" class="img-responsive center-block"></img>
+											<p class="text-center" style="font-size:100%;" >Individual Membership</p>								
+										</a>	
+									</div>
 								</div>
-								<div class="col-lg-6 col-md-6 col-sm-6">
-									<a href="./img/MembershipIndividual.pdf" target="_blank"> 
-										<img src="./img/IndMemberPreview.jpg" class="img-responsive center-block"></img>
-										<p class="text-center" style="font-size:100%;" >Individual Membership</p>								
-									</a>	
+								<div class="row text-center">
+									<a style="color:#ffffff;" target="_blank" class="btn btn-primary text-center" href="https://donate.conservative.ca/membership?lang=en&utm_source=organic&utm_medium=conservative_ca&utm_campaign=nav_join" > Sign up online </a>	
 								</div>
 							</div>
 						</div>
 					</div>
-					<div class="col-lg-4 col-md-12 col-sm-12 col-xs-12">		 
+					<div class="col-lg-4 col-md-12 col-sm-12 col-xs-12">	 
 						<h2 class="text-center"> Volunteer </h2>		
 						<p>
 							Our campaign welcomes volunteers to help contact the membership and sell new memberships during this nomination campaign.
@@ -370,33 +398,42 @@ Join the campaign team by emailing
 					</div>
 				</div>
 			</div>	
-		</div>
-		<div class="row background" >
-			<div class="anchor" id="Riding" ></div>
-			<div class="container">				
-				<h1 class="text-center" style="color: rgb(13,83,172);">Kitchener South-Hespeler</h1>
-				<div class="col-lg-8 col-md-9 col-sm-12 col-xs-12">
-					<p class="columns">
-					The Constitution of Canada requires that the number of seats in the House of Commons be recalculated and the boundaries of federal electoral districts be reviewed after each 10-year census to reflect changes and movements in Canada's population. This process is known as the redistribution of federal electoral districts. The recalculating process after the 2011 census led to one new riding being created in our area for the 2015 election, called Kitchener South-Hespeler.
-The new riding's boundaries as described by Elections Canada:
-(a) the part of the City of Cambridge lying northerly of Highway No. 401 (Hespeler)
-(b) the part of the City of Kitchener lying easterly and southerly of a line described as follows: commencing at the intersection of the southerly limit of said city with Fischer-Hallman Road; thence generally northerly along said road to Conestoga Parkway; thence generally northeasterly along said parkway to Highway No. 8; thence southeasterly along said highway to Fairway Road South; thence generally northeasterly along said road, Fairway Road North and Woolner Drive to Zeller Drive; thence southeasterly along Kossuth Road and its southeasterly production to the easterly limit of said city (Grand River).</p>
+		</div>	
+		<div class="row background">
+			<h1 class="text-center" style="color: rgb(13,83,172);">Kitchener South-Hespeler</h1>
+			<div class="anchor" id="Riding" ></div>	
+			
+			<div class="container">	
+				<div class="row">
+					<div class="col-lg-8 col-md-9 col-sm-12 col-xs-12">
+							<p class="columns hidden-xs">
+							The Constitution of Canada requires that the number of seats in the House of Commons be recalculated and the boundaries of federal electoral districts be reviewed after each 10-year census to reflect changes and movements in Canada's population. This process is known as the redistribution of federal electoral districts. The recalculating process after the 2011 census led to one new riding being created in our area for the 2015 election, called Kitchener South-Hespeler.
+			The new riding's boundaries as described by Elections Canada:
+			(a) the part of the City of Cambridge lying northerly of Highway No. 401 (Hespeler)
+			(b) the part of the City of Kitchener lying easterly and southerly of a line described as follows: commencing at the intersection of the southerly limit of said city with Fischer-Hallman Road; thence generally northerly along said road to Conestoga Parkway; thence generally northeasterly along said parkway to Highway No. 8; thence southeasterly along said highway to Fairway Road South; thence generally northeasterly along said road, Fairway Road North and Woolner Drive to Zeller Drive; thence southeasterly along Kossuth Road and its southeasterly production to the easterly limit of said city (Grand River).
+							</p>
+							<p class="hidden-lg hidden-md hidden-sm">
+							The Constitution of Canada requires that the number of seats in the House of Commons be recalculated and the boundaries of federal electoral districts be reviewed after each 10-year census to reflect changes and movements in Canada's population. This process is known as the redistribution of federal electoral districts. The recalculating process after the 2011 census led to one new riding being created in our area for the 2015 election, called Kitchener South-Hespeler.
+			The new riding's boundaries as described by Elections Canada:
+			(a) the part of the City of Cambridge lying northerly of Highway No. 401 (Hespeler)
+			(b) the part of the City of Kitchener lying easterly and southerly of a line described as follows: commencing at the intersection of the southerly limit of said city with Fischer-Hallman Road; thence generally northerly along said road to Conestoga Parkway; thence generally northeasterly along said parkway to Highway No. 8; thence southeasterly along said highway to Fairway Road South; thence generally northeasterly along said road, Fairway Road North and Woolner Drive to Zeller Drive; thence southeasterly along Kossuth Road and its southeasterly production to the easterly limit of said city (Grand River).
+							</p>
+						</div>
+					<div class="col-lg-4 col-md-3 col-sm-12 col-xs-12" >
+						<a class="hidden-sm hidden-xs" href="./img/RidingMap.png" data-lightbox="image-1" data-title="Kitchener South-Hespeler">
+										<img src="./img/RidingMap.png" class="img img-responsive center-block"></img>
+							 <p style="font-weight: 500; text-align: center;">Click to enlarge</p>
+						</a>
+						<img src="./img/RidingMap.png" class="img img-responsive center-block hidden-lg hidden-md"></img>
+					</div>
 				</div>
-				<div class="col-lg-4 col-md-3 col-sm-12 col-xs-12" >
-					<a class="hidden-sm hidden-xs" href="./img/RidingMap.png" data-lightbox="image-1" data-title="Kitchener South-Hespeler">
-									<img src="./img/RidingMap.png" class="img img-responsive center-block"></img>
-						 <p style="font-weight: 500; text-align: center;">Click to enlarge</p>
-					</a>
-					<img src="./img/RidingMap.png" class="img img-responsive center-block hidden-lg hidden-md"></img>
+				<div class="row">
+					<div class="col-lg-12">
+						<p class="text-center" style="font-size: 100%;"> Page by <a href="mailto:matthewjmeinen@gmail.com?Subject=website" target="_top">Matthew Meinen</a> </p>
+					</div>
 				</div>
-			</div>	
-		</div>
-		
-		</br>
-		</br>
-		<div class="container" style="background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)); border-radius:5px 5px 5px 5px; padding:40px;">
-			<p style="font-size: 100%;"> Page by <a href="mailto:matthewjmeinen@gmail.com?Subject=website" target="_top">Matthew Meinen</a> </p>
-		</div>
+			</div>
+		</div>		
 	</div>
     </body>
 	

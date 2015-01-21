@@ -30,12 +30,27 @@
 				<a class="navbar-brand" style="font-weight: 500; font-size: 40px;  color: white; margin-top:15px;" href="./index.html#">News</a>
 			  </div>
 			  <div class="collapse navbar-collapse">
-				<ul class="nav navbar-nav" style="margin-top:15px; float:right;">
-					<li><a style="font-weight: 500; color: white;" href="./index.html#Bio" >About Marian</a></li>
-					<li><a style="font-weight: 500; color: white;" href="./index.html#Involved" >Get Involved</a></li>
-					<li class="hidden-md hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="./index.html#Riding" >New Riding</a></li>
-					<li><a style="font-weight: 500; color: white;" href="http://ca.linkedin.com/pub/marian-meinen-gagn%C3%A9/70/479/a16?domainCountryName=Canada&csrfToken=guest_token&domainCountryCode=ca" target="_blank">LinkedIn <i class="fa fa-linkedin-square"></i></a></li>
-					<li><a style="font-weight: 500; color: white;" href="https://www.facebook.com/profile.php?id=100008704474862" target="_blank">Facebook <i class="fa fa-facebook-square"></i></a></li>
+				<ul class="nav navbar-nav hidden-xs" style="margin-top:15px; float:right;">
+				    <li class="hidden-md hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="./index.html#Bio" >About Marian</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="./index.html#Involved" >Get Involved</a></li>
+				    <li class="hidden-md hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="./index.html#Riding" >New Riding</a></li>
+				    <li class="hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="http://ca.linkedin.com/pub/marian-meinen-gagn%C3%A9/70/479/a16?domainCountryName=Canada&csrfToken=guest_token&domainCountryCode=ca" target="_blank">LinkedIn <i class="fa fa-linkedin-square"></i></a></li>
+				    <li class="hidden-sm hidden-xs"><a style="font-weight: 500; color: white;" href="https://www.facebook.com/profile.php?id=100008704474862" target="_blank">Facebook <i class="fa fa-facebook-square"></i></a></li>
+					<li> 				
+						<a style="font-weight: 500; color: white;" href="#" onclick="$('#donate').submit();" >Donate <i class="fa fa-paypal"></i></a>
+						<form id="donate" action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+							<input type="hidden" name="cmd" value="_s-xclick">
+							<input type="hidden" name="encrypted" value="-----BEGIN PKCS7-----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-----END PKCS7-----">
+						</form>
+					</li>
+				</ul>
+				
+				<ul class="nav navbar-nav hidden-lg hidden-md hidden-sm" style="margin-top:15px; float:right;  background: rgba(13,83,172,0.9);">
+				    <li><a style="font-weight: 500; color: white;" href="./index.html#Bio" >About Marian</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="./index.html#Involved" >Get Involved</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="./index.html#Riding" >New Riding</a></li>
+				    <li><a style="font-weight: 500; color: white;" href="http://ca.linkedin.com/pub/marian-meinen-gagn%C3%A9/70/479/a16?domainCountryName=Canada&csrfToken=guest_token&domainCountryCode=ca" target="_blank">LinkedIn <i class="fa fa-linkedin-square"></i></a></li>
+				    <li><a style="font-weight: 500; color: white;" href="https://www.facebook.com/profile.php?id=100008704474862" target="_blank">Facebook <i class="fa fa-facebook-square"></i></a></li>
 					<li> 				
 						<a style="font-weight: 500; color: white;" href="#" onclick="$('#donate').submit();" >Donate <i class="fa fa-paypal"></i></a>
 						<form id="donate" action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
