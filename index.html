@@ -24,8 +24,10 @@
 				document.getElementById("bioTextSmall").innerHTML = "<span class='bigger'>D</span>uring her boys' younger years, Marian volunteered for almost every committee her church and the boys' schools had to offer and worked as an editor and translator for a small publishing company. Marian even wrote a novel. She thought it was the great Canadian novel, but none of the publishers did! Charity work was also part of her life, whether raising funds for rare cancer research, the Heart and Stroke foundation or Afghanistan refugees. Marian's interest in politics grew over the years. She first volunteered for the Progressive Conservative party federally-phone banking for a few campaigns. Over the years, she became more involved, joining an EDA (Electoral District Association) board, becoming the president and serving on the executive council of Southwestern Ontario presidents, volunteering on both leadership and local campaigns as well as working on a number of policy committees. Policy to make the lives of Canadians better has remained a passion ever since. Just before the merger of the two legacy parties, Marian had the great privilege of running as a candidate. It was an amazing experience, but highlighted the need for the two parties to merge. Marian wound up the construction business after her husband lost his long battle with cancer, and began to work for the Conservative Party full time as the Regional Organizer for Southwestern Ontario. After almost four years of assisting EDAs prepare for election campaigns by building boards, war chests and selecting candidates, Minister Diane Finley asked her to serve as the Director for her soon to be opened Regional Office (MRO) in Kitchener. During this time, she met and married a wonderful man, Ren&#233, who is very supportive of her candidacy to become the nominated candidate for Kitchener South Hespeler. She's currently taking a leave of absence from her job to focus on this campaign.";
 				
 				document.getElementById("aboutImage").style.display = "none";
-				document.getElementById("next").style.visibility = 'hidden';
-				document.getElementById("prev").style.visibility = 'visible';
+				document.getElementById("nextLg").style.visibility = 'hidden';
+				document.getElementById("nextSm").style.visibility = 'hidden';
+				document.getElementById("prevLg").style.visibility = 'visible';
+				document.getElementById("prevSm").style.visibility = 'visible';
 			}
 			
 			function prevBio(){
@@ -33,8 +35,10 @@
 				document.getElementById("bioTextSmall").innerHTML = "<span class='bigger'>M</span>arian, the daughter of immigrants from Holland after World War 2, learned about hard work, family and faith from her parents. Her father worked nights cleaning businesses while upgrading his education to become a high school teacher and her mother worked hard at home caring for Marian and her five younger siblings. She grew up in a rural setting and has many happy memories of trying to fish in the creek, driving the tractor with her uncle as he baled hay and playing with the barn cats as the cows were milked. Marian met her husband Scott in the church they both attended. They built a carpentry business while raising their six sons. They moved into building single family homes, winning awards for their homes at the local and provincial levels, becoming a SAM (Canadian Home Builders' Association) awards finalist for one of their homes. ";
 				
 				document.getElementById("aboutImage").style.display = "inline";				
-				document.getElementById("next").style.visibility = 'visible';
-				document.getElementById("prev").style.visibility = 'hidden';			
+				document.getElementById("nextLg").style.visibility = 'visible';
+				document.getElementById("nextSm").style.visibility = 'visible';
+				document.getElementById("prevLg").style.visibility = 'hidden';
+				document.getElementById("prevSm").style.visibility = 'hidden';			
 			}	
 			
 			$(document).on('click','.navbar-collapse.in',function(e) {
@@ -150,19 +154,19 @@ Marian met her husband Scott in the church they both attended. They built a carp
 									</div>
 									
 									<div class="text-center hidden-lg"  style="padding-top:15px; padding-left:15px; float:left;">
-										<a id="prev" type="button"  style="color:#ffffff; visibility:hidden;" class="btn btn-primary text-center" href="./index.html#" onclick="prevBio();return false;"><i class="glyphicon glyphicon-chevron-left"></i> Previous Page </a>	
+										<a id="prevLg" type="button"  style="color:#ffffff; visibility:hidden;" class="btn btn-primary text-center" href="./index.html#" onclick="prevBio();return false;"><i class="glyphicon glyphicon-chevron-left"></i> Previous Page </a>	
 									</div>
 									<div class="text-center hidden-lg" style="padding-top:15px; padding-right:15px;  float:right;">
-										<a id="next" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./index.html#" onclick="nextBio();return false;"> Next Page <i class="glyphicon glyphicon-chevron-right"></i></a>	
+										<a id="nextLg" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./index.html#" onclick="nextBio();return false;"> Next Page <i class="glyphicon glyphicon-chevron-right"></i></a>	
 									</div>
 									
 									<div class="col-lg-4  hidden-md hidden-sm hidden-xs">
 										<img src="./img/Casual.jpg" class="img-circle img-responsive center-block">
 										
-									<div class="text-center"  style="padding-top:15px;">
-										<a id="prev" type="button"  style="color:#ffffff; visibility:hidden;" class="btn btn-primary text-center" href="./index.html#" onclick="prevBio();return false;"><i class="glyphicon glyphicon-chevron-left"></i> Previous Page </a>	
-										<a id="next" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./index.html#" onclick="nextBio();return false;"> Next Page <i class="glyphicon glyphicon-chevron-right"></i></a>	
-									</div>
+										<div class="text-center"  style="padding-top:15px;">
+											<a id="prevSm" type="button"  style="color:#ffffff; visibility:hidden;" class="btn btn-primary text-center" href="./index.html#" onclick="prevBio();return false;"><i class="glyphicon glyphicon-chevron-left"></i> Previous Page </a>	
+											<a id="nextSm" type="button"  style="color:#ffffff;" class="btn btn-primary text-center" href="./index.html#" onclick="nextBio();return false;"> Next Page <i class="glyphicon glyphicon-chevron-right"></i></a>	
+										</div>
 									</div>
 								</div>
 							</div>
@@ -360,10 +364,10 @@ Marian met her husband Scott in the church they both attended. They built a carp
 		</div>
 		<div class="row backgroundInvolved hidden-lg hidden-md hidden-xs" style="height:20vh;"></div>		
 		<div class="row" style="height:20px; background: rgba(13,83,172,0.9);"></div>
-		<div class="row" style="height:100vh" >
+		<div class="row" >
 			<div class="container">
 				<div class="row" style="height:55vh;">
-					<div class="col-lg-8 col-md-12 col-sm-12 col-xs-12" style="height:100%">
+					<div class="col-lg-8 col-md-12 col-sm-12 col-xs-12">
 						<div class="row">
 							<h2 class="text-center"> Your Vote Matters </h2>
 							<p> 
@@ -374,6 +378,7 @@ Marian met her husband Scott in the church they both attended. They built a carp
 								<li> 10:00 AM speeches </li>
 								<li> Registration and Voting immediately following, and open until 12:00 PM noon (everyone in line at 12:00 PM noon gets to vote) </li>
 							</ul>
+							<h3><a href="http://www.conservative.ca/" target="_blank">  Learn more about the Conservative Party<i class="glyphicon glyphicon-chevron-right"></i> </a> </h3>
 						</div>
 					</div>
 					<div class="col-lg-4 col-md-12 col-sm-12 col-xs-12">	 
