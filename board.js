@@ -46,9 +46,11 @@ function revealMine(x,y) {
 
 function flagMine(x,y) {
 
-    if (coolMineData.hasOwnProperty(x+"-"+y) && coolMineData[x + "-" +  y] === TILE_FLAG) {
-      	delete coolMineData[x + "-" +  y];
-      	return true;
+    if (coolMineData.hasOwnProperty(x+"-"+y)){
+    	if (coolMineData[x + "-" +  y] === TILE_FLAG) {
+	      	delete coolMineData[x + "-" +  y];
+	      	return true;
+	    }
     }
     else {
 	    coolMineData[x + "-" +  y] = TILE_FLAG;

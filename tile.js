@@ -6,22 +6,6 @@ const TILE_MINI_DIMENSION = 2;
 const TILE_BOMB = -1;
 const TILE_FLAG = -2;
 
-class tile {
-	
-	constructor(x, y, state) {
-		this.x = x;
-		this.y = y;
-		this.state = state;
-	}
-
-	
-	render(ctx) {
-
-	}
-};
-
-
-
 function renderTile(ctx, x, y, renderPt) {
 
     var state = determineState(x, y);
@@ -91,5 +75,5 @@ function determineMine(x, y) { //TODO cache result, map
 
 	var hash = parseInt(hex_md5(str));
 
-	return hash % 6 == 0;
+	return hash % 5 == 0;
 }

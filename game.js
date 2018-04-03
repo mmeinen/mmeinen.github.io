@@ -18,7 +18,7 @@
 
     window.onmousedown = function(event) {
 
-      startDrag = true; //TODO fix click vs drag stutter. 
+      watchDrag = true;
       dragX = event.clientX;
       dragY = event.clientY;
     }
@@ -38,10 +38,20 @@
         }
       }
 
+      if (watchDrag && (Math.abs(dragX - event.clientX) > 5 || Math.abs(dragY - event.clientY) > 5)) {
+
+        startDrag = true;
+        watchDrag = false;
+
+        dragX = event.clientX;
+        dragY = event.clientY;
+      }
+
     }
 
     window.onmouseup = function(event) {
       startDrag = false;
+      watchDrag = false;
     }
 
     var cameraX = 0;
@@ -51,6 +61,7 @@
     var dragY = 0; 
 
     var startDrag = false;
+    var watchDrag = false;
 
     function getContext() {
       var canvas = document.getElementById('canvas');
