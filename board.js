@@ -16,6 +16,8 @@
 
 var coolMineData = {};
 
+var tileRenderCache = {};
+
 
 
 function determineState(x,y) {
@@ -59,6 +61,13 @@ function revealMine(x,y) {
     if (coolMineData[key] === 0) {
       	actOnSurrounding(revealMine, x, y);
     }
+
+    // Clear rendercache for current and surrounding tiles. 
+	delete tileRenderCache[x+"#"+y];
+
+    actOnSurrounding(function(inX,inY) {
+    	delete tileRenderCache[inX+"#"+inY];
+    }, x, y);
 
     return true;
 }
