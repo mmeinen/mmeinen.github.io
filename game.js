@@ -27,10 +27,8 @@
       if (startDrag) {
 
         if (Math.abs(dragX - event.clientX) > 1 || Math.abs(dragY - event.clientY) > 1) {
-          console.log("camera: " + cameraX + "," + cameraY);
           cameraX += (dragX - event.clientX);
           cameraY += (dragY - event.clientY);
-          console.log("camera: " + cameraX + "," + cameraY);
           render();
 
           dragX = event.clientX;
@@ -110,6 +108,21 @@
       }
     }
 
+    function drawHUD(ctx, canvasWidth, canvasHeight) {
+
+      var miniDims = drawMiniMap(ctx, canvasWidth, canvasHeight);
+
+
+      ctx.fillStyle = ('rgba(255,255,255,1)');
+      ctx.fillRect(miniDims.x, miniDims.y - 20, miniDims.width, 20);
+
+      ctx.strokeText("Bombs? " + getNumFlags(), miniDims.x, miniDims.y - 6);
+      ctx.fillStyle = ('rgba(0,0,0,1)');
+
+      ctx.fillStyle = ('rgba(0,0,0,1)');
+      ctx.strokeRect(miniDims.x, miniDims.y, miniDims.width, miniDims.height);
+    }
+
     function drawMiniMap(renderContext, canvasWidth, canvasHeight) {
 
       var miniHeight = Math.max(canvasHeight / 5);
@@ -154,6 +167,9 @@
 
       }
 
+
+
+      return {x: 0, y: canvasHeight - miniHeight, width: miniWidth, height: miniHeight };
     }
 
     function render() {
@@ -162,7 +178,7 @@
 
       if (ctx !== null) {
         drawTiles(ctx, canvas.width, canvas.height);
-        drawMiniMap(ctx, canvas.width, canvas.height)
+        drawHUD(ctx, canvas.width, canvas.height)
       }
 
     }
@@ -181,6 +197,7 @@
       else if (event.button === 2) {
         event.preventDefault();
         isDirty = flagMine(x, y);
+        numFlagsDirty = true;
       }
       // Middle click
       else if (event.button === 4) {

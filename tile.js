@@ -1,41 +1,50 @@
 
 
-const TILE_DIMENSION = 50;
+const TILE_DIMENSION = 40;
 const TILE_MINI_DIMENSION = 2;
+
+const SPRITE_DIMENSION = 15;
 
 const TILE_BOMB = -1;
 const TILE_FLAG = -2;
+
+var spriteSheet = new Image();
+spriteSheet.src = "images/tile_set.png";
 
 function renderTile(ctx, x, y, renderPt) {
 
     var state = determineState(x, y);
 
+    var spriteX = 16;
+    var spriteY = 0;
+
     if (state !== null) {
 	    ctx.font = "14px Arial";
 
 	    if (state === TILE_BOMB) {
-	        ctx.strokeText("B",renderPt.x+25,renderPt.y+25);
-      		ctx.fillStyle = ('rgba(255,0,0,0.8)');
+			ctx.drawImage(spriteSheet, 193, 65, SPRITE_DIMENSION, SPRITE_DIMENSION, 
+				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 	    }
 	    else if (state === TILE_FLAG) {
-	        ctx.strokeText("F",renderPt.x+25,renderPt.y+25);
-      		ctx.fillStyle = ('rgba(0,200,0,0.5)');
-
+			ctx.drawImage(spriteSheet, 176, 80, SPRITE_DIMENSION, SPRITE_DIMENSION, 
+				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 	    }
 	    else if (state !== 0) {
+
+			ctx.drawImage(spriteSheet, 0, 0, SPRITE_DIMENSION, SPRITE_DIMENSION, 
+				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+
 	        ctx.strokeText(state,renderPt.x+25,renderPt.y+25);
       		ctx.fillStyle = ('rgba(200,0,0,0.3)');
 	    }
 	    else {
-	 		ctx.fillStyle = ('rgba(0,0,0,0)');
+	 		return;
 	    }
     }
     else {
-      	ctx.fillStyle = ('rgba(200,0,0,0.8)');
-  	}
-
-    ctx.fillRect(renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
-    
+		ctx.drawImage(spriteSheet, spriteX, spriteY, SPRITE_DIMENSION, SPRITE_DIMENSION, 
+			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
+	}
 
     ctx.fillStyle = ('rgba(0,0,0,1)');
     ctx.strokeRect(renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
