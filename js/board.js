@@ -2,8 +2,6 @@
 //TODO clean up variable names 
 //TODO paralax background
 //TODO proper tile art
-//TODO minimap border
-//TODO display max bombs cleared in corner for a session
 //TODO reset when click on bomb
 //TODO title card with my name plus play button
 //TODO take some tip cash
@@ -19,6 +17,8 @@ var coolMineData = {};
 var tileRenderCache = {};
 
 
+var backgroundImg = new Image();
+backgroundImg.src = "images/bg.png";
 
 function determineState(x,y) {
     var key = x+"#"+y;

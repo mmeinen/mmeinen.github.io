@@ -1,5 +1,7 @@
 
 
+var seed;
+
 const TILE_DIMENSION = 40;
 const TILE_MINI_DIMENSION = 2;
 
@@ -82,17 +84,18 @@ function renderTile(ctx, x, y, renderPt) {
 			ctx.drawImage(castleSheet, bgCastle.x, bgCastle.y, 32, 32, 
 				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 
-	    	ctx.font = "14px Bookman";
-	        ctx.strokeText(state,renderPt.x+20,renderPt.y+20);
-      		ctx.fillStyle = ('rgba(200,0,0,0.3)');
+
+	    	ctx.font = "26px Bookman";
+		    ctx.strokeStyle = 'black';
+		    ctx.lineWidth = 2;
+	        ctx.strokeText(state,renderPt.x+15,renderPt.y+32);
+		    ctx.fillStyle = 'white';
+	        ctx.strokeText(state,renderPt.x+15,renderPt.y+32);
 	    }
 	    else {
 	 		return;
 	    }
     }
-
-    //ctx.fillStyle = ('rgba(0,0,0,1)');
-    //ctx.strokeRect(renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 }
 
 
@@ -203,7 +206,7 @@ function determineNumber(x, y) { //TODO cache result, map
 }
 
 function determineMine(x, y) { //TODO cache result, map 
-	var str = x + "coolseed" + y
+	var str = x + seed + y;
 
 	var hash = parseInt(hex_md5(str));
 
@@ -212,7 +215,7 @@ function determineMine(x, y) { //TODO cache result, map
 
 
 function determineWindow(x, y) { //TODO cache result maybe? 
-	var str = x + "coolerseed" + y
+	var str = x + seed + y;
 
 	var hash = parseInt(hex_md5(str));
 
