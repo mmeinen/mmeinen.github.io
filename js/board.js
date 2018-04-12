@@ -1,6 +1,5 @@
 
 //TODO clean up variable names 
-//TODO paralax background
 //TODO proper tile art
 //TODO reset when click on bomb
 //TODO title card with my name plus play button
@@ -105,7 +104,10 @@ function displayScore() {
 		}
 	}
 
-	alert("you scored " + score);
+	var result = confirm("you scored " + score + ". Play again?");
+	if (result) {
+		startGame();
+	}
 }
 
 var numFlagsDirty;

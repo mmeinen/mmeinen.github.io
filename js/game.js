@@ -4,9 +4,8 @@ window.onresize = function(event){
 };
 
 window.onload = function(event){
-    seed = "seed" + Math.random() + "seed";
+    startGame();
 
-    render();
     var canvas = document.getElementById('canvas');
     canvas.addEventListener("click", clicked);
     canvas.addEventListener("contextmenu", function (event) {
@@ -15,7 +14,6 @@ window.onload = function(event){
         return false;
     });
 };
-
 
 
 window.onmousedown = function(event) {
@@ -57,11 +55,26 @@ window.onmouseup = function(event) {
 var cameraX = 0;
 var cameraY = 0;
 
+var initialClickX = NaN;
+var initialClickY = NaN;
+
 var dragX = 0;
 var dragY = 0; 
 
 var startDrag = false;
 var watchDrag = false;
+
+function startGame() {
+    seed = "seed" + Math.random() + "seed";
+    coolMineData = [];
+    tileRenderCache = [];
+    numFlagsDirty = true;
+
+    initialClickX = NaN;
+    initialClickY = NaN;
+
+    render();
+}
 
 function getContext() {
     var canvas = document.getElementById('canvas');
@@ -227,6 +240,11 @@ function clicked(event) {
     var x = Math.floor((cameraX + event.clientX) / TILE_DIMENSION);
     var y = Math.floor((cameraY + event.clientY) / TILE_DIMENSION);
     var isDirty = false;
+
+    if (isNaN(initialClickX) || isNaN(initialClickY)) {
+        initialClickX = x;
+        initialClickY = y;
+    }
 
     // Left click
     if (event.button === 1 || event.button === 0) {

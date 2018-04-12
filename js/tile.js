@@ -206,6 +206,11 @@ function determineNumber(x, y) { //TODO cache result, map
 }
 
 function determineMine(x, y) { //TODO cache result, map 
+
+	if (Math.abs(x - initialClickX) <= 2 && Math.abs(y - initialClickY) <= 2) {
+		return false;
+	}
+
 	var str = x + seed + y;
 
 	var hash = parseInt(hex_md5(str));
