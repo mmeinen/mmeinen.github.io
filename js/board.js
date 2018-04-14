@@ -1,7 +1,6 @@
 
 //TODO clean up variable names 
 //TODO proper tile art
-//TODO reset when click on bomb
 //TODO title card with my name plus play button
 //TODO take some tip cash
 //TODO server validation of moves
@@ -10,6 +9,8 @@
 //TODO levels
 //TODO game mode platformer. 
 
+
+var level;
 
 var coolMineData = {};
 
@@ -91,20 +92,7 @@ function flagMine(x,y) {
 
 function displayScore() {
 
-	var score = 0;
-
-	for (var key in coolMineData) {
-		var places = key.split("#");
-
-		var isMine = determineMine(places[0], places[1]);
-		var isFlagged = coolMineData[key] === TILE_FLAG;
-
-		if (isMine && isFlagged) {
-			score++;
-		}
-	}
-
-	var result = confirm("you scored " + score + ". Play again?");
+	var result = confirm("you got to level " + level + ". Play again?");
 	if (result) {
 		startGame();
 	}
@@ -126,4 +114,52 @@ function getNumFlags() {
 
 
 	return numFlags;
+}
+
+function checkGoal() {
+
+	//TODO this is slow. fix it. 
+	//TODO goal cannot be a mine!
+
+
+	if (determineState(goalX, goalY) === null) {
+		return;
+	}
+
+	//TODO start at startx
+	var searcho = [{x:initialClickX, y:initialClickY}];
+	var searched = [];
+	var found = false;
+
+	while (!found && searcho.length > 0) {
+
+		var pt = searcho.pop();
+
+		actOnSurrounding(function(inX,inY){
+			
+			if (searched.indexOf(inX + "#" + inY) != -1) {
+				return;
+			}
+
+			var state = determineState(inX, inY);
+
+		    if (state !== null && state !== TILE_BOMB && state !== TILE_FLAG) {
+	    		if (inX == goalX && inY == goalY) {
+	    			found = true;
+	    		}
+
+				searcho.push({x:inX, y:inY}); 
+		    }
+
+			searched.push(pt.x + "#" + pt.y); 
+
+		}, pt.x, pt.y);
+
+
+	}
+
+	if (found) {
+		nextLevel();
+	}
+	//see if start and goal are connected
 }

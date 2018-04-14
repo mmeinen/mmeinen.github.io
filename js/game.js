@@ -58,6 +58,9 @@ var cameraY = 0;
 var initialClickX = NaN;
 var initialClickY = NaN;
 
+var goalX = NaN;
+var goalY = NaN;
+
 var dragX = 0;
 var dragY = 0; 
 
@@ -65,6 +68,13 @@ var startDrag = false;
 var watchDrag = false;
 
 function startGame() {
+    level = 0;
+    nextLevel();
+}
+
+function nextLevel() {
+    
+    level++;
     seed = "seed" + Math.random() + "seed";
     coolMineData = [];
     tileRenderCache = [];
@@ -72,7 +82,6 @@ function startGame() {
 
     initialClickX = NaN;
     initialClickY = NaN;
-
     render();
 }
 
@@ -244,11 +253,12 @@ function clicked(event) {
     if (isNaN(initialClickX) || isNaN(initialClickY)) {
         initialClickX = x;
         initialClickY = y;
+        setGoal();
     }
 
     // Left click
     if (event.button === 1 || event.button === 0) {
-            isDirty = revealMine(x, y);
+        isDirty = revealMine(x, y);
     }
     // Right click
     else if (event.button === 2) {
@@ -263,5 +273,15 @@ function clicked(event) {
 
     if (isDirty) {
         render();
+        checkGoal();
     }
 }
+
+function setGoal() {
+
+    var distance = 10 + level * 5;
+    var directionRad = Math.random()*2 * Math.PI;
+
+    goalX = Math.ceil(distance * Math.sin(directionRad));
+    goalY = Math.ceil(distance * Math.cos(directionRad))
+;}

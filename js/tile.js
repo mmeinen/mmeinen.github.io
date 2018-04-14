@@ -104,7 +104,10 @@ function renderSimpleTile(ctx, x, y, renderPt) {
 
     var state = determineState(x, y);
 
-    if (state !== null) {
+    if (x === goalX && y === goalY) {
+ 		ctx.fillStyle = ('rgba(0,255,0,1)');
+    }
+    else if (state !== null) {
  		ctx.fillStyle = ('rgba(255,255,255,1)');
     }
     else {
