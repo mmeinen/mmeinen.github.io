@@ -69,6 +69,14 @@ function renderTile(ctx, x, y, renderPt) {
 		}
     }
 
+    // Special goal tile rendering
+    if (x === goalX && y == goalY) {
+		ctx.drawImage(castleSheet, 128, 352, 32, 32, 
+			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
+
+		return;
+    }
+
     if (state !== null) {
 
 	    if (state === TILE_BOMB) {

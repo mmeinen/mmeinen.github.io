@@ -125,9 +125,9 @@ function checkGoal() {
 
 	//TODO this is slow. fix it. 
 
-	// if (determineState(goalX, goalY) === null) {
-	// 	return;
-	// }
+	if (determineState(goalX, goalY) === null) {
+		return;
+	}
 
 	//TODO start at startx
 	var searcho = [{x:initialClickX, y:initialClickY}];
@@ -140,7 +140,8 @@ function checkGoal() {
 
 		actOnSurrounding(function(inX,inY){
 			
-			if (searched.has(createKey(inX, inY)) != -1) {
+			var key = createKey(inX, inY);
+			if (searched.has(key)) {
 				return;
 			}
 
@@ -154,7 +155,7 @@ function checkGoal() {
 				searcho.push({x:inX, y:inY}); 
 		    }
 
-			searched.set(createKey(pt.x,pt.y), true); 
+			searched.set(key, true); 
 
 		}, pt.x, pt.y);
 
