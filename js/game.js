@@ -73,10 +73,10 @@ function startGame() {
 }
 
 function nextLevel() {
-    
+
     level++;
     seed = "seed" + Math.random() + "seed";
-    coolMineData = [];
+    coolMineData = new Map();    
     tileRenderCache = [];
     numFlagsDirty = true;
 
@@ -273,7 +273,9 @@ function clicked(event) {
 
     if (isDirty) {
         render();
+        console.time("goal check");
         checkGoal();
+        console.timeEnd("goal check");
     }
 }
 

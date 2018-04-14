@@ -119,7 +119,7 @@ function renderSimpleTile(ctx, x, y, renderPt) {
 
 function determineCastle(x, y) {
 
-	var cacheKey = x+"#"+y;
+	var cacheKey = createKey(x,y);
 	if (tileRenderCache.hasOwnProperty(cacheKey)) {
 		return tileRenderCache[cacheKey];
 	}
@@ -159,7 +159,7 @@ function determineCastle(x, y) {
 
 function determineBgCastle(x, y) {
 
-	var cacheKey = x+"#"+y;
+	var cacheKey = createKey(x,y);
 	if (tileRenderCache.hasOwnProperty(cacheKey)) {
 		return tileRenderCache[cacheKey];
 	}
@@ -210,7 +210,8 @@ function determineNumber(x, y) { //TODO cache result, map
 
 function determineMine(x, y) { //TODO cache result, map 
 
-	if (Math.abs(x - initialClickX) <= 2 && Math.abs(y - initialClickY) <= 2) {
+	if ((Math.abs(x - initialClickX) <= 2 && Math.abs(y - initialClickY) <= 2)
+		|| (x == goalX && y == goalY)) {
 		return false;
 	}
 

@@ -12,7 +12,7 @@
 
 var level;
 
-var coolMineData = {};
+var coolMineData = new Map();
 
 var tileRenderCache = {};
 
@@ -20,10 +20,15 @@ var tileRenderCache = {};
 var backgroundImg = new Image();
 backgroundImg.src = "images/bg.png";
 
-function determineState(x,y) {
-    var key = x+"#"+y;
-	if (coolMineData.hasOwnProperty(key)) {
-	  return coolMineData[key];
+function createKey(x,y) {
+	return x+"#"+y;
+}
+
+function determineState(x, y) {
+
+    var key = createKey(x, y);
+	if (coolMineData.has(key)) {
+	  return coolMineData.get(key);
 	}
 	return null;
 }
@@ -43,30 +48,30 @@ function actOnSurrounding(func, x, y) {
 
 function revealMine(x,y) {
 
-    var key = x+"#"+y;
+    var key = createKey(x,y);
 
-    if (coolMineData.hasOwnProperty(key)) {
+    if (coolMineData.has(key)) {
       	return false;
     }
 
   	if (determineMine(x, y)) {
-    	coolMineData[key] = TILE_BOMB;
+    	coolMineData.set(key, TILE_BOMB);
     	displayScore();
     	//TODO end state! 
   	}
   	else {
-    	coolMineData[key] = determineNumber(x, y);
+    	coolMineData.set(key, determineNumber(x, y));
 	}
 
-    if (coolMineData[key] === 0) {
+    if (coolMineData.get(key) === 0) {
       	actOnSurrounding(revealMine, x, y);
     }
 
     // Clear rendercache for current and surrounding tiles. 
-	delete tileRenderCache[x+"#"+y];
+	delete tileRenderCache[createKey(x,y)];
 
     actOnSurrounding(function(inX,inY) {
-    	delete tileRenderCache[inX+"#"+inY];
+    	delete tileRenderCache[createKey(inX,inY)];
     }, x, y);
 
     return true;
@@ -74,16 +79,16 @@ function revealMine(x,y) {
 
 function flagMine(x,y) {
 
-	var key = x+"#"+y;
+	var key = createKey(x,y);
 
-    if (coolMineData.hasOwnProperty(key)){
-    	if (coolMineData[key] === TILE_FLAG) {
-	      	delete coolMineData[key];
+    if (coolMineData.has(key)){
+    	if (coolMineData.get(key) === TILE_FLAG) {
+	      	delete coolMineData.delete(key);
 	      	return true;
 	    }
     }
     else {
-	    coolMineData[key] = TILE_FLAG;
+	    coolMineData.set(key, TILE_FLAG);
 	    return true;
 	}
 
@@ -104,11 +109,11 @@ function getNumFlags() {
 	
 	if (numFlagsDirty) {
 		numFlags = 0;
-		for (var key in coolMineData) {
-			if (coolMineData[key] === TILE_FLAG) {
+		coolMineData.forEach(function(key, value) {
+			if (value === TILE_FLAG) {
 				numFlags++;
 			}
-		}
+		});
 		numFlagsDirty = false;
 	}
 
@@ -119,16 +124,14 @@ function getNumFlags() {
 function checkGoal() {
 
 	//TODO this is slow. fix it. 
-	//TODO goal cannot be a mine!
 
-
-	if (determineState(goalX, goalY) === null) {
-		return;
-	}
+	// if (determineState(goalX, goalY) === null) {
+	// 	return;
+	// }
 
 	//TODO start at startx
 	var searcho = [{x:initialClickX, y:initialClickY}];
-	var searched = [];
+	var searched = new Map();
 	var found = false;
 
 	while (!found && searcho.length > 0) {
@@ -137,7 +140,7 @@ function checkGoal() {
 
 		actOnSurrounding(function(inX,inY){
 			
-			if (searched.indexOf(inX + "#" + inY) != -1) {
+			if (searched.has(createKey(inX, inY)) != -1) {
 				return;
 			}
 
@@ -151,7 +154,7 @@ function checkGoal() {
 				searcho.push({x:inX, y:inY}); 
 		    }
 
-			searched.push(pt.x + "#" + pt.y); 
+			searched.set(createKey(pt.x,pt.y), true); 
 
 		}, pt.x, pt.y);
 
