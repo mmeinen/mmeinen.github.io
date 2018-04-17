@@ -1,6 +1,6 @@
 
 window.onresize = function(event){
-    render();
+    Renderer.render();
 };
 
 window.onload = function(event){
@@ -29,7 +29,7 @@ window.onmousemove = function(event) {
         if (Math.abs(dragX - event.clientX) > 1 || Math.abs(dragY - event.clientY) > 1) {
             cameraX += (dragX - event.clientX);
             cameraY += (dragY - event.clientY);
-            render();
+            Renderer.render();
 
             dragX = event.clientX;
             dragY = event.clientY;
@@ -82,166 +82,9 @@ function nextLevel() {
 
     initialClickX = NaN;
     initialClickY = NaN;
-    render();
-}
-
-function getContext() {
-    var canvas = document.getElementById('canvas');
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-
-    if (canvas.getContext) {
-        return canvas.getContext('2d');
-    }
-
-    return null;
-}
-
-function drawTiles(renderContext, canvasWidth, canvasHeight) {
-
-    var left = 0 - (cameraX % TILE_DIMENSION);
-    if (left > 0) { left -= TILE_DIMENSION; }    //Because JS can't modulo properly 
-    var right = Math.ceil((canvasWidth) / TILE_DIMENSION) * TILE_DIMENSION;
-
-
-    var top = 0 - (cameraY % TILE_DIMENSION);
-    if (top > 0) { top -= TILE_DIMENSION; } //Because JS can't modulo properly 
-    var bottom = Math.ceil((canvasHeight) / TILE_DIMENSION) * TILE_DIMENSION;
-
-
-    var renderPos = {};
-    renderPos.x = left;
-    renderPos.y = top;
-
-    while (renderPos.x < right && renderPos.y < bottom) {
-
-
-        var tileX = Math.floor((cameraX + renderPos.x) / TILE_DIMENSION);
-        var tileY = Math.floor((cameraY + renderPos.y) / TILE_DIMENSION);
-
-        renderTile(renderContext, tileX, tileY, renderPos);
-
-        renderPos.x += TILE_DIMENSION;
-        if (renderPos.x >= right) {
-            renderPos.x = left;
-            renderPos.y += TILE_DIMENSION;
-        }
-
-    }
-}
-
-function drawHUD(ctx, canvasWidth, canvasHeight) {
-
-    var miniDims = drawMiniMap(ctx, canvasWidth, canvasHeight);
-
-
-    ctx.fillStyle = ('rgba(255,255,255,1)');
-    ctx.fillRect(miniDims.x, miniDims.y - 20, miniDims.width, 20);
-
-    ctx.strokeText("Bombs? " + getNumFlags(), miniDims.x, miniDims.y - 6);
-    ctx.fillStyle = ('rgba(0,0,0,1)');
-
-    ctx.fillStyle = ('rgba(0,0,0,1)');
-    ctx.strokeRect(miniDims.x, miniDims.y, miniDims.width, miniDims.height);
-}
-
-function drawMiniMap(renderContext, canvasWidth, canvasHeight) {
-
-    var miniHeight = Math.max(canvasHeight / 5);
-    var miniWidth = Math.max(canvasWidth / 5);
-
-    var tilesOut = (miniWidth / TILE_MINI_DIMENSION) - (canvasWidth / TILE_DIMENSION);
-    var tilesOut = tilesOut / 2;
-
-    var tilesOutt = (miniHeight / TILE_MINI_DIMENSION) - (canvasHeight / TILE_DIMENSION);
-    var tilesOutt = tilesOutt / 2;
-
-    var miniCameraX = cameraX * (TILE_MINI_DIMENSION / TILE_DIMENSION) - (tilesOut*TILE_MINI_DIMENSION);
-    var miniCameraY = cameraY * (TILE_MINI_DIMENSION / TILE_DIMENSION) - (tilesOutt*TILE_MINI_DIMENSION);
-
-    var left = 0 - TILE_MINI_DIMENSION;
-    var right = miniWidth;
-
-    var top = 0;
-    var bottom = miniHeight;
-
-    var renderPos = {
-        x: left, 
-        y: top
-    };
-
-    while (renderPos.x < right && renderPos.y < bottom) {
-
-
-        var tileX = Math.floor((miniCameraX + renderPos.x) / TILE_MINI_DIMENSION);
-        var tileY = Math.floor((miniCameraY + renderPos.y) / TILE_MINI_DIMENSION);
-
-        renderSimpleTile(renderContext, tileX, tileY, { 
-            x: renderPos.x,
-            y: (renderPos.y + canvasHeight - miniHeight)
-        });
-
-        renderPos.x += TILE_MINI_DIMENSION;
-        if (renderPos.x >= right) {
-            renderPos.x = left;
-            renderPos.y += TILE_MINI_DIMENSION;
-        }
-
-    }
-
-
-
-    return {x: 0, y: canvasHeight - miniHeight, width: miniWidth, height: miniHeight };
-}
-
-function drawBg(ctx, canvasWidth, canvasHeight) {
-
-    var bgWidth = 320;
-    var bgHeight = 256;
-
-    var paralaxRatio = 4;
-
-    var left = 0 - ((cameraX/paralaxRatio) % bgWidth);
-    if (left > 0) { left -= bgWidth; }    //Because JS can't modulo properly 
-    var right = Math.ceil((canvasWidth) / bgWidth) * bgWidth;
-
-
-    var top = 0 - ((cameraY/paralaxRatio) % bgHeight);
-    if (top > 0) { top -= bgHeight; } //Because JS can't modulo properly 
-    var bottom = Math.ceil((canvasHeight) / bgHeight) * bgHeight;
-
-
-    var renderPos = {};
-    renderPos.x = left;
-    renderPos.y = top;
-
-    while (renderPos.x < right && renderPos.y < bottom) {
-
-        //if (y is odd, flip.)
-        ctx.drawImage(backgroundImg, 0, 0, bgWidth, bgHeight, 
-            renderPos.x, renderPos.y,  bgWidth, bgHeight); 
-
-        renderPos.x += bgWidth;
-        if (renderPos.x >= right) {
-            renderPos.x = left;
-            renderPos.y += bgHeight;
-        }
-
-    }
-}
-
-function render() {
-
-    var ctx = getContext();
-
-    if (ctx !== null) {
-        drawBg(ctx, canvas.width, canvas.height);
-        drawTiles(ctx, canvas.width, canvas.height);
-        drawHUD(ctx, canvas.width, canvas.height);
-    }
-
+    goalX = NaN;
+    goalY = NaN;
+    Renderer.render();
 }
 
 function clicked(event) {
@@ -272,10 +115,8 @@ function clicked(event) {
     }
 
     if (isDirty) {
-        render();
-        console.time("goal check");
+        Renderer.render();
         checkGoal();
-        console.timeEnd("goal check");
     }
 }
 
