@@ -173,7 +173,7 @@ class Renderer {
 		if(cameraX < positionGoalX &&
 		   (cameraX + canvasWidth) > positionGoalX &&
 		   cameraY < positionGoalY &&
-		   (cameraY + canvasHeight) > cameraY) {
+		   (cameraY + canvasHeight) > positionGoalY) {
 			return;
 		}
 
@@ -182,7 +182,7 @@ class Renderer {
 		var b, m;
 
 		var x1 = cameraX + (canvasWidth / 2);
-		var x2 = goalX;
+		var x2 = positionGoalX;
 
 		// Check vertical line case
 		if (x1 == x2) {
@@ -191,7 +191,7 @@ class Renderer {
 		}
 
 		var y1 = cameraY + (canvasHeight / 2);
-		var y2 = goalY;
+		var y2 = positionGoalY;
 
 		// horizontal line case
 		if (y1 == y2) {
@@ -204,33 +204,34 @@ class Renderer {
 
 
 		// Temp positions
-		var lineStartY = cameraY;
-		var lineStartX = cameraX;
+		var lineStartX = 0;
+		var lineStartY = 0;
 
 		// Check if we look at top or bottom line. 
-		var boxX = goalX < cameraX ? cameraX : (cameraX + canvasHeight);
-		var boxY = goalY < cameraY ? cameraY : (cameraY + canvasHeight);
+		var boxX = positionGoalX < cameraX ? cameraX : (cameraX + canvasWidth);
+		var boxY = positionGoalY < cameraY ? cameraY : (cameraY + canvasHeight);
 
 
 		//Check if we are on the X edge
-		var xIntersection = (m * boxX) + b;
+		var yIntersection = (m * boxX) + b;
 
 		var lineEndY, lineEndX;
+		shiftAmt *= 5;
 
-		if (xIntersection < cameraX || xIntersection > (cameraX + canvasHeight)) {
+		if (yIntersection > cameraY && yIntersection < (cameraY + canvasHeight)) {
 			//We intersect with y axis! 
 			lineStartX = boxX;
-			lineStartY = (boxY - b) / m;
+			lineStartY = yIntersection;
 
-			var shiftAmt = goalX < cameraX ? TILE_DIMENSION : -TILE_DIMENSION;
+			var shiftAmt = positionGoalX < cameraX ? TILE_DIMENSION*5 : -TILE_DIMENSION*5;
 			lineEndX = boxX + shiftAmt;
 			lineEndY = (lineEndX) * m + b;
 		}
 		else {
-			lineStartX = xIntersection;
+			lineStartX = (boxY - b) / m;
 			lineStartY = boxY;
 
-			var shiftAmt = goalY < cameraY ? TILE_DIMENSION : -TILE_DIMENSION;
+			var shiftAmt = positionGoalY < cameraY ? TILE_DIMENSION : -TILE_DIMENSION;
 			lineEndY = boxY + shiftAmt;
 			lineEndX = (lineEndY - b) / m;
 		}
@@ -238,18 +239,16 @@ class Renderer {
 
 
 		ctx.beginPath();
-		ctx.moveTo(lineStartX - cameraX, lineStartY - cameraY);
-    	ctx.lineTo(lineEndX - cameraX, lineEndY- cameraY);
+		ctx.moveTo(lineStartX - (cameraX), lineStartY - (cameraY));
+     	ctx.lineTo(lineEndX - (cameraX), lineEndY - (cameraY));
 
+		// ctx.moveTo(positionGoalX - (cameraX), positionGoalY - (cameraY));
+  // 		ctx.lineTo((canvasWidth/2), (canvasHeight/2));
 
 
 	    ctx.strokeStyle = 'green';
 	    ctx.lineWidth = 10;
-	    ctx.stroke()
-
-
-
-		// line from center to pt thing, unless onscreen. 
+	    ctx.stroke();
 	}
 
 }

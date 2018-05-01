@@ -5,7 +5,6 @@
 //TODO take some tip cash
 //TODO server validation of moves
 //TODO server save game state/score
-//TODO target to move to
 //TODO levels
 //TODO game mode platformer. 
 
@@ -123,13 +122,10 @@ function getNumFlags() {
 
 function checkGoal() {
 
-	//TODO this is slow. fix it. 
-
 	if (determineState(goalX, goalY) === null) {
 		return;
 	}
 
-	//TODO start at startx
 	var searcho = [{x:initialClickX, y:initialClickY}];
 	var searched = new Map();
 	var found = false;
@@ -165,5 +161,4 @@ function checkGoal() {
 	if (found) {
 		nextLevel();
 	}
-	//see if start and goal are connected
 }
