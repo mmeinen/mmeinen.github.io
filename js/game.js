@@ -4,7 +4,12 @@ window.onresize = function(event){
 };
 
 window.onload = function(event){
+
+    ui = new UI();
+    
     startGame();
+
+    ui.openWelcome(true);
 
     var canvas = document.getElementById('canvas');
     canvas.addEventListener("click", clicked);
@@ -52,6 +57,8 @@ window.onmouseup = function(event) {
     watchDrag = false;
 }
 
+var ui; 
+
 var cameraX = 0;
 var cameraY = 0;
 
@@ -68,6 +75,7 @@ var startDrag = false;
 var watchDrag = false;
 
 function startGame() {
+    ui.openWelcome(false);
     level = 0;
     nextLevel();
 }

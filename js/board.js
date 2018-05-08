@@ -5,7 +5,6 @@
 //TODO take some tip cash
 //TODO server validation of moves
 //TODO server save game state/score
-//TODO levels
 //TODO game mode platformer. 
 
 

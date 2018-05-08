@@ -9,3 +9,12 @@ body {
     overflow-x: hidden; 
     overflow-y: hidden;
 }
+
+#ui {
+	background-color: ROYALBLUE;
+    width: 40vw;
+    height: 30vh;
+    left: 30vw;
+    top: 20vh;
+    position: absolute;
+}
