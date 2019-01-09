@@ -1,12 +1,4 @@
 
-//TODO clean up variable names 
-//TODO proper tile art
-//TODO title card with my name plus play button
-//TODO take some tip cash
-//TODO server validation of moves
-//TODO server save game state/score
-//TODO game mode platformer. 
-
 
 var level;
 
@@ -18,20 +10,20 @@ var tileRenderCache = {};
 var backgroundImg = new Image();
 backgroundImg.src = "images/bg.png";
 
-function createKey(x,y) {
-	return x+"#"+y;
+function createKey(x, y, z) {
+	return x+"yolo"+y+"swag"+z;
 }
 
-function determineState(x, y) {
+function determineState(x, y, z) {
 
-    var key = createKey(x, y);
+    var key = createKey(x, y, z);
 	if (coolMineData.has(key)) {
 	  return coolMineData.get(key);
 	}
 	return null;
 }
 
-function actOnSurrounding(func, x, y) {
+function actOnSurrounding(func, x, y, z) {
 
 	for (var i = (x - 1); i <= (x + 1); i++) {
 	  for (var j = (y - 1); j <= (y + 1); j++) {
@@ -39,45 +31,45 @@ function actOnSurrounding(func, x, y) {
 	      continue;
 	    }
 
-	    func(i,j);
+	    func(i,j,z);
 	  }
 	}
 }
 
-function revealMine(x,y) {
+function revealMine(x, y, z) {
 
-    var key = createKey(x,y);
+    var key = createKey(x, y, z);
 
     if (coolMineData.has(key)) {
       	return false;
     }
 
-  	if (determineMine(x, y)) {
+  	if (determineMine(x, y, z)) {
     	coolMineData.set(key, TILE_BOMB);
     	displayScore();
     	//TODO end state! 
   	}
   	else {
-    	coolMineData.set(key, determineNumber(x, y));
+    	coolMineData.set(key, determineNumber(x, y, z));
 	}
 
     if (coolMineData.get(key) === 0) {
-      	actOnSurrounding(revealMine, x, y);
+      	actOnSurrounding(revealMine, x, y, z);
     }
 
     // Clear rendercache for current and surrounding tiles. 
-	delete tileRenderCache[createKey(x,y)];
+	delete tileRenderCache[createKey(x, y, z)];
 
-    actOnSurrounding(function(inX,inY) {
-    	delete tileRenderCache[createKey(inX,inY)];
-    }, x, y);
+    actOnSurrounding(function(inX, inY, inZ) {
+    	delete tileRenderCache[createKey(inX, inY, inZ)];
+    }, x, y, z);
 
     return true;
 }
 
-function flagMine(x,y) {
+function flagMine(x, y, z) {
 
-	var key = createKey(x,y);
+	var key = createKey(x, y, z);
 
     if (coolMineData.has(key)){
     	if (coolMineData.get(key) === TILE_FLAG) {
@@ -117,47 +109,4 @@ function getNumFlags() {
 
 
 	return numFlags;
-}
-
-function checkGoal() {
-
-	if (determineState(goalX, goalY) === null) {
-		return;
-	}
-
-	var searcho = [{x:initialClickX, y:initialClickY}];
-	var searched = new Map();
-	var found = false;
-
-	while (!found && searcho.length > 0) {
-
-		var pt = searcho.pop();
-
-		actOnSurrounding(function(inX,inY){
-			
-			var key = createKey(inX, inY);
-			if (searched.has(key)) {
-				return;
-			}
-
-			var state = determineState(inX, inY);
-
-		    if (state !== null && state !== TILE_BOMB && state !== TILE_FLAG) {
-	    		if (inX == goalX && inY == goalY) {
-	    			found = true;
-	    		}
-
-				searcho.push({x:inX, y:inY}); 
-		    }
-
-			searched.set(key, true); 
-
-		}, pt.x, pt.y);
-
-
-	}
-
-	if (found) {
-		nextLevel();
-	}
 }

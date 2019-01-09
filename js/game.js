@@ -1,4 +1,27 @@
 
+/*
+
+T O D O 
+
+Handle tile clicks per layer
+Remove areas that are solved
+
+spacebar implementation 
+
+
+
+better art
+    tint layers
+    classic tile set. 
+
+What's the goal? 
+
+
+
+*/
+
+
+
 window.onresize = function(event){
     Renderer.render();
 };
@@ -62,11 +85,7 @@ var ui;
 var cameraX = 0;
 var cameraY = 0;
 
-var initialClickX = NaN;
-var initialClickY = NaN;
-
-var goalX = NaN;
-var goalY = NaN;
+var initialClicks = [];
 
 var dragX = 0;
 var dragY = 0; 
@@ -88,33 +107,32 @@ function nextLevel() {
     tileRenderCache = [];
     numFlagsDirty = true;
 
-    initialClickX = NaN;
-    initialClickY = NaN;
-    goalX = NaN;
-    goalY = NaN;
+    initialClicks = [];
     Renderer.render();
 }
 
-function clicked(event) {
+function clicked(event, z = 0) {
 
-    var x = Math.floor((cameraX + event.clientX) / TILE_DIMENSION);
-    var y = Math.floor((cameraY + event.clientY) / TILE_DIMENSION);
+    var tileDimension = getTileDimension(z);
+
+    var x = Math.floor((cameraX + event.clientX) / tileDimension);
+    var y = Math.floor((cameraY + event.clientY) / tileDimension);
     var isDirty = false;
+    var isMaxDepth = false;
 
-    if (isNaN(initialClickX) || isNaN(initialClickY)) {
-        initialClickX = x;
-        initialClickY = y;
-        setGoal();
+    if (!(z in initialClicks)) {
+        initialClicks[z] = [x, y];
+        isMaxDepth = true;
     }
 
     // Left click
     if (event.button === 1 || event.button === 0) {
-        isDirty = revealMine(x, y);
+        isDirty = revealMine(x, y, z);
     }
     // Right click
     else if (event.button === 2) {
         event.preventDefault();
-        isDirty = flagMine(x, y);
+        isDirty = flagMine(x, y, z);
         numFlagsDirty = true;
     }
     // Middle click
@@ -122,17 +140,10 @@ function clicked(event) {
         //TODO
     }
 
-    if (isDirty) {
+    if (!isDirty && !isMaxDepth) {
+        clicked(event, ++z);
+    } 
+    else if (isDirty) {
         Renderer.render();
-        checkGoal();
     }
 }
-
-function setGoal() {
-
-    var distance = 10 + level * 5;
-    var directionRad = Math.random()*2 * Math.PI;
-
-    goalX = Math.ceil(distance * Math.sin(directionRad));
-    goalY = Math.ceil(distance * Math.cos(directionRad))
-;}

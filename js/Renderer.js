@@ -8,10 +8,13 @@ class Renderer {
 	    var ctx = Renderer.getContext();
 
 	    if (ctx !== null) {
-	        Renderer.drawBg(ctx, canvas.width, canvas.height);
-	        Renderer.drawTiles(ctx, canvas.width, canvas.height);
+
+	    	for (var z = initialClicks.length; z > 0; z--) {
+	        	Renderer.drawTiles(ctx, canvas.width, canvas.height, z);
+	    	}
+
+        	Renderer.drawTiles(ctx, canvas.width, canvas.height, 0);
 	        Renderer.drawHUD(ctx, canvas.width, canvas.height);
-	        Renderer.drawGotoArrow(ctx, canvas.width, canvas.height);
 	    }
 
 	}
@@ -29,16 +32,18 @@ class Renderer {
 	    return null;
 	}
 
- 	static drawTiles(renderContext, canvasWidth, canvasHeight) {
+ 	static drawTiles(renderContext, canvasWidth, canvasHeight, z) { //TODO paralax on z. 
 
-	    var left = 0 - (cameraX % TILE_DIMENSION);
-	    if (left > 0) { left -= TILE_DIMENSION; }    //Because JS can't modulo properly 
-	    var right = Math.ceil((canvasWidth) / TILE_DIMENSION) * TILE_DIMENSION;
+ 		var tileDimesion = getTileDimension(z);
+
+	    var left = 0 - (cameraX % tileDimesion);
+	    if (left > 0) { left -= tileDimesion; }    //Because JS can't modulo properly 
+	    var right = Math.ceil((canvasWidth) / tileDimesion) * tileDimesion;
 
 
-	    var top = 0 - (cameraY % TILE_DIMENSION);
-	    if (top > 0) { top -= TILE_DIMENSION; } //Because JS can't modulo properly 
-	    var bottom = Math.ceil((canvasHeight) / TILE_DIMENSION) * TILE_DIMENSION;
+	    var top = 0 - (cameraY % tileDimesion);
+	    if (top > 0) { top -= tileDimesion; } //Because JS can't modulo properly 
+	    var bottom = Math.ceil((canvasHeight) / tileDimesion) * tileDimesion;
 
 
 	    var renderPos = {};
@@ -48,15 +53,15 @@ class Renderer {
 	    while (renderPos.x < right && renderPos.y < bottom) {
 
 
-	        var tileX = Math.floor((cameraX + renderPos.x) / TILE_DIMENSION);
-	        var tileY = Math.floor((cameraY + renderPos.y) / TILE_DIMENSION);
+	        var tileX = Math.floor((cameraX + renderPos.x) / tileDimesion);
+	        var tileY = Math.floor((cameraY + renderPos.y) / tileDimesion);
 
-	        renderTile(renderContext, tileX, tileY, renderPos);
+	        renderTile(renderContext, tileX, tileY, z, renderPos); //TODO integrate z
 
-	        renderPos.x += TILE_DIMENSION;
+	        renderPos.x += tileDimesion;
 	        if (renderPos.x >= right) {
 	            renderPos.x = left;
-	            renderPos.y += TILE_DIMENSION;
+	            renderPos.y += tileDimesion;
 	        }
 
 	    }
@@ -108,7 +113,7 @@ class Renderer {
 	        var tileX = Math.floor((miniCameraX + renderPos.x) / TILE_MINI_DIMENSION);
 	        var tileY = Math.floor((miniCameraY + renderPos.y) / TILE_MINI_DIMENSION);
 
-	        renderSimpleTile(renderContext, tileX, tileY, { 
+	        renderSimpleTile(renderContext, tileX, tileY, 0, {  //TODO git rekt minimap z is here 
 	            x: renderPos.x,
 	            y: (renderPos.y + canvasHeight - miniHeight)
 	        });
@@ -125,163 +130,5 @@ class Renderer {
 
 	    return {x: 0, y: canvasHeight - miniHeight, width: miniWidth, height: miniHeight };
 	}
-
-	static drawBg(ctx, canvasWidth, canvasHeight) {
-
-	    var bgWidth = 320;
-	    var bgHeight = 256;
-
-	    var paralaxRatio = 4;
-
-	    var left = 0 - ((cameraX/paralaxRatio) % bgWidth);
-	    if (left > 0) { left -= bgWidth; }    //Because JS can't modulo properly 
-	    var right = Math.ceil((canvasWidth) / bgWidth) * bgWidth;
-
-
-	    var top = 0 - ((cameraY/paralaxRatio) % bgHeight);
-	    if (top > 0) { top -= bgHeight; } //Because JS can't modulo properly 
-	    var bottom = Math.ceil((canvasHeight) / bgHeight) * bgHeight;
-
-
-	    var renderPos = {};
-	    renderPos.x = left;
-	    renderPos.y = top;
-
-	    while (renderPos.x < right && renderPos.y < bottom) {
-
-	        //if (y is odd, flip.)
-	        ctx.drawImage(backgroundImg, 0, 0, bgWidth, bgHeight, 
-	            renderPos.x, renderPos.y,  bgWidth, bgHeight); 
-
-	        renderPos.x += bgWidth;
-	        if (renderPos.x >= right) {
-	            renderPos.x = left;
-	            renderPos.y += bgHeight;
-	        }
-
-	    }
-	}
-
-	static drawGotoArrow(ctx, canvasWidth, canvasHeight) {
-
-		// Check if goal is on screen 
-		// TODO include HUD in this check
-
-        var positionGoalX = goalX * TILE_DIMENSION + TILE_DIMENSION/2;
-        var positionGoalY = goalY * TILE_DIMENSION + TILE_DIMENSION/2;
-
-		if(cameraX < positionGoalX &&
-		   (cameraX + canvasWidth) > positionGoalX &&
-		   cameraY < positionGoalY &&
-		   (cameraY + canvasHeight) > positionGoalY) {
-			return;
-		}
-
-		//todo find our y = mx + b variables. 
-
-		var b, m;
-
-		var x1 = cameraX + (canvasWidth / 2);
-		var x2 = positionGoalX;
-
-		// Check vertical line case
-		if (x1 == x2) {
-			//TODO
-			return;
-		}
-
-		var y1 = cameraY + (canvasHeight / 2);
-		var y2 = positionGoalY;
-
-		// horizontal line case
-		if (y1 == y2) {
-			//TODO
-			return;
-		}
-
-		b = (x2*y1 - x1*y2) / (x2 - x1);
-		m = (y1 - b) / x1;
-
-
-		// Temp positions
-		var lineStartX = 0;
-		var lineStartY = 0;
-
-		// Check if we look at top or bottom line. 
-		var boxX = positionGoalX < cameraX 
-				   ? cameraX + (TILE_DIMENSION*0.5)
-				   : cameraX + canvasWidth - (TILE_DIMENSION*0.5);
-		var boxY = positionGoalY < cameraY 
-				   ? cameraY + (TILE_DIMENSION*0.5)
-				   : cameraY + canvasHeight - (TILE_DIMENSION*0.5);
-
-
-		//Check if we are on the X edge
-		var yIntersection = (m * boxX) + b;
-
-		var lineEndY, lineEndX;
-		shiftAmt *= 5;
-
-		if (yIntersection > cameraY && yIntersection < (cameraY + canvasHeight)) {
-			//We intersect with y axis! 
-			lineStartX = boxX;
-			lineStartY = yIntersection;
-
-			var shiftAmt = positionGoalX < cameraX ? TILE_DIMENSION : -TILE_DIMENSION;
-			lineEndX = boxX + shiftAmt;
-			lineEndY = (lineEndX) * m + b;
-		}
-		else {
-			lineStartX = (boxY - b) / m;
-			lineStartY = boxY;
-
-			var shiftAmt = positionGoalY < cameraY ? TILE_DIMENSION : -TILE_DIMENSION;
-			lineEndY = boxY + shiftAmt;
-			lineEndX = (lineEndY - b) / m;
-		}
-
-
-		Renderer.drawArrow(ctx, 
-						   lineEndX - cameraX, 
-						   lineEndY - cameraY, 
-						   lineStartX - cameraX, 
-						   lineStartY - cameraY);
-
-	}
-
-// Stolen straight outta stack overflow, why re-invent the wheel? 
-// https://stackoverflow.com/questions/808826/draw-arrow-on-canvas-tag
-	static drawArrow(ctx, fromx, fromy, tox, toy){
-        var headlen = 10;
-
-        var angle = Math.atan2(toy-fromy,tox-fromx);
-
-        //starting path of the arrow from the start square to the end square and drawing the stroke
-        ctx.beginPath();
-        ctx.moveTo(fromx, fromy);
-        ctx.lineTo(tox, toy);
-        ctx.strokeStyle = "#cc0000";
-        ctx.lineWidth = 10;
-        ctx.stroke();
-
-        //starting a new path from the head of the arrow to one of the sides of the point
-        ctx.beginPath();
-        ctx.moveTo(tox, toy);
-        ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
-
-        //path from the side point of the arrow, to the other side point
-        ctx.lineTo(tox-headlen*Math.cos(angle+Math.PI/7),toy-headlen*Math.sin(angle+Math.PI/7));
-
-        //path from the side point back to the tip of the arrow, and then again to the opposite side point
-        ctx.lineTo(tox, toy);
-        ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
-
-        //draws the paths created above
-        ctx.strokeStyle = "#cc0000";
-        ctx.lineWidth = 10;
-        ctx.stroke();
-        ctx.fillStyle = "#cc0000";
-        ctx.fill();
-    }
 
 }

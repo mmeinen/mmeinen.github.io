@@ -54,43 +54,31 @@ var BG_CASTLE_PIECES = [
 
 var WINDOW = {x: 320, y:192};
 
-function renderTile(ctx, x, y, renderPt) {
+function renderTile(ctx, x, y, z, renderPt) {
 
-    var state = determineState(x, y);
+    var state = determineState(x, y, z);
+    var tileDimension = getTileDimension(z);
 
     if (state === null || state === TILE_FLAG) {
-		var castle = determineCastle(x,y);
+		var castle = determineCastle(x, y, z);
 		ctx.drawImage(castleSheet, castle.x, castle.y, 32, 32, 
-			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
-
-		if (determineWindow(x,y)) {
-			ctx.drawImage(castleSheet, WINDOW.x, WINDOW.y, 32, 32, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);  
-		}
-    }
-
-    // Special goal tile rendering
-    if (x === goalX && y == goalY) {
-		ctx.drawImage(castleSheet, 128, 352, 32, 32, 
-			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
-
-		return;
+			renderPt.x, renderPt.y, tileDimension, tileDimension);   
     }
 
     if (state !== null) {
 
 	    if (state === TILE_BOMB) {
 			ctx.drawImage(bombSheet, 193, 65, 15, 15, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+				renderPt.x, renderPt.y, tileDimension, tileDimension);
 	    }
 	    else if (state === TILE_FLAG) {
 			ctx.drawImage(castleSheet, 389, 453, 21, 21, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+				renderPt.x, renderPt.y, tileDimension, tileDimension);
 	    }
 	    else if (state !== 0) {
-	    	var bgCastle = determineBgCastle(x,y);
+	    	var bgCastle = determineBgCastle(x, y, z);
 			ctx.drawImage(castleSheet, bgCastle.x, bgCastle.y, 32, 32, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+				renderPt.x, renderPt.y, tileDimension, tileDimension);
 
 
 	    	ctx.font = "26px Bookman";
@@ -108,14 +96,11 @@ function renderTile(ctx, x, y, renderPt) {
 
 
 // Used in minimap rendering!
-function renderSimpleTile(ctx, x, y, renderPt) {
+function renderSimpleTile(ctx, x, y, z, renderPt) {
 
-    var state = determineState(x, y);
+    var state = determineState(x, y, z);
 
-    if (x === goalX && y === goalY) {
- 		ctx.fillStyle = ('rgba(0,255,0,1)');
-    }
-    else if (state !== null) {
+    if (state !== null) {
  		ctx.fillStyle = ('rgba(255,255,255,1)');
     }
     else {
@@ -125,16 +110,16 @@ function renderSimpleTile(ctx, x, y, renderPt) {
     ctx.fillRect(renderPt.x, renderPt.y, TILE_MINI_DIMENSION, TILE_MINI_DIMENSION);
 }
 
-function determineCastle(x, y) {
+function determineCastle(x, y, z) {
 
-	var cacheKey = createKey(x,y);
+	var cacheKey = createKey(x, y, z);
 	if (tileRenderCache.hasOwnProperty(cacheKey)) {
 		return tileRenderCache[cacheKey];
 	}
 
 	var index = 0;
 
-	actOnSurrounding(function(inX,inY){
+	actOnSurrounding(function(inX, inY, inZ){
 
 		// Exclude the corners
 		if (inX !== x && inY !== y) {
@@ -142,7 +127,7 @@ function determineCastle(x, y) {
 		}
 		//TODO if there is only corners than we need to know that. 
 
-		var state = determineState(inX, inY);
+		var state = determineState(inX, inY, inZ);
 
 	    if (state !== null && state > 0) {
 	    	if (inX < x) {
@@ -159,22 +144,22 @@ function determineCastle(x, y) {
 	    	}
 	    }
 
-	}, x, y);
+	}, x, y, z);
 
 	tileRenderCache[cacheKey] = CASTLE_PIECES[index];
 	return tileRenderCache[cacheKey];
 }
 
-function determineBgCastle(x, y) {
+function determineBgCastle(x, y, z) {
 
-	var cacheKey = createKey(x,y);
+	var cacheKey = createKey(x, y, z);
 	if (tileRenderCache.hasOwnProperty(cacheKey)) {
 		return tileRenderCache[cacheKey];
 	}
 
 	var index = 0;
 
-	actOnSurrounding(function(inX,inY){
+	actOnSurrounding(function(inX, inY, inZ){
 
 		// Exclude the corners
 		if (inX !== x && inY !== y) {
@@ -182,7 +167,7 @@ function determineBgCastle(x, y) {
 		}
 		//TODO if there is only corners than we need to know that. 
 
-		var state = determineState(inX, inY);
+		var state = determineState(inX, inY, inZ);
 
 	    if (state === 0) {
 	    	if (inX < x) {
@@ -196,45 +181,42 @@ function determineBgCastle(x, y) {
 	    	}
 	    }
 
-	}, x, y);
+	}, x, y, z);
 
 	tileRenderCache[cacheKey] = BG_CASTLE_PIECES[index];
 	return tileRenderCache[cacheKey];
 }
 
-function determineNumber(x, y) { //TODO cache result, map
+function determineNumber(x, y, z) { //TODO cache result, map
 
 	var number = 0;
 
-	actOnSurrounding(function(inX,inY){
-	    if (determineMine(inX, inY)) {
+	actOnSurrounding(function(inX, inY, inZ){
+	    if (determineMine(inX, inY, inZ)) {
 	      number++;
 	    }
 
-	}, x, y);
+	}, x, y, z);
 
 	return number;
 }
 
-function determineMine(x, y) { //TODO cache result, map 
+function determineMine(x, y, z) {
 
-	if ((Math.abs(x - initialClickX) <= 2 && Math.abs(y - initialClickY) <= 2)
-		|| (x == goalX && y == goalY)) {
+	var initialX = initialClicks[z][0];
+	var initialY = initialClicks[z][1];
+	if (initialX - 1 <= x && initialX + 1 >= x && 
+		initialY - 1 < y && initialY + 1 > y) {
 		return false;
 	}
 
-	var str = x + seed + y;
+	var str = x + seed + y + "yolo" + z;
 
 	var hash = parseInt(hex_md5(str));
 
 	return hash % 5 == 0;
 }
 
-
-function determineWindow(x, y) { //TODO cache result maybe? 
-	var str = x + seed + y;
-
-	var hash = parseInt(hex_md5(str));
-
-	return hash % 20 == 2;
+function getTileDimension(z) {
+	return TILE_DIMENSION - (z * 4); //TODO dynamic based on viewport
 }
