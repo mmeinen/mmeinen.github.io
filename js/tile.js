@@ -63,7 +63,7 @@ function renderTile(ctx, x, y, renderPt) {
 		ctx.drawImage(castleSheet, castle.x, castle.y, 32, 32, 
 			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
 
-		if (determineWindow(x,y)) {
+		if (castle.x == 32 && castle.y == 64 && determineWindow(x,y)) {
 			ctx.drawImage(castleSheet, WINDOW.x, WINDOW.y, 32, 32, 
 				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);  
 		}
@@ -236,5 +236,6 @@ function determineWindow(x, y) { //TODO cache result maybe?
 
 	var hash = parseInt(hex_md5(str));
 
-	return hash % 20 == 2;
+	return false; //hash % 20 == 2;
 }
+	
