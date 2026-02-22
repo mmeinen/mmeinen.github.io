@@ -11,11 +11,26 @@ const ctx = canvas.getContext('2d');
 
 // ─── Input ───────────────────────────────────────────────────────────────────
 const keys = {};
+let cheatBuffer = 0;
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Tab') { e.preventDefault(); game.switchWeapon(); }
   if (e.code === 'Space') { e.preventDefault(); game.attack(); }
   if (e.code === 'Enter') { e.preventDefault(); game.handleEnter(); }
+
+  if (e.key === '1' && game.state === 'shop') { e.preventDefault(); game.buyWeapon('bow'); }
+  if (e.key === '2' && game.state === 'shop') { e.preventDefault(); game.buyWeapon('bomb'); }
+
+  if (e.key === '9' && game.state === 'playing') {
+    cheatBuffer++;
+    if (cheatBuffer >= 3) {
+      cheatBuffer = 0;
+      game.wave = 12;
+      game.enemies = [];
+    }
+  } else {
+    cheatBuffer = 0;
+  }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
@@ -509,6 +524,8 @@ const game = {
   score: 0,
   wave: 1,
   lives: 10,
+  coins: 0,
+  unlockedWeapons: ['sword'],
 
   player: null,
   enemies: [],
@@ -517,15 +534,19 @@ const game = {
   blasts: [],
   explosions: [],
   terrain: null,
+  winSparkles: [],
 
   init() {
     this.score = 0;
     this.wave = 1;
     this.lives = 10;
+    this.coins = 0;
+    this.unlockedWeapons = ['sword'];
     this.arrows = [];
     this.bombs = [];
     this.blasts = [];
     this.explosions = [];
+    this.winSparkles = [];
     this.player = {
       x: W / 2, y: H - 70,
       w: 26, h: 56,
@@ -562,11 +583,11 @@ const game = {
 
   spawnWave(waveNum) {
     this.enemies = [];
-    // Wave 1 = 5 nuggets, +3 per wave
+    // Wave 1 = 5 nuggets, +3 per wave (max 12 waves)
     const count = 5 + (waveNum - 1) * 3;
-    // Speed grows with waves
-    const baseVy = 0.25 + (waveNum - 1) * 0.12;
-    const baseVx = 0.5  + (waveNum - 1) * 0.1;
+    // Speed is fixed — only the count grows
+    const baseVy = 0.25;
+    const baseVx = 0.5;
 
     for (let i = 0; i < count; i++) {
       // Spread them randomly across the top, staggered in depth
@@ -590,10 +611,20 @@ const game = {
   switchWeapon() {
     if (this.state !== 'playing') return;
     const p = this.player;
-    const cycle = { sword: 'bow', bow: 'bomb', bomb: 'sword' };
-    p.weapon = cycle[p.weapon];
+    const idx = this.unlockedWeapons.indexOf(p.weapon);
+    p.weapon = this.unlockedWeapons[(idx + 1) % this.unlockedWeapons.length];
     const names = { sword: 'Sword', bow: 'Bow & Arrow', bomb: 'Bomb' };
     document.getElementById('weapon').textContent = names[p.weapon];
+  },
+
+  buyWeapon(weapon) {
+    const prices = { bow: 5, bomb: 8 };
+    const cost = prices[weapon];
+    if (this.unlockedWeapons.includes(weapon)) return;
+    if (this.coins < cost) return;
+    this.coins -= cost;
+    this.unlockedWeapons.push(weapon);
+    document.getElementById('coins').textContent = this.coins;
   },
 
   attack() {
@@ -653,6 +684,14 @@ const game = {
   },
 
   handleEnter() {
+    if (this.state === 'shop') {
+      this.wave++;
+      document.getElementById('wave').textContent = this.wave;
+      this.arrows = [];
+      this.spawnWave(this.wave);
+      this.state = 'playing';
+      return;
+    }
     if (this.state === 'title' || this.state === 'gameover' || this.state === 'win') {
       this.state = 'playing';
       this.init();
@@ -663,6 +702,7 @@ const game = {
     document.getElementById('score').textContent = this.score;
     document.getElementById('wave').textContent = this.wave;
     document.getElementById('lives').textContent = this.lives;
+    document.getElementById('coins').textContent = this.coins;
     const names = { sword: 'Sword', bow: 'Bow & Arrow', bomb: 'Bomb' };
     document.getElementById('weapon').textContent =
       names[this.player?.weapon] ?? 'Sword';
@@ -746,6 +786,8 @@ const game = {
     e.alive = false;
     this.score += 10;
     document.getElementById('score').textContent = this.score;
+    this.coins++;
+    document.getElementById('coins').textContent = this.coins;
     const particles = [];
     const colors = ['#ffcc44', '#e09a30', '#ff8800', '#fff8e0', '#c8841a'];
     for (let i = 0; i < 14; i++) {
@@ -830,15 +872,16 @@ const game = {
     const alive = this.enemies.filter(e => e.alive);
 
     if (alive.length === 0) {
-      this.wave++;
-      document.getElementById('wave').textContent = this.wave;
-      this.arrows = [];
-      this.spawnWave(this.wave);
+      if (this.wave >= 12) {
+        this.state = 'win';
+        return;
+      }
+      this.state = 'shop';
       return;
     }
 
     const floorY = this.player.y + 25;
-    const chaseSpeed = 0.9 + (this.wave - 1) * 0.1;
+    const chaseSpeed = 0.9;
 
     for (const e of alive) {
       if (e.grounded) {
@@ -936,6 +979,7 @@ const game = {
     ctx.clearRect(0, 0, W, H);
 
     if (this.state === 'title') { this.drawTitle(); return; }
+    if (this.state === 'shop') { this.drawShop(); return; }
 
     drawBackground(this.terrain);
 
@@ -957,6 +1001,7 @@ const game = {
     }
 
     if (this.state === 'gameover') this.drawGameOver();
+    if (this.state === 'win') this.drawWin();
   },
 
   drawTitle() {
@@ -979,7 +1024,7 @@ const game = {
     ctx.fillStyle = '#fff';
     ctx.font = '17px "Courier New"';
     ctx.fillText('← →  Move', W / 2, 268);
-    ctx.fillText('Tab  Switch Weapon (Sword / Bow / Bomb)', W / 2, 294);
+    ctx.fillText('Tab  Switch Weapon  |  Buy upgrades in shop', W / 2, 294);
     ctx.fillText('Space  Attack', W / 2, 320);
 
     const blink = Math.floor(Date.now() / 600) % 2 === 0;
@@ -1008,6 +1053,218 @@ const game = {
       ctx.fillStyle = '#f0c040';
       ctx.font = '20px "Courier New"';
       ctx.fillText('Press ENTER to Play Again', W / 2, H / 2 + 60);
+    }
+    ctx.textAlign = 'left';
+  },
+
+  drawShop() {
+    // Background
+    if (this.terrain) drawBackground(this.terrain);
+    else { ctx.fillStyle = '#0d1b3e'; ctx.fillRect(0, 0, W, H); }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.70)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center';
+
+    // Header
+    ctx.fillStyle = '#f0c040';
+    ctx.font = 'bold 40px "Courier New"';
+    ctx.fillText(`WAVE ${this.wave} COMPLETE!`, W / 2, 110);
+
+    ctx.fillStyle = '#ffee44';
+    ctx.font = '24px "Courier New"';
+    ctx.fillText(`Coins: ${this.coins}`, W / 2, 148);
+
+    // Shop title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Courier New"';
+    ctx.fillText('SHOP', W / 2, 205);
+
+    // Helper to draw one item row
+    const drawItem = (key, label, price, weapon, rowY) => {
+      const owned = this.unlockedWeapons.includes(weapon);
+      const canAfford = this.coins >= price;
+
+      // Row box
+      ctx.fillStyle = owned ? 'rgba(40,80,40,0.55)' : canAfford ? 'rgba(60,60,20,0.55)' : 'rgba(60,20,20,0.45)';
+      ctx.fillRect(W / 2 - 260, rowY - 30, 520, 58);
+      ctx.strokeStyle = owned ? '#44aa44' : canAfford ? '#f0c040' : '#aa4444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(W / 2 - 260, rowY - 30, 520, 58);
+
+      // Key badge
+      ctx.fillStyle = '#333';
+      ctx.fillRect(W / 2 - 244, rowY - 14, 26, 26);
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(W / 2 - 244, rowY - 14, 26, 26);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px "Courier New"';
+      ctx.fillText(key, W / 2 - 231, rowY + 5);
+
+      // Item name
+      ctx.font = '20px "Courier New"';
+      ctx.fillStyle = owned ? '#88cc88' : canAfford ? '#f0c040' : '#cc6666';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, W / 2 - 200, rowY + 6);
+      ctx.textAlign = 'center';
+
+      // Status tag
+      if (owned) {
+        ctx.fillStyle = '#44cc44';
+        ctx.font = 'bold 16px "Courier New"';
+        ctx.fillText('[OWNED]', W / 2 + 160, rowY + 6);
+      } else {
+        ctx.fillStyle = canAfford ? '#f0c040' : '#cc4444';
+        ctx.font = '16px "Courier New"';
+        ctx.fillText(`[${price} coins]`, W / 2 + 160, rowY + 6);
+      }
+    };
+
+    drawItem('1', 'Bow & Arrow', 5, 'bow', 280);
+    drawItem('2', 'Bomb',        8, 'bomb', 360);
+
+    // Continue prompt
+    const blink = Math.floor(Date.now() / 600) % 2 === 0;
+    if (blink) {
+      ctx.fillStyle = '#f0c040';
+      ctx.font = 'bold 20px "Courier New"';
+      ctx.fillText('Press ENTER to continue →', W / 2, 460);
+    }
+
+    ctx.textAlign = 'left';
+  },
+
+  drawWin() {
+    ctx.fillStyle = 'rgba(0,0,0,0.70)';
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Sparkles ──────────────────────────────────────────────────────────────
+    const SPARKLE_COLORS = ['#f0c040', '#fff8aa', '#ffffff', '#ffe080', '#ffd700', '#c8f0ff'];
+    const MAX_SPARKLES = 70;
+
+    // Seed the pool on first frame
+    if (this.winSparkles.length === 0) {
+      for (let i = 0; i < MAX_SPARKLES; i++) {
+        const maxLife = 80 + Math.random() * 100;
+        this.winSparkles.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.7,
+          vy: -0.4 - Math.random() * 0.9,
+          size: 2 + Math.random() * 3,
+          life: Math.floor(Math.random() * maxLife), // stagger so they don't all pop at once
+          maxLife,
+          color: SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)],
+        });
+      }
+    }
+
+    // Respawn dead sparkles, update live ones
+    for (const s of this.winSparkles) {
+      s.life++;
+      if (s.life >= s.maxLife) {
+        // Respawn at a random x along the bottom half, drifting upward
+        s.x = Math.random() * W;
+        s.y = H + 4;
+        s.vx = (Math.random() - 0.5) * 0.7;
+        s.vy = -0.4 - Math.random() * 0.9;
+        s.size = 2 + Math.random() * 3;
+        s.maxLife = 80 + Math.random() * 100;
+        s.life = 0;
+        s.color = SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)];
+      }
+      s.x += s.vx;
+      s.y += s.vy;
+
+      const fade = 20;
+      const alpha = s.life < fade
+        ? s.life / fade
+        : s.life > s.maxLife - fade
+          ? (s.maxLife - s.life) / fade
+          : 1;
+
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.fillStyle = s.color;
+
+      // 4-pointed star shape
+      const sz = s.size;
+      const inner = sz * 0.35;
+      ctx.beginPath();
+      for (let p = 0; p < 8; p++) {
+        const angle = (p * Math.PI) / 4 - Math.PI / 2;
+        const r = p % 2 === 0 ? sz : inner;
+        const px = s.x + Math.cos(angle) * r;
+        const py = s.y + Math.sin(angle) * r;
+        p === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // ── Text ──────────────────────────────────────────────────────────────────
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = '#f0c040';
+    ctx.font = 'bold 52px "Courier New"';
+    ctx.fillText('YOU WIN!', W / 2, H / 2 - 150);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px "Courier New"';
+    ctx.fillText('All 12 waves defeated!', W / 2, H / 2 - 105);
+    ctx.fillText(`Final Score: ${this.score}`, W / 2, H / 2 - 75);
+
+    // ── Trophy (moved down) ───────────────────────────────────────────────────
+    const cx = W / 2;
+    const ty = H / 2 + 60;
+
+    // Cup body
+    ctx.fillStyle = '#f0c040';
+    ctx.beginPath();
+    ctx.moveTo(cx - 38, ty - 60);
+    ctx.lineTo(cx - 44, ty - 60);
+    ctx.quadraticCurveTo(cx - 58, ty - 30, cx - 44, ty);
+    ctx.lineTo(cx - 22, ty);
+    ctx.lineTo(cx - 16, ty + 20);
+    ctx.lineTo(cx + 16, ty + 20);
+    ctx.lineTo(cx + 22, ty);
+    ctx.lineTo(cx + 44, ty);
+    ctx.quadraticCurveTo(cx + 58, ty - 30, cx + 44, ty - 60);
+    ctx.lineTo(cx + 38, ty - 60);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cup shine
+    ctx.fillStyle = '#fff8aa';
+    ctx.beginPath();
+    ctx.moveTo(cx - 28, ty - 55);
+    ctx.lineTo(cx - 34, ty - 55);
+    ctx.quadraticCurveTo(cx - 46, ty - 30, cx - 34, ty - 5);
+    ctx.lineTo(cx - 28, ty - 5);
+    ctx.quadraticCurveTo(cx - 38, ty - 30, cx - 28, ty - 55);
+    ctx.closePath();
+    ctx.fill();
+
+    // Base stem
+    ctx.fillStyle = '#d4a820';
+    ctx.fillRect(cx - 12, ty + 20, 24, 14);
+
+    // Base plate
+    ctx.fillStyle = '#f0c040';
+    ctx.fillRect(cx - 32, ty + 34, 64, 12);
+
+    // Star on cup
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px serif';
+    ctx.fillText('★', cx, ty - 22);
+
+    const blink = Math.floor(Date.now() / 600) % 2 === 0;
+    if (blink) {
+      ctx.fillStyle = '#f0c040';
+      ctx.font = 'bold 20px "Courier New"';
+      ctx.fillText('Press ENTER to Play Again', W / 2, H / 2 + 175);
     }
     ctx.textAlign = 'left';
   },
