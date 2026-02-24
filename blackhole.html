@@ -273,76 +273,29 @@
         return inner * outer * 0.9;
       }
 
-      /* ─── Module 4: 3D Procedural Starfield + Spiral Galaxy ─── */
+      /* ─── Module 4: Deep-Field Galaxy Background ─── */
 
-      vec3 starfield(vec3 rd) {
-        vec3 col = vec3(0.0);
-        float scale = 25.0;
-        vec3 p = rd * scale;
-        vec3 fp = floor(p);
-
-        for (int dx = 0; dx <= 1; dx++)
-        for (int dy = 0; dy <= 1; dy++)
-        for (int dz = 0; dz <= 1; dz++) {
-          vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
-          float h = hash3(cell);
-          if (h > 0.97) {
-            vec3 starPos = cell + vec3(
-              hash3(cell + 1.0),
-              hash3(cell + 2.0),
-              hash3(cell + 3.0)
-            );
-            float d = length(p - starPos);
-            float brightness = smoothstep(0.5, 0.0, d);
-            brightness *= brightness;
-            /* Brighter range with occasional very bright stars */
-            float mag = hash3(cell + 4.0);
-            brightness *= 0.4 + 0.6 * mag;
-            /* Rare bright stars get extra punch */
-            brightness *= 1.0 + 2.0 * smoothstep(0.92, 1.0, mag);
-
-            float twinkle = 0.7 + 0.3 * sin(
-              u_time * (0.8 + hash3(cell + 5.0) * 2.5) + h * 6.2832
-            );
-            brightness *= twinkle;
-
-            /* Wider color range: blue-white, white, gold, warm orange */
-            float temp = hash3(cell + 6.0);
-            vec3 starCol;
-            if (temp < 0.3) {
-              starCol = mix(vec3(0.6, 0.7, 1.0), vec3(0.8, 0.85, 1.0), temp / 0.3);
-            } else if (temp < 0.7) {
-              starCol = vec3(1.0, 0.97, 0.92);
-            } else {
-              starCol = mix(vec3(1.0, 0.9, 0.7), vec3(1.0, 0.75, 0.5), (temp - 0.7) / 0.3);
-            }
-            col += starCol * brightness;
-          }
-        }
-        return col;
-      }
-
-      /* Single galaxy renderer — dir=center, scl=angular size, tilt=rotation, bright=intensity */
-      vec3 renderGalaxy(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tintCore, vec3 tintArm) {
-        float cosA = dot(rd, dir);
-        if (cosA < 0.95) return vec3(0.0);
-
-        /* Project onto tangent plane */
+      /* Shared projection helper — returns local 2D coords on tangent plane */
+      vec2 galaxyProject(vec3 rd, vec3 dir, float scl, float tilt, out float cosA) {
+        cosA = dot(rd, dir);
         vec3 up0 = normalize(cross(dir, vec3(0.0, 1.0, 0.1)));
         vec3 right0 = cross(up0, dir);
         vec2 offset = vec2(dot(rd - dir * cosA, right0), dot(rd - dir * cosA, up0)) * scl;
-        /* Apply tilt rotation */
         float ct = cos(tilt), st = sin(tilt);
-        float gx = offset.x * ct - offset.y * st;
-        float gy = offset.x * st + offset.y * ct;
+        return vec2(offset.x * ct - offset.y * st, offset.x * st + offset.y * ct);
+      }
 
-        float gr = length(vec2(gx, gy));
-        float ga = atan(gy, gx);
+      /* Type 1: Spiral galaxy — logarithmic arms, blue arms, warm core */
+      vec3 renderSpiral(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tintCore, vec3 tintArm) {
+        float cosA;
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        if (cosA < 0.95) return vec3(0.0);
 
-        /* Bright core */
+        float gr = length(g);
+        float ga = atan(g.y, g.x);
+
         float core = exp(-gr * gr * 0.8) * 1.2;
 
-        /* Two logarithmic spiral arms */
         float armWidth = 0.45;
         float arms = 0.0;
         for (int i = 0; i < 2; i++) {
@@ -354,40 +307,160 @@
           arms += arm;
         }
 
-        /* Noisy star clusters in arms */
-        float n = vnoise(vec2(gx * 3.0, gy * 3.0)) * 0.5
-                + vnoise(vec2(gx * 7.0, gy * 7.0)) * 0.3;
+        float n = vnoise(vec2(g.x * 3.0, g.y * 3.0)) * 0.5
+                + vnoise(vec2(g.x * 7.0, g.y * 7.0)) * 0.3;
         arms *= 0.6 + 0.8 * n;
 
-        /* Overall disk falloff */
         float disk = exp(-gr * 0.25) * 0.3;
-        float total = core + arms * 0.7 + disk;
-        total *= smoothstep(0.95, 0.96, cosA);
+        float total = (core + arms * 0.7 + disk) * smoothstep(0.95, 0.96, cosA);
 
         vec3 col = mix(tintArm, tintCore, exp(-gr * 0.5)) * total;
-
-        /* Star-forming regions */
-        float sfr = vnoise(vec2(gx * 5.0 + 10.0, gy * 5.0)) * arms;
+        float sfr = vnoise(vec2(g.x * 5.0 + 10.0, g.y * 5.0)) * arms;
         col += vec3(0.8, 0.3, 0.5) * sfr * 0.15;
 
         return col * bright;
       }
 
-      /* All distant galaxies */
+      /* Type 2: Elliptical galaxy — smooth de Vaucouleurs profile, warm golden */
+      vec3 renderElliptical(vec3 rd, vec3 dir, float scl, float tilt, float bright, float axisRatio, vec3 tint) {
+        float cosA;
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        if (cosA < 0.95) return vec3(0.0);
+
+        /* Elliptical profile with axis ratio */
+        float er = length(vec2(g.x, g.y / axisRatio));
+        /* de Vaucouleurs: I ~ exp(-k * r^0.25) */
+        float profile = exp(-3.5 * sqrt(sqrt(max(er, 0.01))));
+        /* Soft outer halo */
+        profile += exp(-er * 0.5) * 0.08;
+        profile *= smoothstep(0.95, 0.96, cosA);
+
+        /* Subtle color gradient: warmer in center */
+        vec3 col = mix(tint * 0.7, tint, exp(-er * 0.3)) * profile;
+
+        return col * bright;
+      }
+
+      /* Type 3: Edge-on disk galaxy — thin streak with central bulge and dust lane */
+      vec3 renderEdgeOn(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tint) {
+        float cosA;
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        if (cosA < 0.95) return vec3(0.0);
+
+        /* Thin disk: wide in x, narrow in y */
+        float dx = abs(g.x);
+        float dy = abs(g.y);
+
+        /* Central bulge */
+        float bulge = exp(-(dx * dx * 0.6 + dy * dy * 2.0)) * 1.5;
+
+        /* Thin disk extending outward */
+        float diskThickness = 0.15 + 0.1 * exp(-dx * 0.3);
+        float disk = exp(-dy * dy / (diskThickness * diskThickness)) * exp(-dx * 0.25);
+
+        /* Dark dust lane along midplane */
+        float dust = 1.0 - 0.6 * exp(-dy * dy / 0.01) * smoothstep(0.0, 0.5, dx);
+
+        float total = (bulge + disk * 0.8) * dust * smoothstep(0.95, 0.96, cosA);
+
+        /* Warm bulge, bluer outer disk */
+        vec3 col = mix(vec3(0.5, 0.6, 1.0) * tint, tint, exp(-dx * 0.3)) * total;
+
+        return col * bright;
+      }
+
+      /* Type 4: Irregular galaxy — patchy, blobby, with blue star-forming clumps */
+      vec3 renderIrregular(vec3 rd, vec3 dir, float scl, float bright, vec3 tint) {
+        float cosA;
+        vec2 g = galaxyProject(rd, dir, scl, 0.0, cosA);
+        if (cosA < 0.95) return vec3(0.0);
+
+        float gr = length(g);
+
+        /* Base glow */
+        float base = exp(-gr * gr * 0.3) * 0.5;
+
+        /* Noisy blobs — multiple offset noise layers */
+        float blobs = vnoise(vec2(g.x * 2.5, g.y * 2.5)) * 0.6
+                    + vnoise(vec2(g.x * 5.0 + 7.0, g.y * 5.0 + 3.0)) * 0.4;
+        blobs *= exp(-gr * 0.5);
+
+        /* Bright blue star-forming knots */
+        float knots = vnoise(vec2(g.x * 8.0 + 20.0, g.y * 8.0));
+        knots = smoothstep(0.55, 0.8, knots) * exp(-gr * 0.4);
+
+        float total = (base + blobs * 0.5) * smoothstep(0.95, 0.96, cosA);
+
+        vec3 col = tint * total;
+        col += vec3(0.4, 0.6, 1.0) * knots * 0.3;
+
+        return col * bright;
+      }
+
+      /* Procedural deep-field galaxy placement.
+         Uses a 3D grid on the direction sphere (scale 4.0 → ~200 surface cells).
+         ~22% occupancy → ~45 galaxies, evenly distributed across the sky.
+         Each pixel evaluates 8 neighbor cells but early-exits on cosA,
+         so only 1-2 galaxies actually render per pixel. */
       vec3 galaxies(vec3 rd) {
         vec3 col = vec3(0.0);
-        /* Large spiral — upper-left */
-        col += renderGalaxy(rd, normalize(vec3(-0.5, 0.35, -0.8)),
-          80.0, 0.0, 0.35, vec3(1.0, 0.9, 0.65), vec3(0.6, 0.75, 1.0));
-        /* Smaller tilted spiral — lower-right */
-        col += renderGalaxy(rd, normalize(vec3(0.7, -0.2, 0.65)),
-          120.0, 0.8, 0.2, vec3(1.0, 0.85, 0.6), vec3(0.7, 0.7, 1.0));
-        /* Tiny face-on spiral — upper area */
-        col += renderGalaxy(rd, normalize(vec3(0.1, 0.6, -0.75)),
-          160.0, 1.5, 0.12, vec3(1.0, 0.95, 0.8), vec3(0.5, 0.6, 0.9));
-        /* Edge-on galaxy (appears as a streak) — far right */
-        col += renderGalaxy(rd, normalize(vec3(0.9, 0.05, -0.3)),
-          200.0, 0.3, 0.08, vec3(1.0, 0.9, 0.7), vec3(0.65, 0.7, 0.95));
+        float scale = 4.0;
+        vec3 p = rd * scale;
+        vec3 fp = floor(p);
+
+        for (int dx = 0; dx <= 1; dx++)
+        for (int dy = 0; dy <= 1; dy++)
+        for (int dz = 0; dz <= 1; dz++) {
+          vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
+          float h0 = hash3(cell);
+          if (h0 > 0.22) continue; /* ~22% occupancy */
+
+          /* Galaxy center: jitter within cell, project to unit sphere */
+          vec3 gpos = cell + vec3(
+            hash3(cell + 1.0),
+            hash3(cell + 2.0),
+            hash3(cell + 3.0)
+          );
+          vec3 gdir = normalize(gpos);
+
+          /* Early angular rejection — cheaper than full render call */
+          if (dot(rd, gdir) < 0.94) continue;
+
+          /* Derive all properties from cell hash */
+          float hType  = hash3(cell + 10.0);
+          float hScale = hash3(cell + 20.0);
+          float hTilt  = hash3(cell + 30.0);
+          float hBri   = hash3(cell + 40.0);
+          float hCol   = hash3(cell + 50.0);
+          float hExtra = hash3(cell + 60.0);
+
+          float scl  = 70.0 + hScale * 160.0;
+          float tilt = hTilt * 6.28318;
+          float bright = 0.06 + hBri * 0.30;
+
+          /* Color palettes — warm golds through cool blues */
+          vec3 coreCol = mix(vec3(1.0, 0.82, 0.5), vec3(1.0, 0.95, 0.82), hCol);
+          vec3 armCol  = mix(vec3(0.45, 0.55, 1.0), vec3(0.7, 0.8, 0.95), hCol);
+          vec3 tint    = mix(vec3(1.0, 0.78, 0.45), vec3(0.95, 0.88, 0.7), hCol);
+
+          /* Type distribution: 35% spiral, 25% elliptical, 20% edge-on, 20% irregular */
+          if (hType < 0.35) {
+            col += renderSpiral(rd, gdir, scl, tilt, bright, coreCol, armCol);
+          } else if (hType < 0.60) {
+            float axisRatio = 0.4 + hExtra * 0.5;
+            col += renderElliptical(rd, gdir, scl, tilt, bright, axisRatio, tint);
+          } else if (hType < 0.80) {
+            col += renderEdgeOn(rd, gdir, scl, tilt, bright, tint);
+          } else {
+            col += renderIrregular(rd, gdir, scl, bright, tint);
+          }
+        }
+
+        /* Faint cosmic background wash — prevents pure-black voids */
+        float nebula = vnoise(rd.xy * 3.0 + rd.z) * 0.3
+                     + vnoise(rd.yz * 5.0 + rd.x * 2.0) * 0.15;
+        col += vec3(0.02, 0.015, 0.03) * nebula;
+
         return col;
       }
 
@@ -443,30 +516,13 @@
         float prevY = pos.y;
         float minR = 1000.0; /* Track closest approach for photon ring glow */
 
-        /* Fast-forward through empty space to r=25 sphere.
-           At large r gravity is negligible so straight-line is accurate.
-           This guarantees the BH is reachable within the iteration budget
-           regardless of camera distance. r=25 is well outside the
-           accretion disk (r=14) so no disk crossings are missed. */
-        if (length(pos) > 25.0) {
-          float b = dot(vel, pos);
-          float c = dot(pos, pos) - 625.0; /* 25^2 */
-          float disc = b * b - c;
-          if (disc > 0.0) {
-            float t = -b - sqrt(disc);
-            if (t > 0.0) {
-              pos += vel * t;
-              prevY = pos.y;
-            }
-          }
-        }
-
         /* Seed initial acceleration for Verlet integrator */
         vec3 acc = acceleration(pos, vel, L2, spin);
 
+        /* Escape radius: must exceed camera distance so rays can leave */
+        float escapeR = max(50.0, cd + 20.0);
+
         /* ── Velocity Verlet Geodesic Integration ── */
-        /* 220 iterations: enough for lensed rays to go in, orbit, and escape.
-           Still ~2.3x faster than original 256-step RK4 (220 vs 1024 accel evals). */
         for (int i = 0; i < 220; i++) {
           float r = length(pos);
           minR = min(minR, r);
@@ -477,11 +533,13 @@
             break;
           }
 
-          /* Escape — after skip, rays start at r<=25; r>50 means fully escaped */
-          if (r > 50.0) break;
+          /* Escape */
+          if (r > escapeR) break;
 
-          /* Adaptive step size */
-          float dt = 0.1 * clamp((r - r_h) / r_h, 0.02, 3.0);
+          /* Adaptive step size — uncapped so rays traverse empty space fast.
+             At r=300: dt≈15 (zips through void). At r=3: dt≈0.05 (precise near BH).
+             Verlet is symplectic so large far-field steps are stable. */
+          float dt = max(0.002, 0.05 * (r - r_h));
 
           /* Velocity Verlet integration step */
           vec3 prevPos = pos;
@@ -511,8 +569,7 @@
         vec3 bgCol = vec3(0.0);
         if (escaped && accumulatedAlpha < 1.0) {
           vec3 finalRd = normalize(vel);
-          bgCol = starfield(finalRd);
-          bgCol += galaxies(finalRd);
+          bgCol = galaxies(finalRd);
 
           /* Photon ring proximity glow — warm gold to white */
           float photonR = 3.0 * (1.0 - absSpin * 0.3);
@@ -589,10 +646,10 @@
     /* ── Interaction State ── */
     let camAzimuth = 0.0;
     let camElev = 0.32;
-    let camDist = 50.0;
+    let camDist = 200.0;
     let spin = 0.0;
 
-    const DEFAULTS = { camAzimuth: 0.0, camElev: 0.32, camDist: 50.0, spin: 0.0 };
+    const DEFAULTS = { camAzimuth: 0.0, camElev: 0.32, camDist: 200.0, spin: 0.0 };
 
     /* ── Mouse Drag (orbit) ── */
     let dragging = false;
