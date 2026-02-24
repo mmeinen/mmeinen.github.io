@@ -80,23 +80,26 @@
           <!-- Minor tick marks (small dashes around r=220) -->
           <circle cx="0" cy="0" r="230" fill="none" stroke="rgba(60,140,255,0.12)" stroke-width="0.5" stroke-dasharray="1 10.7" class="ring-rotate-ticks"/>
 
-          <!-- Arcs between buttons (90deg segments on orbit ring) -->
-          <path d="M 0,-220 A 220,220 0 0,1 220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-0"/>
-          <path d="M 220,0 A 220,220 0 0,1 0,220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-1"/>
-          <path d="M 0,220 A 220,220 0 0,1 -220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-2"/>
-          <path d="M -220,0 A 220,220 0 0,1 0,-220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-3"/>
+          <!-- Arcs between buttons (72deg segments on orbit ring, 5 nodes) -->
+          <path d="M 0,-220 A 220,220 0 0,1 209.2,-68.0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-0"/>
+          <path d="M 209.2,-68.0 A 220,220 0 0,1 129.3,178.0" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-1"/>
+          <path d="M 129.3,178.0 A 220,220 0 0,1 -129.3,178.0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-2"/>
+          <path d="M -129.3,178.0 A 220,220 0 0,1 -209.2,-68.0" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-3"/>
+          <path d="M -209.2,-68.0 A 220,220 0 0,1 0,-220" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-4"/>
 
-          <!-- Connector lines from center hub to each button node -->
+          <!-- Connector lines from center hub to each button node (5 nodes) -->
           <line x1="0" y1="-60" x2="0" y2="-190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="60" y1="0" x2="190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="0" y1="60" x2="0" y2="190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="-60" y1="0" x2="-190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="57.1" y1="-18.5" x2="180.7" y2="-58.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="35.3" y1="48.5" x2="111.7" y2="153.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="-35.3" y1="48.5" x2="-111.7" y2="153.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="-57.1" y1="-18.5" x2="-180.7" y2="-58.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
 
-          <!-- Diagonal connector lines (45-degree positions) -->
-          <line x1="42" y1="-42" x2="135" y2="-135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="42" y1="42" x2="135" y2="135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-42" y1="42" x2="-135" y2="135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-42" y1="-42" x2="-135" y2="-135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <!-- Midpoint connector lines (decorative, between nodes) -->
+          <line x1="35.3" y1="-48.5" x2="79.4" y2="-109.2" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="57.1" y1="18.5" x2="128.4" y2="41.7" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="0" y1="60" x2="0" y2="135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="-57.1" y1="18.5" x2="-128.4" y2="41.7" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="-35.3" y1="-48.5" x2="-79.4" y2="-109.2" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
 
           <!-- Center hub rings -->
           <circle cx="0" cy="0" r="55" fill="none" stroke="rgba(60,140,255,0.1)" stroke-width="0.5" stroke-dasharray="3 5"/>
@@ -110,41 +113,49 @@
           <line x1="0" y1="-30" x2="0" y2="-10" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
           <line x1="0" y1="10" x2="0" y2="30" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
 
-          <!-- Node dots at each button position -->
+          <!-- Node dots at each button position (5 nodes) -->
           <circle cx="0" cy="-220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="0" cy="220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="-220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="209.2" cy="-68.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="129.3" cy="178.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="-129.3" cy="178.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="-209.2" cy="-68.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
 
-          <!-- Node bracket markers -->
-          <g class="node-bracket" transform="translate(0,-220)">
+          <!-- Node bracket markers (5 nodes, rotated to match radial direction) -->
+          <g class="node-bracket" transform="translate(0,-220) rotate(0)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
-          <g class="node-bracket" transform="translate(220,0)">
-            <line x1="-9" y1="-14" x2="9" y2="-14" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="-9" y1="14" x2="9" y2="14" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-          <g class="node-bracket" transform="translate(0,220)">
+          <g class="node-bracket" transform="translate(209.2,-68.0) rotate(72)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
-          <g class="node-bracket" transform="translate(-220,0)">
-            <line x1="-9" y1="-14" x2="9" y2="-14" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="-9" y1="14" x2="9" y2="14" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+          <g class="node-bracket" transform="translate(129.3,178.0) rotate(144)">
+            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+          </g>
+          <g class="node-bracket" transform="translate(-129.3,178.0) rotate(216)">
+            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+          </g>
+          <g class="node-bracket" transform="translate(-209.2,-68.0) rotate(288)">
+            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
+            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
 
-          <!-- Small diamond markers at 45-degree positions on orbit ring -->
-          <g transform="translate(155.6,-155.6) rotate(45)" opacity="0.25">
+          <!-- Small diamond markers at midpoints between 5 nodes on orbit ring -->
+          <g transform="translate(129.3,-178.0) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(155.6,155.6) rotate(45)" opacity="0.25">
+          <g transform="translate(209.2,68.0) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(-155.6,155.6) rotate(45)" opacity="0.25">
+          <g transform="translate(0,220) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(-155.6,-155.6) rotate(45)" opacity="0.25">
+          <g transform="translate(-209.2,68.0) rotate(45)" opacity="0.25">
+            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
+          </g>
+          <g transform="translate(-129.3,-178.0) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
         </svg>
@@ -161,6 +172,9 @@
          </a>
          <a href="beatrix_game/index.html" class="menu-button" style="--angle: 3">
            <span class="btn-label">Jumping Axolotl Nuggets</span>
+         </a>
+         <a href="blackhole.html" class="menu-button" style="--angle: 4">
+           <span class="btn-label">Black Hole</span>
          </a>
        </div>
      </div>

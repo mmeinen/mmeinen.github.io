@@ -240,6 +240,7 @@ body {
 .arc-delay-1 { animation-delay: 1s; }
 .arc-delay-2 { animation-delay: 2s; }
 .arc-delay-3 { animation-delay: 3s; }
+.arc-delay-4 { animation-delay: 4s; }
 
 @keyframes arc-pulse {
   0%   { stroke-opacity: 0.12; }
@@ -273,7 +274,7 @@ body {
 
 .menu-button {
   --radius: min(28vh, 220px);
-  --deg: calc(var(--angle) * 90deg - 90deg);
+  --deg: calc(var(--angle) * 72deg - 90deg);
   position: absolute;
   top: 0;
   left: 0;
