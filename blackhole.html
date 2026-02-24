@@ -443,11 +443,31 @@
         float prevY = pos.y;
         float minR = 1000.0; /* Track closest approach for photon ring glow */
 
+        /* Fast-forward through empty space to r=25 sphere.
+           At large r gravity is negligible so straight-line is accurate.
+           This guarantees the BH is reachable within the iteration budget
+           regardless of camera distance. r=25 is well outside the
+           accretion disk (r=14) so no disk crossings are missed. */
+        if (length(pos) > 25.0) {
+          float b = dot(vel, pos);
+          float c = dot(pos, pos) - 625.0; /* 25^2 */
+          float disc = b * b - c;
+          if (disc > 0.0) {
+            float t = -b - sqrt(disc);
+            if (t > 0.0) {
+              pos += vel * t;
+              prevY = pos.y;
+            }
+          }
+        }
+
         /* Seed initial acceleration for Verlet integrator */
         vec3 acc = acceleration(pos, vel, L2, spin);
 
         /* ── Velocity Verlet Geodesic Integration ── */
-        for (int i = 0; i < 160; i++) {
+        /* 220 iterations: enough for lensed rays to go in, orbit, and escape.
+           Still ~2.3x faster than original 256-step RK4 (220 vs 1024 accel evals). */
+        for (int i = 0; i < 220; i++) {
           float r = length(pos);
           minR = min(minR, r);
 
@@ -457,7 +477,7 @@
             break;
           }
 
-          /* Escape */
+          /* Escape — after skip, rays start at r<=25; r>50 means fully escaped */
           if (r > 50.0) break;
 
           /* Adaptive step size */
@@ -569,10 +589,10 @@
     /* ── Interaction State ── */
     let camAzimuth = 0.0;
     let camElev = 0.32;
-    let camDist = 30.0;
+    let camDist = 50.0;
     let spin = 0.0;
 
-    const DEFAULTS = { camAzimuth: 0.0, camElev: 0.32, camDist: 30.0, spin: 0.0 };
+    const DEFAULTS = { camAzimuth: 0.0, camElev: 0.32, camDist: 50.0, spin: 0.0 };
 
     /* ── Mouse Drag (orbit) ── */
     let dragging = false;
@@ -597,7 +617,7 @@
     /* ── Scroll (zoom) ── */
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      camDist = Math.max(5, Math.min(100, camDist + e.deltaY * 0.02));
+      camDist = Math.max(5, Math.min(300, camDist + e.deltaY * 0.05));
     }, { passive: false });
 
     /* ── Touch support ── */
