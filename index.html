@@ -9,7 +9,7 @@
  </head>
  <body>
    <div class="space-bg">
-     <div class="stars"></div>
+     <canvas id="canvas"></canvas>
      <!-- HUD Overlay - everything centered -->
      <div class="hud-overlay">
        <!-- Title -->
@@ -18,28 +18,34 @@
          <div class="menu-subtitle">// NAVIGATION INTERFACE</div>
        </div>
 
-       <!-- HUD data readouts -->
+       <!-- HUD data readouts — live ship instruments -->
        <div class="hud-readout hud-readout-tl">
-         <span class="readout-label">SYS</span>
-         <span class="readout-value readout-blink">ONLINE</span>
+         <span class="readout-label">SPIN</span>
+         <span class="readout-value" id="hud-spin">0.000</span>
        </div>
        <div class="hud-readout hud-readout-tr">
-         <span class="readout-label">NAV</span>
-         <span class="readout-value">SECTOR 7G</span>
+         <span class="readout-label">RANGE</span>
+         <span class="readout-value" id="hud-dist">40.0 M</span>
        </div>
        <div class="hud-readout hud-readout-bl">
-         <span class="readout-label">PROXIMITY</span>
-         <span class="readout-value readout-warn">BLACK HOLE DETECTED</span>
+         <span class="readout-label">HELM CONTROLS</span>
+         <div class="readout-controls">
+           DRAG &mdash; ORBIT<br>
+           SCROLL &mdash; ZOOM<br>
+           [ / ] &mdash; SPIN<br>
+           R &mdash; RESET
+         </div>
        </div>
        <div class="hud-readout hud-readout-br">
-         <span class="readout-label">DRIFT</span>
-         <span class="readout-value">0.003 AU/s</span>
+         <span class="readout-label">FPS</span>
+         <span class="readout-value" id="hud-fps">--</span>
+         <div class="readout-value readout-scale" id="hud-scale"></div>
        </div>
 
        <!-- Radial menu with SVG HUD ring components -->
        <div class="radial-menu">
 
-        <!-- SVG radial HUD graphics - all tied to menu center -->
+        <!-- SVG radial HUD graphics — 4 nodes at 90 degree intervals -->
         <svg class="radial-hud-svg" viewBox="-300 -300 600 600" xmlns="http://www.w3.org/2000/svg">
 
           <!-- Outermost faint ring -->
@@ -80,26 +86,23 @@
           <!-- Minor tick marks (small dashes around r=220) -->
           <circle cx="0" cy="0" r="230" fill="none" stroke="rgba(60,140,255,0.12)" stroke-width="0.5" stroke-dasharray="1 10.7" class="ring-rotate-ticks"/>
 
-          <!-- Arcs between buttons (72deg segments on orbit ring, 5 nodes) -->
-          <path d="M 0,-220 A 220,220 0 0,1 209.2,-68.0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-0"/>
-          <path d="M 209.2,-68.0 A 220,220 0 0,1 129.3,178.0" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-1"/>
-          <path d="M 129.3,178.0 A 220,220 0 0,1 -129.3,178.0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-2"/>
-          <path d="M -129.3,178.0 A 220,220 0 0,1 -209.2,-68.0" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-3"/>
-          <path d="M -209.2,-68.0 A 220,220 0 0,1 0,-220" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-4"/>
+          <!-- Arcs between buttons (90deg segments on orbit ring, 4 nodes) -->
+          <path d="M 0,-220 A 220,220 0 0,1 220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-0"/>
+          <path d="M 220,0 A 220,220 0 0,1 0,220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-1"/>
+          <path d="M 0,220 A 220,220 0 0,1 -220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-2"/>
+          <path d="M -220,0 A 220,220 0 0,1 0,-220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-3"/>
 
-          <!-- Connector lines from center hub to each button node (5 nodes) -->
+          <!-- Connector lines from center hub to each button node (4 nodes) -->
           <line x1="0" y1="-60" x2="0" y2="-190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="57.1" y1="-18.5" x2="180.7" y2="-58.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="35.3" y1="48.5" x2="111.7" y2="153.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="-35.3" y1="48.5" x2="-111.7" y2="153.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="-57.1" y1="-18.5" x2="-180.7" y2="-58.7" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="60" y1="0" x2="190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="0" y1="60" x2="0" y2="190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
+          <line x1="-60" y1="0" x2="-190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
 
-          <!-- Midpoint connector lines (decorative, between nodes) -->
-          <line x1="35.3" y1="-48.5" x2="79.4" y2="-109.2" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="57.1" y1="18.5" x2="128.4" y2="41.7" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="0" y1="60" x2="0" y2="135" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-57.1" y1="18.5" x2="-128.4" y2="41.7" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-35.3" y1="-48.5" x2="-79.4" y2="-109.2" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <!-- Midpoint connector lines (decorative, between nodes at diagonals) -->
+          <line x1="42.4" y1="-42.4" x2="95.5" y2="-95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="42.4" y1="42.4" x2="95.5" y2="95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="-42.4" y1="42.4" x2="-95.5" y2="95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
+          <line x1="-42.4" y1="-42.4" x2="-95.5" y2="-95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
 
           <!-- Center hub rings -->
           <circle cx="0" cy="0" r="55" fill="none" stroke="rgba(60,140,255,0.1)" stroke-width="0.5" stroke-dasharray="3 5"/>
@@ -113,54 +116,46 @@
           <line x1="0" y1="-30" x2="0" y2="-10" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
           <line x1="0" y1="10" x2="0" y2="30" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
 
-          <!-- Node dots at each button position (5 nodes) -->
+          <!-- Node dots at each button position (4 nodes) -->
           <circle cx="0" cy="-220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="209.2" cy="-68.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="129.3" cy="178.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="-129.3" cy="178.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="-209.2" cy="-68.0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="0" cy="220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
+          <circle cx="-220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
 
-          <!-- Node bracket markers (5 nodes, rotated to match radial direction) -->
+          <!-- Node bracket markers (4 nodes, rotated to match radial direction) -->
           <g class="node-bracket" transform="translate(0,-220) rotate(0)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
-          <g class="node-bracket" transform="translate(209.2,-68.0) rotate(72)">
+          <g class="node-bracket" transform="translate(220,0) rotate(90)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
-          <g class="node-bracket" transform="translate(129.3,178.0) rotate(144)">
+          <g class="node-bracket" transform="translate(0,220) rotate(180)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
-          <g class="node-bracket" transform="translate(-129.3,178.0) rotate(216)">
-            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-          <g class="node-bracket" transform="translate(-209.2,-68.0) rotate(288)">
+          <g class="node-bracket" transform="translate(-220,0) rotate(270)">
             <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
             <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
           </g>
 
-          <!-- Small diamond markers at midpoints between 5 nodes on orbit ring -->
-          <g transform="translate(129.3,-178.0) rotate(45)" opacity="0.25">
+          <!-- Small diamond markers at midpoints between 4 nodes on orbit ring -->
+          <g transform="translate(155.6,-155.6) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(209.2,68.0) rotate(45)" opacity="0.25">
+          <g transform="translate(155.6,155.6) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(0,220) rotate(45)" opacity="0.25">
+          <g transform="translate(-155.6,155.6) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
-          <g transform="translate(-209.2,68.0) rotate(45)" opacity="0.25">
-            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
-          </g>
-          <g transform="translate(-129.3,-178.0) rotate(45)" opacity="0.25">
+          <g transform="translate(-155.6,-155.6) rotate(45)" opacity="0.25">
             <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
           </g>
         </svg>
 
-         <!-- Buttons -->
+         <!-- Buttons (4 items at 90 degree intervals) -->
          <a href="minesweeper.html" class="menu-button" style="--angle: 0">
            <span class="btn-label">Minesweeper</span>
          </a>
@@ -173,27 +168,592 @@
          <a href="beatrix_game/index.html" class="menu-button" style="--angle: 3">
            <span class="btn-label">Jumping Axolotl Nuggets</span>
          </a>
-         <a href="blackhole.html" class="menu-button" style="--angle: 4">
-           <span class="btn-label">Black Hole</span>
-         </a>
        </div>
      </div>
    </div>
 
    <script>
-     (function() {
-       const container = document.querySelector('.stars');
-       let html = '';
-       for (let i = 0; i < 40; i++) {
-         const x = Math.random() * 100;
-         const y = Math.random() * 100;
-         const size = 1 + Math.random() * 2;
-         const delay = Math.random() * 8;
-         const duration = 4 + Math.random() * 6;
-         html += '<div class="star" style="left:'+x+'%;top:'+y+'%;width:'+size+'px;height:'+size+'px;animation-delay:'+delay+'s;animation-duration:'+duration+'s"></div>';
-       }
-       container.innerHTML = html;
-     })();
+    const canvas = document.getElementById('canvas');
+    const gl = canvas.getContext('webgl');
+
+    let baseWidth = window.innerWidth;
+    let baseHeight = window.innerHeight;
+    let renderScale = 1.0;
+
+    function resize() {
+      baseWidth = window.innerWidth;
+      baseHeight = window.innerHeight;
+      canvas.width = Math.round(baseWidth * renderScale);
+      canvas.height = Math.round(baseHeight * renderScale);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* -- Vertex Shader -- */
+    const vsSource = `
+      attribute vec2 a_pos;
+      void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+    `;
+
+    /* -- Fragment Shader -- */
+    const fsSource = `
+      precision highp float;
+      uniform vec2  u_resolution;
+      uniform float u_time;
+      uniform float u_camDist;
+      uniform float u_spin;
+      uniform vec3  u_camPos;
+      uniform vec3  u_camFwd;
+      uniform vec3  u_camRight;
+      uniform vec3  u_camUp;
+      uniform float u_rH;
+      uniform float u_rIsco;
+
+      vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
+        float r = length(p);
+        float r2 = r * r;
+        float r3 = r2 * r;
+        float r5 = r2 * r3;
+        vec3 acc = -1.5 * h2 * p / r5;
+        vec3 J = vec3(0.0, a, 0.0);
+        vec3 rhat = p / r;
+        vec3 omega_LT = (2.0 * J - 6.0 * dot(J, rhat) * rhat) / r3;
+        acc += 2.0 * cross(omega_LT, v);
+        return acc;
+      }
+
+      void verletStep(inout vec3 pos, inout vec3 vel, inout vec3 acc, float h2, float a, float dt) {
+        pos += vel * dt + 0.5 * acc * dt * dt;
+        vec3 newAcc = acceleration(pos, vel, h2, a);
+        vel += 0.5 * (acc + newAcc) * dt;
+        acc = newAcc;
+      }
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      float hash3(vec3 p) {
+        return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+      }
+
+      vec4 hash34(vec3 p) {
+        vec4 d = vec4(
+          dot(p, vec3(127.1, 311.7, 74.7)),
+          dot(p, vec3(269.5, 183.3, 246.1)),
+          dot(p, vec3(113.5, 271.9, 124.6)),
+          dot(p, vec3(347.2, 159.8, 218.3))
+        );
+        return fract(sin(d) * 43758.5453123);
+      }
+
+      float vnoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.5 * vnoise(p);
+        p *= 2.1;
+        v += 0.25 * vnoise(p);
+        return v;
+      }
+
+      vec3 blackbodyColor(float t) {
+        t = clamp(t, 0.0, 1.0);
+        vec3 col;
+        col.r = smoothstep(0.0, 0.15, t) * (1.0 - 0.2 * smoothstep(0.75, 1.0, t));
+        col.g = smoothstep(0.05, 0.4, t) * (1.0 - 0.15 * smoothstep(0.8, 1.0, t));
+        col.b = smoothstep(0.3, 0.75, t);
+        col += vec3(0.15, 0.06, 0.0) * smoothstep(0.15, 0.4, t) * smoothstep(0.65, 0.35, t);
+        col += vec3(0.05, 0.05, 0.2) * smoothstep(0.8, 1.0, t);
+        col *= 1.0 + 0.4 * smoothstep(0.25, 0.55, t) * smoothstep(0.85, 0.55, t);
+        return col;
+      }
+
+      float fastAtan2(float y, float x) {
+        float ax = abs(x), ay = abs(y);
+        float mn = min(ax, ay), mx = max(ax, ay);
+        float a = mn / (mx + 1e-20);
+        float s = a * a;
+        float r = (((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s * a + a);
+        if (ay > ax) r = 1.5707963 - r;
+        if (x < 0.0) r = 3.1415926 - r;
+        if (y < 0.0) r = -r;
+        return r;
+      }
+
+      vec3 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
+        float r = length(hitPos.xz);
+        float outerEdge = 14.0;
+        float innerFade = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
+        float outerFade = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
+        float diskMask = innerFade * outerFade;
+        if (diskMask < 0.001) return vec3(0.0);
+
+        float rRatio = r_isco / r;
+        float T = inversesqrt(r * sqrt(r)) * sqrt(sqrt(max(1.0 - sqrt(rRatio), 0.0)));
+        float Tpeak = inversesqrt(r_isco * sqrt(r_isco)) * 0.63;
+        float Tnorm = clamp(T / max(Tpeak, 0.001), 0.0, 1.2);
+
+        float vOrb = sqrt(1.0 / r);
+        vec2 diskPos = hitPos.xz;
+        float spinSign = a >= 0.0 ? 1.0 : -1.0;
+        vec2 orbDir = normalize(vec2(-diskPos.y, diskPos.x)) * spinSign;
+        vec2 rayDir2D = normalize(rayDir.xz);
+        float cosAngle = dot(orbDir, rayDir2D);
+        float gamma = 1.0 / sqrt(max(1.0 - vOrb * vOrb, 0.01));
+        float g = 1.0 / (gamma * (1.0 - vOrb * cosAngle));
+        float dopplerFlux = g * g * g * g;
+
+        float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
+        float Tshifted = Tnorm * g * gGrav;
+        vec3 col = blackbodyColor(Tshifted);
+        float brightness = dopplerFlux * gGrav * T * 6.0;
+
+        float angle = fastAtan2(hitPos.z, hitPos.x);
+        vec2 diskUV = vec2(angle * 2.0 + u_time * 0.4, log(r) * 6.0);
+        float turb = fbm(diskUV * 3.0);
+        brightness *= 0.65 + 0.35 * turb;
+
+        float spiral = 0.75 + 0.25 * sin(angle * 4.0 - log(r) * 8.0 + u_time * 0.7);
+        brightness *= spiral;
+
+        return col * brightness * diskMask;
+      }
+
+      float diskOpacity(float r, float r_isco) {
+        float outerEdge = 14.0;
+        float inner = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
+        float outer = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
+        return inner * outer * 0.9;
+      }
+
+      vec2 galaxyProject(vec3 rd, vec3 dir, float scl, float tilt, float cosA) {
+        vec3 up0 = normalize(cross(dir, vec3(0.0, 1.0, 0.1)));
+        vec3 right0 = cross(up0, dir);
+        vec2 offset = vec2(dot(rd - dir * cosA, right0), dot(rd - dir * cosA, up0)) * scl;
+        float ct = cos(tilt), st = sin(tilt);
+        return vec2(offset.x * ct - offset.y * st, offset.x * st + offset.y * ct);
+      }
+
+      vec3 renderSpiral(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tintCore, vec3 tintArm) {
+        float cosA = dot(rd, dir);
+        if (cosA < 0.95) return vec3(0.0);
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        float gr = length(g);
+        float ga = atan(g.y, g.x);
+        float core = exp(-gr * gr * 0.8) * 1.2;
+        float armWidth = 0.45;
+        float arms = 0.0;
+        for (int i = 0; i < 2; i++) {
+          float off = float(i) * 3.14159;
+          float spiralAngle = log(max(gr, 0.1)) * 2.8 + off;
+          float diff = mod(ga - spiralAngle + 3.14159, 6.28318) - 3.14159;
+          float arm = exp(-diff * diff / (armWidth * armWidth));
+          arm *= smoothstep(0.0, 0.4, gr) * exp(-gr * 0.35);
+          arms += arm;
+        }
+        float n = vnoise(vec2(g.x * 3.0, g.y * 3.0)) * 0.5
+                + vnoise(vec2(g.x * 7.0, g.y * 7.0)) * 0.3;
+        arms *= 0.6 + 0.8 * n;
+        float disk = exp(-gr * 0.25) * 0.3;
+        float total = (core + arms * 0.7 + disk) * smoothstep(0.95, 0.96, cosA);
+        vec3 col = mix(tintArm, tintCore, exp(-gr * 0.5)) * total;
+        float sfr = vnoise(vec2(g.x * 5.0 + 10.0, g.y * 5.0)) * arms;
+        col += vec3(0.8, 0.3, 0.5) * sfr * 0.15;
+        return col * bright;
+      }
+
+      vec3 renderElliptical(vec3 rd, vec3 dir, float scl, float tilt, float bright, float axisRatio, vec3 tint) {
+        float cosA = dot(rd, dir);
+        if (cosA < 0.95) return vec3(0.0);
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        float er = length(vec2(g.x, g.y / axisRatio));
+        float profile = exp(-3.5 * sqrt(sqrt(max(er, 0.01))));
+        profile += exp(-er * 0.5) * 0.08;
+        profile *= smoothstep(0.95, 0.96, cosA);
+        vec3 col = mix(tint * 0.7, tint, exp(-er * 0.3)) * profile;
+        return col * bright;
+      }
+
+      vec3 renderEdgeOn(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tint) {
+        float cosA = dot(rd, dir);
+        if (cosA < 0.95) return vec3(0.0);
+        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
+        float dx = abs(g.x);
+        float dy = abs(g.y);
+        float bulge = exp(-(dx * dx * 0.6 + dy * dy * 2.0)) * 1.5;
+        float diskThickness = 0.15 + 0.1 * exp(-dx * 0.3);
+        float disk = exp(-dy * dy / (diskThickness * diskThickness)) * exp(-dx * 0.25);
+        float dust = 1.0 - 0.6 * exp(-dy * dy / 0.01) * smoothstep(0.0, 0.5, dx);
+        float total = (bulge + disk * 0.8) * dust * smoothstep(0.95, 0.96, cosA);
+        vec3 col = mix(vec3(0.5, 0.6, 1.0) * tint, tint, exp(-dx * 0.3)) * total;
+        return col * bright;
+      }
+
+      vec3 renderIrregular(vec3 rd, vec3 dir, float scl, float bright, vec3 tint) {
+        float cosA = dot(rd, dir);
+        if (cosA < 0.95) return vec3(0.0);
+        vec2 g = galaxyProject(rd, dir, scl, 0.0, cosA);
+        float gr = length(g);
+        float base = exp(-gr * gr * 0.3) * 0.5;
+        float blobs = vnoise(vec2(g.x * 2.5, g.y * 2.5)) * 0.6
+                    + vnoise(vec2(g.x * 5.0 + 7.0, g.y * 5.0 + 3.0)) * 0.4;
+        blobs *= exp(-gr * 0.5);
+        float knots = vnoise(vec2(g.x * 8.0 + 20.0, g.y * 8.0));
+        knots = smoothstep(0.55, 0.8, knots) * exp(-gr * 0.4);
+        float total = (base + blobs * 0.5) * smoothstep(0.95, 0.96, cosA);
+        vec3 col = tint * total;
+        col += vec3(0.4, 0.6, 1.0) * knots * 0.3;
+        return col * bright;
+      }
+
+      vec3 galaxies(vec3 rd) {
+        vec3 col = vec3(0.0);
+        float scale = 4.0;
+        vec3 p = rd * scale;
+        vec3 fp = floor(p);
+        for (int dx = 0; dx <= 1; dx++)
+        for (int dy = 0; dy <= 1; dy++)
+        for (int dz = 0; dz <= 1; dz++) {
+          vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
+          vec4 h1 = hash34(cell);
+          if (h1.x > 0.22) continue;
+          vec3 gpos = cell + h1.yzw;
+          vec3 gdir = normalize(gpos);
+          if (dot(rd, gdir) < 0.94) continue;
+          vec4 h2 = hash34(cell + 10.0);
+          vec4 h3 = hash34(cell + 50.0);
+          float hType  = h2.x;
+          float hScale = h2.y;
+          float hTilt  = h2.z;
+          float hBri   = h2.w;
+          float hCol   = h3.x;
+          float hExtra = h3.y;
+          float scl  = 70.0 + hScale * 160.0;
+          float tilt = hTilt * 6.28318;
+          float bright = 0.06 + hBri * 0.30;
+          vec3 coreCol = mix(vec3(1.0, 0.82, 0.5), vec3(1.0, 0.95, 0.82), hCol);
+          vec3 armCol  = mix(vec3(0.45, 0.55, 1.0), vec3(0.7, 0.8, 0.95), hCol);
+          vec3 tint    = mix(vec3(1.0, 0.78, 0.45), vec3(0.95, 0.88, 0.7), hCol);
+          if (hType < 0.35) {
+            col += renderSpiral(rd, gdir, scl, tilt, bright, coreCol, armCol);
+          } else if (hType < 0.60) {
+            float axisRatio = 0.4 + hExtra * 0.5;
+            col += renderElliptical(rd, gdir, scl, tilt, bright, axisRatio, tint);
+          } else if (hType < 0.80) {
+            col += renderEdgeOn(rd, gdir, scl, tilt, bright, tint);
+          } else {
+            col += renderIrregular(rd, gdir, scl, bright, tint);
+          }
+        }
+        float nebula = vnoise(rd.xy * 3.0 + rd.z) * 0.3
+                     + vnoise(rd.yz * 5.0 + rd.x * 2.0) * 0.15;
+        col += vec3(0.02, 0.015, 0.03) * nebula;
+        return col;
+      }
+
+      vec3 acesToneMap(vec3 x) {
+        return clamp(
+          (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14),
+          0.0, 1.0
+        );
+      }
+
+      void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / min(u_resolution.x, u_resolution.y);
+        float spin = u_spin;
+        float absSpin = abs(spin);
+        float r_h = u_rH;
+        float r_isco = u_rIsco;
+
+        vec3 rd = normalize(u_camFwd * 1.8 + u_camRight * uv.x + u_camUp * uv.y);
+        vec3 pos = u_camPos;
+        vec3 vel = rd;
+        vec3 L = cross(pos, vel);
+        float L2 = dot(L, L);
+
+        vec3 accumulatedColor = vec3(0.0);
+        float accumulatedAlpha = 0.0;
+        bool escaped = true;
+        float prevY = pos.y;
+        float minR = 1000.0;
+
+        vec3 acc = acceleration(pos, vel, L2, spin);
+        float escapeR = max(50.0, u_camDist + 20.0);
+
+        for (int i = 0; i < 160; i++) {
+          float r = length(pos);
+          minR = min(minR, r);
+          if (r < r_h * 1.01) {
+            escaped = false;
+            break;
+          }
+          if (r > escapeR) break;
+
+          float dt = max(0.002, 0.05 * (r - r_h));
+          vec3 prevPos = pos;
+          verletStep(pos, vel, acc, L2, spin, dt);
+          float newY = pos.y;
+
+          if (prevY * newY < 0.0 && accumulatedAlpha < 0.98) {
+            float frac = prevY / (prevY - newY);
+            vec3 hitPos = mix(prevPos, pos, frac);
+            float hitR = length(hitPos.xz);
+            vec3 dCol = diskShading(hitPos, r_isco, spin, vel);
+            float dAlpha = diskOpacity(hitR, r_isco);
+            dAlpha = clamp(dAlpha, 0.0, 1.0);
+            accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
+            accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
+            if (accumulatedAlpha > 0.98) break;
+          }
+          prevY = newY;
+        }
+
+        vec3 bgCol = vec3(0.0);
+        if (escaped && accumulatedAlpha < 1.0) {
+          vec3 finalRd = normalize(vel);
+          bgCol = galaxies(finalRd);
+          float photonR = 3.0 * (1.0 - absSpin * 0.3);
+          float pTmp1 = (minR - photonR) * 2.0;
+          float proximity = exp(-pTmp1 * pTmp1);
+          vec3 ringCol = mix(vec3(1.0, 0.7, 0.3), vec3(1.0, 0.95, 0.9), proximity);
+          bgCol += ringCol * proximity * 0.4;
+          float pTmp2 = (minR - photonR) * 0.8;
+          float haze = exp(-pTmp2 * pTmp2);
+          bgCol += vec3(0.15, 0.06, 0.02) * haze;
+        }
+
+        vec3 finalColor = accumulatedColor + bgCol * (1.0 - accumulatedAlpha);
+        float lum = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
+        float bloomAmount = max(lum - 0.6, 0.0) * 0.5;
+        finalColor += finalColor * bloomAmount;
+        finalColor = acesToneMap(finalColor * 0.85);
+        finalColor = pow(finalColor, vec3(0.4545));
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+
+    /* -- Shader Compilation -- */
+    function compileShader(gl, source, type) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    const vs = compileShader(gl, vsSource, gl.VERTEX_SHADER);
+    const fs = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('Program link error:', gl.getProgramInfoLog(program));
+    }
+
+    gl.useProgram(program);
+
+    /* Fullscreen quad */
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+    const aPos = gl.getAttribLocation(program, 'a_pos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    /* Uniform locations */
+    const uRes = gl.getUniformLocation(program, 'u_resolution');
+    const uTime = gl.getUniformLocation(program, 'u_time');
+    const uCamDist = gl.getUniformLocation(program, 'u_camDist');
+    const uSpin = gl.getUniformLocation(program, 'u_spin');
+    const uCamPos = gl.getUniformLocation(program, 'u_camPos');
+    const uCamFwd = gl.getUniformLocation(program, 'u_camFwd');
+    const uCamRight = gl.getUniformLocation(program, 'u_camRight');
+    const uCamUp = gl.getUniformLocation(program, 'u_camUp');
+    const uRH = gl.getUniformLocation(program, 'u_rH');
+    const uRIsco = gl.getUniformLocation(program, 'u_rIsco');
+
+    /* -- Interaction State -- */
+    let camAzimuth = 0.0;
+    let camElev = -0.32;
+    let camDist = 40.0;
+    let spin = 0.0;
+
+    const DEFAULTS = { camAzimuth: 0.0, camElev: -0.32, camDist: 40.0, spin: 0.0 };
+
+    /* -- Mouse Drag (orbit) -- */
+    let dragging = false;
+    let lastX = 0, lastY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { dragging = false; });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      camAzimuth += dx * 0.005;
+      camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+
+    /* -- Scroll (zoom) -- */
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      camDist = Math.max(5, Math.min(300, camDist + e.deltaY * 0.05));
+    }, { passive: false });
+
+    /* -- Touch support -- */
+    let touchId = null;
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        touchId = e.touches[0].identifier;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchId) {
+          e.preventDefault();
+          const dx = e.changedTouches[i].clientX - lastX;
+          const dy = e.changedTouches[i].clientY - lastY;
+          camAzimuth += dx * 0.005;
+          camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
+          lastX = e.changedTouches[i].clientX;
+          lastY = e.changedTouches[i].clientY;
+        }
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchend', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchId) touchId = null;
+      }
+    });
+
+    /* -- Keyboard (spin + reset) -- */
+    window.addEventListener('keydown', (e) => {
+      if (e.key === ']' || e.key === 'ArrowRight') {
+        spin = Math.min(2.0, spin + 0.02);
+      } else if (e.key === '[' || e.key === 'ArrowLeft') {
+        spin = Math.max(-2.0, spin - 0.02);
+      } else if (e.key === 'r' || e.key === 'R') {
+        camAzimuth = DEFAULTS.camAzimuth;
+        camElev = DEFAULTS.camElev;
+        camDist = DEFAULTS.camDist;
+        spin = DEFAULTS.spin;
+      }
+    });
+
+    /* -- HUD Update -- */
+    const hudSpin = document.getElementById('hud-spin');
+    const hudDist = document.getElementById('hud-dist');
+    const hudFps = document.getElementById('hud-fps');
+    const hudScale = document.getElementById('hud-scale');
+
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    let lastFrameTime = performance.now();
+
+    function updateHUD() {
+      hudSpin.textContent = spin.toFixed(3);
+      hudDist.textContent = camDist.toFixed(1) + ' M';
+
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFpsTime >= 500) {
+        const fps = (frameCount / (now - lastFpsTime)) * 1000;
+        hudFps.textContent = Math.round(fps);
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+
+      if (renderScale < 0.99) {
+        hudScale.textContent = Math.round(renderScale * 100) + '% RES';
+      } else {
+        hudScale.textContent = '';
+      }
+    }
+
+    /* -- Render Loop with Adaptive Resolution -- */
+    const startTime = performance.now();
+
+    function render() {
+      const now = performance.now();
+      const frameTime = now - lastFrameTime;
+      lastFrameTime = now;
+
+      let scaleChanged = false;
+      if (frameTime > 30) {
+        const newScale = Math.max(0.5, renderScale * 0.95);
+        if (Math.abs(newScale - renderScale) > 0.001) { renderScale = newScale; scaleChanged = true; }
+      } else if (frameTime < 20) {
+        const newScale = Math.min(1.0, renderScale * 1.03);
+        if (Math.abs(newScale - renderScale) > 0.001) { renderScale = newScale; scaleChanged = true; }
+      }
+      if (scaleChanged) resize();
+
+      /* Precompute camera vectors and metrics on CPU */
+      const cosEl = Math.cos(camElev), sinEl = Math.sin(camElev);
+      const cosAz = Math.cos(camAzimuth), sinAz = Math.sin(camAzimuth);
+      const cpx = camDist * cosEl * sinAz;
+      const cpy = camDist * sinEl;
+      const cpz = camDist * cosEl * cosAz;
+      const fLen = Math.sqrt(cpx * cpx + cpy * cpy + cpz * cpz);
+      const fwdX = -cpx / fLen, fwdY = -cpy / fLen, fwdZ = -cpz / fLen;
+      /* right = normalize(cross(fwd, worldUp(0,1,0))) */
+      const rLen = Math.sqrt(fwdZ * fwdZ + fwdX * fwdX);
+      const rX = fwdZ / rLen, rY = 0, rZ = -fwdX / rLen;
+      /* up = cross(right, fwd) */
+      const upX = rY * fwdZ - rZ * fwdY;
+      const upY = rZ * fwdX - rX * fwdZ;
+      const upZ = rX * fwdY - rY * fwdX;
+
+      const absSpin = Math.abs(spin);
+      const rH = 1.0 + Math.sqrt(Math.max(1.0 - absSpin * absSpin, 0.0));
+      const a2 = absSpin * absSpin;
+      const z1 = 1.0 + Math.cbrt(Math.max(1.0 - a2, 0.0))
+                      * (Math.cbrt(1.0 + absSpin) + Math.cbrt(Math.max(1.0 - absSpin, 0.0)));
+      const z2 = Math.sqrt(3.0 * a2 + z1 * z1);
+      const rIsco = 3.0 + z2 - Math.sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2));
+
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.uniform1f(uTime, (now - startTime) * 0.001);
+      gl.uniform1f(uCamDist, camDist);
+      gl.uniform1f(uSpin, spin);
+      gl.uniform3f(uCamPos, cpx, cpy, cpz);
+      gl.uniform3f(uCamFwd, fwdX, fwdY, fwdZ);
+      gl.uniform3f(uCamRight, rX, rY, rZ);
+      gl.uniform3f(uCamUp, upX, upY, upZ);
+      gl.uniform1f(uRH, rH);
+      gl.uniform1f(uRIsco, rIsco);
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      updateHUD();
+      requestAnimationFrame(render);
+    }
+    render();
    </script>
  </body>
 </html>
