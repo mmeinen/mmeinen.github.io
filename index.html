@@ -98,6 +98,10 @@
       uniform float u_rH;
       uniform float u_rIsco;
       uniform float u_hoveredPlanet;
+      uniform vec4 u_planet0;
+      uniform vec4 u_planet1;
+      uniform vec4 u_planet2;
+      uniform vec4 u_planet3;
 
       vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
         float r = length(p);
@@ -105,6 +109,7 @@
         float r3 = r2 * r;
         float r5 = r2 * r3;
         vec3 acc = -1.5 * h2 * p / r5;
+        if (abs(a) < 0.001) return acc;
         vec3 J = vec3(0.0, a, 0.0);
         vec3 rhat = p / r;
         vec3 omega_LT = (2.0 * J - 6.0 * dot(J, rhat) * rhat) / r3;
@@ -120,21 +125,21 @@
       }
 
       float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
       }
 
       float hash3(vec3 p) {
-        return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+        p = fract(p * 0.1031);
+        p += dot(p, p.zyx + 31.32);
+        return fract((p.x + p.y) * p.z);
       }
 
       vec4 hash34(vec3 p) {
-        vec4 d = vec4(
-          dot(p, vec3(127.1, 311.7, 74.7)),
-          dot(p, vec3(269.5, 183.3, 246.1)),
-          dot(p, vec3(113.5, 271.9, 124.6)),
-          dot(p, vec3(347.2, 159.8, 218.3))
-        );
-        return fract(sin(d) * 43758.5453123);
+        vec4 p4 = fract(vec4(p.xyzx) * vec4(0.1031, 0.1030, 0.0973, 0.1099));
+        p4 += dot(p4, p4.wzxy + 33.33);
+        return fract((p4.xxyz + p4.yzzw) * p4.zywx);
       }
 
       float vnoise(vec2 p) {
@@ -226,22 +231,6 @@
         return inner * outer * 0.9;
       }
 
-      vec3 planetPos(int idx, float t) {
-        float oR, ph, sp;
-        if (idx == 0) { oR = 25.0; ph = 0.0; sp = 0.027; }
-        else if (idx == 1) { oR = 32.0; ph = 2.094; sp = 0.017; }
-        else if (idx == 2) { oR = 40.0; ph = 4.189; sp = 0.010; }
-        else { oR = 48.0; ph = 1.047; sp = 0.007; }
-        float ang = ph + t * sp;
-        return vec3(cos(ang) * oR, 0.0, sin(ang) * oR);
-      }
-
-      float planetRadius(int idx) {
-        if (idx == 0) return 2.5;
-        if (idx == 1) return 2.0;
-        if (idx == 2) return 1.5;
-        return 1.4;
-      }
 
       vec3 shadePlanet(vec3 hp, vec3 ctr, float rad, int idx) {
         vec3 n = normalize(hp - ctr);
@@ -255,13 +244,13 @@
           float rLon = lon - u_time * 0.12;
           float turb = vnoise(vec2(lat * 12.0, rLon * 2.5)) * 0.06;
           float latN = lat + turb;
-          float seb = exp(-(latN + 0.25) * (latN + 0.25) * 80.0);
-          float neb = exp(-(latN - 0.18) * (latN - 0.18) * 100.0);
-          float stb = exp(-(latN + 0.52) * (latN + 0.52) * 150.0);
-          float ntb = exp(-(latN - 0.45) * (latN - 0.45) * 150.0);
-          float sstb = exp(-(latN + 0.70) * (latN + 0.70) * 200.0);
-          float nntb = exp(-(latN - 0.62) * (latN - 0.62) * 200.0);
-          float ez = exp(-latN * latN * 35.0);
+          float seb = smoothstep(0.168, 0.0, abs(latN + 0.25));
+          float neb = smoothstep(0.15, 0.0, abs(latN - 0.18));
+          float stb = smoothstep(0.122, 0.0, abs(latN + 0.52));
+          float ntb = smoothstep(0.122, 0.0, abs(latN - 0.45));
+          float sstb = smoothstep(0.106, 0.0, abs(latN + 0.70));
+          float nntb = smoothstep(0.106, 0.0, abs(latN - 0.62));
+          float ez = smoothstep(0.254, 0.0, abs(latN));
           float fine = sin(latN * 50.0) * 0.04 * smoothstep(0.35, 0.65, abs(latN));
           float majorBelt = (seb + neb) * 0.4 + (stb + ntb + sstb + nntb) * 0.2 + fine;
           col = mix(vec3(0.92, 0.87, 0.76), vec3(0.62, 0.38, 0.20), clamp(majorBelt, 0.0, 1.0));
@@ -271,7 +260,7 @@
           float dLat = (lat + 0.37) * 2.5;
           float dLon = mod(rLon - 1.5 + 3.14159, 6.28318) - 3.14159;
           float grsR2 = dLat * dLat * 12.0 + dLon * dLon * 8.0;
-          float grs = exp(-grsR2);
+          float grs = smoothstep(1.5, 0.0, sqrt(grsR2));
           vec3 grsCol = mix(vec3(0.78, 0.36, 0.22), vec3(0.82, 0.58, 0.38), smoothstep(0.3, 1.5, sqrt(grsR2)));
           col = mix(col, grsCol, grs * 0.85);
         } else if (idx == 1) {
@@ -300,16 +289,16 @@
           float latN = lat + turb;
           col = vec3(0.28, 0.45, 0.78);
           col += vec3(0.03, 0.05, 0.06) * (sin(latN * 20.0) * 0.06 + sin(latN * 10.0) * 0.04);
-          float b30s = exp(-(latN + 0.50) * (latN + 0.50) * 60.0);
-          float b30n = exp(-(latN - 0.50) * (latN - 0.50) * 60.0);
+          float b30s = smoothstep(0.194, 0.0, abs(latN + 0.50));
+          float b30n = smoothstep(0.194, 0.0, abs(latN - 0.50));
           col += vec3(0.12, 0.14, 0.16) * (b30s * 0.12 + b30n * 0.10);
           float dLat = (lat + 0.34) * 2.0;
           float dLon = mod(rLon + 3.14159, 6.28318) - 3.14159;
-          float gds = exp(-(dLat * dLat * 10.0 + dLon * dLon * 6.0));
+          float gds = smoothstep(1.5, 0.0, sqrt(dLat * dLat * 10.0 + dLon * dLon * 6.0));
           col = mix(col, vec3(0.15, 0.22, 0.50), gds * 0.55);
           float cLat = lat + 0.49;
           float cLon = mod(rLon + 0.15 + 3.14159, 6.28318) - 3.14159;
-          col += vec3(0.18, 0.18, 0.12) * exp(-(cLat * cLat * 50.0 + cLon * cLon * 20.0));
+          col += vec3(0.18, 0.18, 0.12) * smoothstep(1.5, 0.0, sqrt(cLat * cLat * 50.0 + cLon * cLon * 20.0));
           float cirrus = vnoise(vec2(rLon * 4.0, lat * 2.0 + 5.0));
           cirrus = smoothstep(0.65, 0.80, cirrus) * 0.12 * smoothstep(0.1, 0.3, abs(lat)) * smoothstep(0.8, 0.5, abs(lat));
           col += vec3(0.15, 0.15, 0.10) * cirrus;
@@ -444,9 +433,7 @@
             col += renderIrregular(rd, gdir, scl, bright, tint);
           }
         }
-        float nebula = vnoise(rd.xy * 3.0 + rd.z) * 0.3
-                     + vnoise(rd.yz * 5.0 + rd.x * 2.0) * 0.15;
-        col += vec3(0.02, 0.015, 0.03) * nebula;
+        col += vec3(0.005, 0.004, 0.008);
         return col;
       }
 
@@ -479,7 +466,7 @@
         vec3 acc = acceleration(pos, vel, L2, spin);
         float escapeR = max(50.0, u_camDist + 20.0);
 
-        for (int i = 0; i < 160; i++) {
+        for (int i = 0; i < 100; i++) {
           float r = length(pos);
           minR = min(minR, r);
           if (r < r_h * 1.01) {
@@ -487,8 +474,9 @@
             break;
           }
           if (r > escapeR) break;
+          if (r > 55.0 && dot(pos, vel) > 0.0) break;
 
-          float dt = max(0.002, 0.05 * (r - r_h));
+          float dt = max(0.002, min(0.08 * (r - r_h), 5.0));
           vec3 prevPos = pos;
           verletStep(pos, vel, acc, L2, spin, dt);
           float newY = pos.y;
@@ -503,7 +491,7 @@
             accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
             accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
             if (accumulatedAlpha < 0.98) {
-              vec3 satC = planetPos(1, u_time);
+              vec3 satC = u_planet1.xyz;
               float sd = length(hitPos.xz - satC.xz);
               float ringPxW = length(u_camPos - hitPos) / (min(u_resolution.x, u_resolution.y) * 1.8);
               float rfPx = ringPxW / 2.5;
@@ -541,9 +529,13 @@
             vec3 seg = pos - prevPos;
             float segL2 = dot(seg, seg);
             float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
+            float segLen = sqrt(segL2);
             for (int p = 0; p < 4; p++) {
-              vec3 pC = planetPos(p, u_time);
-              float pr = planetRadius(p);
+              vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : u_planet3;
+              vec3 pC = pl.xyz;
+              float pr = pl.w;
+              vec3 segMid = 0.5 * (prevPos + pos);
+              if (length(segMid - pC) > pr + segLen * 0.5 + edgeW + 5.0) continue;
               vec3 oc = prevPos - pC;
               float bH = dot(oc, seg);
               float oc2 = dot(oc, oc);
@@ -658,6 +650,12 @@
     const uRH = gl.getUniformLocation(program, 'u_rH');
     const uRIsco = gl.getUniformLocation(program, 'u_rIsco');
     const uHoveredPlanet = gl.getUniformLocation(program, 'u_hoveredPlanet');
+    const uPlanet = [
+      gl.getUniformLocation(program, 'u_planet0'),
+      gl.getUniformLocation(program, 'u_planet1'),
+      gl.getUniformLocation(program, 'u_planet2'),
+      gl.getUniformLocation(program, 'u_planet3'),
+    ];
 
     /* -- Planet Data -- */
     const planetData = [
@@ -693,9 +691,72 @@
       return { x: sx, y: sy, depth };
     }
 
+    /* CPU gravitational lensing — port of shader acceleration() + Verlet loop
+       for detecting far-side planet hovers through curved spacetime */
+    function lensAccel(px, py, pz, vx, vy, vz, h2, a) {
+      const r = Math.sqrt(px*px + py*py + pz*pz);
+      const r2 = r * r;
+      const r3 = r2 * r;
+      const r5 = r2 * r3;
+      const f = -1.5 * h2 / r5;
+      let ax = f * px, ay = f * py, az = f * pz;
+      if (Math.abs(a) < 0.001) return [ax, ay, az];
+      // Lense-Thirring: J = (0, a, 0)
+      const rhat_x = px / r, rhat_y = py / r, rhat_z = pz / r;
+      const jDotR = a * rhat_y;
+      const oLT_x = (-6.0 * jDotR * rhat_x) / r3;
+      const oLT_y = (2.0 * a - 6.0 * jDotR * rhat_y) / r3;
+      const oLT_z = (-6.0 * jDotR * rhat_z) / r3;
+      ax += 2.0 * (oLT_y * vz - oLT_z * vy);
+      ay += 2.0 * (oLT_z * vx - oLT_x * vz);
+      az += 2.0 * (oLT_x * vy - oLT_y * vx);
+      return [ax, ay, az];
+    }
+
+    function traceLensedRay(ox, oy, oz, dx, dy, dz, rH, spinVal, time) {
+      let px = ox, py = oy, pz = oz;
+      let vx = dx, vy = dy, vz = dz;
+      // Angular momentum L² = |cross(pos, vel)|²
+      const Lx = py*vz - pz*vy, Ly = pz*vx - px*vz, Lz = px*vy - py*vx;
+      const L2 = Lx*Lx + Ly*Ly + Lz*Lz;
+      let [ax, ay, az] = lensAccel(px, py, pz, vx, vy, vz, L2, spinVal);
+      for (let i = 0; i < 100; i++) {
+        const r = Math.sqrt(px*px + py*py + pz*pz);
+        if (r < rH * 1.01) return -1;
+        if (r > 55.0 && (px*vx + py*vy + pz*vz) > 0.0) return -1;
+        const dt = Math.max(0.002, Math.min(0.08 * (r - rH), 5.0));
+        const ppx = px, ppy = py, ppz = pz;
+        // Verlet integration (matches shader verletStep)
+        px += vx * dt + 0.5 * ax * dt * dt;
+        py += vy * dt + 0.5 * ay * dt * dt;
+        pz += vz * dt + 0.5 * az * dt * dt;
+        const [nax, nay, naz] = lensAccel(px, py, pz, vx, vy, vz, L2, spinVal);
+        vx += 0.5 * (ax + nax) * dt;
+        vy += 0.5 * (ay + nay) * dt;
+        vz += 0.5 * (az + naz) * dt;
+        ax = nax; ay = nay; az = naz;
+        // Check planet intersections in zone r ∈ (22, 51)
+        const rNew = Math.sqrt(px*px + py*py + pz*pz);
+        if (rNew > 22.0 && rNew < 51.0) {
+          const sx = px - ppx, sy = py - ppy, sz = pz - ppz;
+          const sL2 = sx*sx + sy*sy + sz*sz;
+          for (let p = 0; p < 4; p++) {
+            const pos = getPlanetWorldPos(p, time);
+            const pr = planetData[p].radius;
+            const ocx = ppx - pos[0], ocy = ppy - pos[1], ocz = ppz - pos[2];
+            const bH = ocx*sx + ocy*sy + ocz*sz;
+            const tC = Math.max(0, Math.min(-bH / sL2, 1));
+            const cx = ocx + sx * tC, cy = ocy + sy * tC, cz = ocz + sz * tC;
+            if (cx*cx + cy*cy + cz*cz < pr * pr) return p;
+          }
+        }
+      }
+      return -1;
+    }
+
     function checkPlanetHover(mx, my) {
       if (mx < 0 || !camVecs) return -1;
-      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rZ, upX, upY, upZ, W, H, time } = camVecs;
+      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rZ, upX, upY, upZ, W, H, time, rH } = camVecs;
       const minDim = Math.min(W, H);
       const focal = 1.8;
       // Convert screen position to ray direction
@@ -723,16 +784,20 @@
           bestIdx = i;
         }
       }
+      // Fallback: trace lensed ray for far-side planets behind the black hole
+      if (bestIdx < 0) {
+        bestIdx = traceLensedRay(cpx, cpy, cpz, rx, ry, rz, rH, spin, time);
+      }
       return bestIdx;
     }
 
     /* -- Interaction State -- */
     let camAzimuth = 0.0;
     let camElev = -0.32;
-    let camDist = 40.0;
+    let camDist = 120.0;
     let spin = 0.0;
 
-    const DEFAULTS = { camAzimuth: 0.0, camElev: -0.32, camDist: 40.0, spin: 0.0 };
+    const DEFAULTS = { camAzimuth: 0.0, camElev: -0.32, camDist: 120.0, spin: 0.0 };
 
     /* -- Mouse Drag (orbit) + Planet Hover/Click -- */
     let dragging = false;
@@ -849,24 +914,24 @@
     let frameCount = 0;
     let lastFpsTime = performance.now();
     let lastFrameTime = performance.now();
+    let lastDomUpdateTime = 0;
+    const labelCache = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
 
     function updateHUD() {
-      hudSpin.textContent = spin.toFixed(3);
-      hudDist.textContent = camDist.toFixed(1) + ' M';
-
       frameCount++;
       const now = performance.now();
       if (now - lastFpsTime >= 500) {
         const fps = (frameCount / (now - lastFpsTime)) * 1000;
         hudFps.textContent = Math.round(fps);
+        hudSpin.textContent = spin.toFixed(3);
+        hudDist.textContent = camDist.toFixed(1) + ' M';
+        if (renderScale < 0.99) {
+          hudScale.textContent = Math.round(renderScale * 100) + '% RES';
+        } else {
+          hudScale.textContent = '';
+        }
         frameCount = 0;
         lastFpsTime = now;
-      }
-
-      if (renderScale < 0.99) {
-        hudScale.textContent = Math.round(renderScale * 100) + '% RES';
-      } else {
-        hudScale.textContent = '';
       }
     }
 
@@ -879,12 +944,12 @@
       lastFrameTime = now;
 
       let scaleChanged = false;
-      if (frameTime > 30) {
-        const newScale = Math.max(0.5, renderScale * 0.95);
-        if (Math.abs(newScale - renderScale) > 0.001) { renderScale = newScale; scaleChanged = true; }
+      if (frameTime > 28) {
+        const newScale = Math.max(0.35, renderScale * 0.85);
+        if (Math.abs(newScale - renderScale) > 0.005) { renderScale = newScale; scaleChanged = true; }
       } else if (frameTime < 20) {
-        const newScale = Math.min(1.0, renderScale * 1.03);
-        if (Math.abs(newScale - renderScale) > 0.001) { renderScale = newScale; scaleChanged = true; }
+        const newScale = Math.min(1.0, renderScale * 1.05);
+        if (Math.abs(newScale - renderScale) > 0.005) { renderScale = newScale; scaleChanged = true; }
       }
       if (scaleChanged) resize();
 
@@ -916,7 +981,7 @@
 
       /* Store camera vectors for planet projection & hover detection */
       camVecs = { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rY, rZ, upX, upY, upZ,
-                  W: baseWidth, H: baseHeight, time };
+                  W: baseWidth, H: baseHeight, time, rH };
 
       /* Re-check hover with latest camera */
       hoveredPlanet = checkPlanetHover(mouseScreenX, mouseScreenY);
@@ -936,25 +1001,40 @@
       gl.uniform1f(uRIsco, rIsco);
       gl.uniform1f(uHoveredPlanet, hoveredPlanet);
 
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-      /* Update planet labels */
+      /* Upload planet positions as uniforms */
       for (let i = 0; i < 4; i++) {
         const pos = getPlanetWorldPos(i, time);
-        const scr = projectToScreen(pos[0], pos[1], pos[2]);
-        const label = planetLabels[i];
-        if (scr && scr.x > -100 && scr.x < baseWidth + 100 && scr.y > -100 && scr.y < baseHeight + 100) {
-          const apparentR = (planetData[i].radius / scr.depth) * Math.min(baseWidth, baseHeight) * 1.8;
-          label.style.left = scr.x + 'px';
-          label.style.top = (scr.y - apparentR - 12) + 'px';
-          label.classList.add('visible');
-        } else {
-          label.classList.remove('visible');
-        }
-        if (i === hoveredPlanet) {
-          label.classList.add('hovered');
-        } else {
-          label.classList.remove('hovered');
+        gl.uniform4f(uPlanet[i], pos[0], pos[1], pos[2], planetData[i].radius);
+      }
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      /* Update planet labels — throttled to every 50ms */
+      if (now - lastDomUpdateTime > 50) {
+        lastDomUpdateTime = now;
+        for (let i = 0; i < 4; i++) {
+          const pos = getPlanetWorldPos(i, time);
+          const scr = projectToScreen(pos[0], pos[1], pos[2]);
+          const label = planetLabels[i];
+          if (scr && scr.x > -100 && scr.x < baseWidth + 100 && scr.y > -100 && scr.y < baseHeight + 100) {
+            const apparentR = (planetData[i].radius / scr.depth) * Math.min(baseWidth, baseHeight) * 1.8;
+            const lx = Math.round(scr.x);
+            const ly = Math.round(scr.y - apparentR - 12);
+            if (Math.abs(lx - (labelCache[i].x || 0)) > 1 || Math.abs(ly - (labelCache[i].y || 0)) > 1) {
+              label.style.left = lx + 'px';
+              label.style.top = ly + 'px';
+              labelCache[i].x = lx;
+              labelCache[i].y = ly;
+            }
+            label.classList.add('visible');
+          } else {
+            label.classList.remove('visible');
+          }
+          if (i === hoveredPlanet) {
+            label.classList.add('hovered');
+          } else {
+            label.classList.remove('hovered');
+          }
         }
       }
 
