@@ -42,135 +42,23 @@
          <div class="readout-value readout-scale" id="hud-scale"></div>
        </div>
 
-       <!-- Radial menu with SVG HUD ring components -->
-       <div class="radial-menu">
-
-        <!-- SVG radial HUD graphics — 4 nodes at 90 degree intervals -->
-        <svg class="radial-hud-svg" viewBox="-300 -300 600 600" xmlns="http://www.w3.org/2000/svg">
-
-          <!-- Outermost faint ring -->
-          <circle cx="0" cy="0" r="285" fill="none" stroke="rgba(60,140,255,0.06)" stroke-width="0.5"/>
-
-          <!-- Outer tick ring - 72 ticks around the circumference -->
-          <g class="tick-ring-outer">
-            <circle cx="0" cy="0" r="265" fill="none" stroke="rgba(60,140,255,0.1)" stroke-width="0.5" stroke-dasharray="1.5 21.6"/>
-          </g>
-
-          <!-- Outer dashed ring -->
-          <circle cx="0" cy="0" r="255" fill="none" stroke="rgba(60,140,255,0.1)" stroke-width="0.5" stroke-dasharray="4 8" class="ring-rotate-slow"/>
-
-          <!-- Major tick marks at 45-degree intervals (8 marks) -->
-          <g class="major-ticks" opacity="0.3">
-            <line x1="0" y1="-245" x2="0" y2="-265" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="173" y1="-173" x2="187" y2="-187" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="245" y1="0" x2="265" y2="0" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="173" y1="173" x2="187" y2="187" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="0" y1="245" x2="0" y2="265" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="-173" y1="173" x2="-187" y2="187" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="-245" y1="0" x2="-265" y2="0" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-            <line x1="-173" y1="-173" x2="-187" y2="-187" stroke="rgba(60,140,255,0.6)" stroke-width="1"/>
-          </g>
-
-          <!-- Main orbit ring where buttons sit -->
-          <circle cx="0" cy="0" r="220" fill="none" stroke="rgba(60,140,255,0.22)" stroke-width="1.5"/>
-
-          <!-- Orbit ring glow (wider, blurred via opacity) -->
-          <circle cx="0" cy="0" r="220" fill="none" stroke="rgba(60,140,255,0.06)" stroke-width="8"/>
-
-          <!-- Mid ring with rotating dashes -->
-          <circle cx="0" cy="0" r="195" fill="none" stroke="rgba(60,140,255,0.08)" stroke-width="0.5" stroke-dasharray="6 14" class="ring-rotate-mid"/>
-
-          <!-- Inner decorative ring -->
-          <circle cx="0" cy="0" r="170" fill="none" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="3 10"/>
-
-          <!-- Minor tick marks (small dashes around r=220) -->
-          <circle cx="0" cy="0" r="230" fill="none" stroke="rgba(60,140,255,0.12)" stroke-width="0.5" stroke-dasharray="1 10.7" class="ring-rotate-ticks"/>
-
-          <!-- Arcs between buttons (90deg segments on orbit ring, 4 nodes) -->
-          <path d="M 0,-220 A 220,220 0 0,1 220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-0"/>
-          <path d="M 220,0 A 220,220 0 0,1 0,220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-1"/>
-          <path d="M 0,220 A 220,220 0 0,1 -220,0" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-2"/>
-          <path d="M -220,0 A 220,220 0 0,1 0,-220" fill="none" stroke="rgba(60,140,255,0.18)" stroke-width="2" stroke-linecap="round" class="arc-segment arc-delay-3"/>
-
-          <!-- Connector lines from center hub to each button node (4 nodes) -->
-          <line x1="0" y1="-60" x2="0" y2="-190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="60" y1="0" x2="190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="0" y1="60" x2="0" y2="190" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-          <line x1="-60" y1="0" x2="-190" y2="0" stroke="rgba(60,140,255,0.12)" stroke-width="1" stroke-dasharray="3 6" class="connector-line"/>
-
-          <!-- Midpoint connector lines (decorative, between nodes at diagonals) -->
-          <line x1="42.4" y1="-42.4" x2="95.5" y2="-95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="42.4" y1="42.4" x2="95.5" y2="95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-42.4" y1="42.4" x2="-95.5" y2="95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-          <line x1="-42.4" y1="-42.4" x2="-95.5" y2="-95.5" stroke="rgba(60,140,255,0.06)" stroke-width="0.5" stroke-dasharray="2 8" class="connector-line"/>
-
-          <!-- Center hub rings -->
-          <circle cx="0" cy="0" r="55" fill="none" stroke="rgba(60,140,255,0.1)" stroke-width="0.5" stroke-dasharray="3 5"/>
-          <circle cx="0" cy="0" r="40" fill="none" stroke="rgba(60,140,255,0.25)" stroke-width="1.5" class="hub-ring"/>
-          <circle cx="0" cy="0" r="20" fill="none" stroke="rgba(60,140,255,0.12)" stroke-width="1"/>
-          <circle cx="0" cy="0" r="5" fill="rgba(60,140,255,0.4)" class="hub-dot"/>
-
-          <!-- Crosshair lines through center (short, inside hub) -->
-          <line x1="-30" y1="0" x2="-10" y2="0" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
-          <line x1="10" y1="0" x2="30" y2="0" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
-          <line x1="0" y1="-30" x2="0" y2="-10" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
-          <line x1="0" y1="10" x2="0" y2="30" stroke="rgba(60,140,255,0.2)" stroke-width="0.5"/>
-
-          <!-- Node dots at each button position (4 nodes) -->
-          <circle cx="0" cy="-220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="0" cy="220" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-          <circle cx="-220" cy="0" r="4" fill="rgba(60,140,255,0.5)" class="node-dot"/>
-
-          <!-- Node bracket markers (4 nodes, rotated to match radial direction) -->
-          <g class="node-bracket" transform="translate(0,-220) rotate(0)">
-            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-          <g class="node-bracket" transform="translate(220,0) rotate(90)">
-            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-          <g class="node-bracket" transform="translate(0,220) rotate(180)">
-            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-          <g class="node-bracket" transform="translate(-220,0) rotate(270)">
-            <line x1="-14" y1="-9" x2="-14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-            <line x1="14" y1="-9" x2="14" y2="9" stroke="rgba(60,140,255,0.3)" stroke-width="1"/>
-          </g>
-
-          <!-- Small diamond markers at midpoints between 4 nodes on orbit ring -->
-          <g transform="translate(155.6,-155.6) rotate(45)" opacity="0.25">
-            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
-          </g>
-          <g transform="translate(155.6,155.6) rotate(45)" opacity="0.25">
-            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
-          </g>
-          <g transform="translate(-155.6,155.6) rotate(45)" opacity="0.25">
-            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
-          </g>
-          <g transform="translate(-155.6,-155.6) rotate(45)" opacity="0.25">
-            <rect x="-3" y="-3" width="6" height="6" fill="none" stroke="rgba(60,140,255,0.6)" stroke-width="0.8"/>
-          </g>
-        </svg>
-
-         <!-- Buttons (4 items at 90 degree intervals) -->
-         <a href="minesweeper.html" class="menu-button" style="--angle: 0">
-           <span class="btn-label">Minesweeper</span>
-         </a>
-         <a href="pong.html" class="menu-button" style="--angle: 1">
-           <span class="btn-label">Pong</span>
-         </a>
-         <a href="edmund_game/index.html" class="menu-button" style="--angle: 2">
-           <span class="btn-label">Nugget Invasion</span>
-         </a>
-         <a href="beatrix_game/index.html" class="menu-button" style="--angle: 3">
-           <span class="btn-label">Jumping Axolotl Nuggets</span>
-         </a>
+       <!-- Planet labels — positioned by JS to track planet screen positions -->
+       <div class="planet-label" id="planet-label-0" data-planet="0">
+         <span class="pl-bracket">[</span> MINESWEEPER <span class="pl-bracket">]</span>
+       </div>
+       <div class="planet-label" id="planet-label-1" data-planet="1">
+         <span class="pl-bracket">[</span> PONG <span class="pl-bracket">]</span>
+       </div>
+       <div class="planet-label" id="planet-label-2" data-planet="2">
+         <span class="pl-bracket">[</span> NUGGET INVASION <span class="pl-bracket">]</span>
+       </div>
+       <div class="planet-label" id="planet-label-3" data-planet="3">
+         <span class="pl-bracket">[</span> JUMPING AXOLOTL NUGGETS <span class="pl-bracket">]</span>
        </div>
      </div>
    </div>
+
+
 
    <script>
     const canvas = document.getElementById('canvas');
@@ -209,6 +97,7 @@
       uniform vec3  u_camUp;
       uniform float u_rH;
       uniform float u_rIsco;
+      uniform float u_hoveredPlanet;
 
       vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
         float r = length(p);
@@ -309,21 +198,22 @@
         vec2 orbDir = normalize(vec2(-diskPos.y, diskPos.x)) * spinSign;
         vec2 rayDir2D = normalize(rayDir.xz);
         float cosAngle = dot(orbDir, rayDir2D);
-        float gamma = 1.0 / sqrt(max(1.0 - vOrb * vOrb, 0.01));
-        float g = 1.0 / (gamma * (1.0 - vOrb * cosAngle));
-        float dopplerFlux = g * g * g * g;
+        float gamma = 1.0 / sqrt(max(1.0 - vOrb * vOrb, 0.04));
+        float g = 1.0 / (gamma * max(1.0 - vOrb * cosAngle, 0.15));
+        float dopplerFlux = min(g * g * g * g, 6.0);
 
         float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
-        float Tshifted = Tnorm * g * gGrav;
+        float Tshifted = Tnorm * clamp(g, 0.2, 3.0) * gGrav;
         vec3 col = blackbodyColor(Tshifted);
         float brightness = dopplerFlux * gGrav * T * 6.0;
 
+        float detailFade = smoothstep(0.0, 2.5, r - r_isco);
         float angle = fastAtan2(hitPos.z, hitPos.x);
         vec2 diskUV = vec2(angle * 2.0 + u_time * 0.4, log(r) * 6.0);
         float turb = fbm(diskUV * 3.0);
-        brightness *= 0.65 + 0.35 * turb;
+        brightness *= 0.65 + 0.35 * turb * detailFade;
 
-        float spiral = 0.75 + 0.25 * sin(angle * 4.0 - log(r) * 8.0 + u_time * 0.7);
+        float spiral = 0.75 + 0.25 * sin(angle * 4.0 - log(r) * 8.0 + u_time * 0.7) * detailFade;
         brightness *= spiral;
 
         return col * brightness * diskMask;
@@ -334,6 +224,105 @@
         float inner = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
         float outer = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
         return inner * outer * 0.9;
+      }
+
+      vec3 planetPos(int idx, float t) {
+        float oR, ph, sp;
+        if (idx == 0) { oR = 25.0; ph = 0.0; sp = 0.027; }
+        else if (idx == 1) { oR = 32.0; ph = 2.094; sp = 0.017; }
+        else if (idx == 2) { oR = 40.0; ph = 4.189; sp = 0.010; }
+        else { oR = 48.0; ph = 1.047; sp = 0.007; }
+        float ang = ph + t * sp;
+        return vec3(cos(ang) * oR, 0.0, sin(ang) * oR);
+      }
+
+      float planetRadius(int idx) {
+        if (idx == 0) return 2.5;
+        if (idx == 1) return 2.0;
+        if (idx == 2) return 1.5;
+        return 1.4;
+      }
+
+      vec3 shadePlanet(vec3 hp, vec3 ctr, float rad, int idx) {
+        vec3 n = normalize(hp - ctr);
+        float lat = n.y;
+        float lon = atan(n.z, n.x);
+        vec3 ldir = normalize(-ctr);
+        float diff = max(dot(n, ldir), 0.0) * 0.99 + 0.01;
+        vec3 col;
+        if (idx == 0) {
+          // Jupiter: cream zones, brown belts, blue-gray poles, Great Red Spot
+          float rLon = lon - u_time * 0.12;
+          float turb = vnoise(vec2(lat * 12.0, rLon * 2.5)) * 0.06;
+          float latN = lat + turb;
+          float seb = exp(-(latN + 0.25) * (latN + 0.25) * 80.0);
+          float neb = exp(-(latN - 0.18) * (latN - 0.18) * 100.0);
+          float stb = exp(-(latN + 0.52) * (latN + 0.52) * 150.0);
+          float ntb = exp(-(latN - 0.45) * (latN - 0.45) * 150.0);
+          float sstb = exp(-(latN + 0.70) * (latN + 0.70) * 200.0);
+          float nntb = exp(-(latN - 0.62) * (latN - 0.62) * 200.0);
+          float ez = exp(-latN * latN * 35.0);
+          float fine = sin(latN * 50.0) * 0.04 * smoothstep(0.35, 0.65, abs(latN));
+          float majorBelt = (seb + neb) * 0.4 + (stb + ntb + sstb + nntb) * 0.2 + fine;
+          col = mix(vec3(0.92, 0.87, 0.76), vec3(0.62, 0.38, 0.20), clamp(majorBelt, 0.0, 1.0));
+          col = mix(col, vec3(0.88, 0.82, 0.70), ez * 0.5);
+          col *= clamp(0.78 + ez * 0.22 - majorBelt * 0.15, 0.45, 1.0);
+          col = mix(col, vec3(0.48, 0.50, 0.58), smoothstep(0.68, 0.92, abs(lat)));
+          float dLat = (lat + 0.37) * 2.5;
+          float dLon = mod(rLon - 1.5 + 3.14159, 6.28318) - 3.14159;
+          float grsR2 = dLat * dLat * 12.0 + dLon * dLon * 8.0;
+          float grs = exp(-grsR2);
+          vec3 grsCol = mix(vec3(0.78, 0.36, 0.22), vec3(0.82, 0.58, 0.38), smoothstep(0.3, 1.5, sqrt(grsR2)));
+          col = mix(col, grsCol, grs * 0.85);
+        } else if (idx == 1) {
+          // Saturn: pale gold, very subtle bands, blue north pole
+          float rLon = lon - u_time * 0.10;
+          float turb = vnoise(vec2(lat * 8.0, rLon * 2.0)) * 0.03;
+          float latN = lat + turb;
+          float bands = sin(latN * 25.0) * 0.04 + sin(latN * 12.0) * 0.06;
+          float ez = exp(-latN * latN * 20.0) * 0.1;
+          col = mix(vec3(0.88, 0.80, 0.62), vec3(0.75, 0.65, 0.48), clamp(0.5 - bands, 0.0, 1.0) * 0.2);
+          col += vec3(0.05, 0.04, 0.02) * ez;
+          col = mix(col, vec3(0.55, 0.62, 0.72), smoothstep(0.65, 0.90, lat) * 0.45);
+          col = mix(col, vec3(0.62, 0.52, 0.38), smoothstep(0.65, 0.90, -lat) * 0.3);
+        } else if (idx == 2) {
+          // Uranus: pale cyan-green, nearly featureless, polar brightening
+          float rLon = lon - u_time * 0.07;
+          float turb = vnoise(vec2(lat * 6.0, rLon * 1.5)) * 0.015;
+          float bands = sin((lat + turb) * 15.0) * 0.015;
+          col = vec3(0.67, 0.82, 0.86) + vec3(-0.005, 0.008, 0.008) * bands;
+          col += vec3(0.08, 0.06, 0.04) * smoothstep(0.50, 0.85, lat);
+          col *= 1.0 - smoothstep(0.88, 1.0, abs(lat)) * 0.15;
+        } else {
+          // Neptune: deep blue, dark spot, bright companion clouds, cirrus
+          float rLon = lon - u_time * 0.09;
+          float turb = vnoise(vec2(lat * 10.0, rLon * 2.0)) * 0.04;
+          float latN = lat + turb;
+          col = vec3(0.28, 0.45, 0.78);
+          col += vec3(0.03, 0.05, 0.06) * (sin(latN * 20.0) * 0.06 + sin(latN * 10.0) * 0.04);
+          float b30s = exp(-(latN + 0.50) * (latN + 0.50) * 60.0);
+          float b30n = exp(-(latN - 0.50) * (latN - 0.50) * 60.0);
+          col += vec3(0.12, 0.14, 0.16) * (b30s * 0.12 + b30n * 0.10);
+          float dLat = (lat + 0.34) * 2.0;
+          float dLon = mod(rLon + 3.14159, 6.28318) - 3.14159;
+          float gds = exp(-(dLat * dLat * 10.0 + dLon * dLon * 6.0));
+          col = mix(col, vec3(0.15, 0.22, 0.50), gds * 0.55);
+          float cLat = lat + 0.49;
+          float cLon = mod(rLon + 0.15 + 3.14159, 6.28318) - 3.14159;
+          col += vec3(0.18, 0.18, 0.12) * exp(-(cLat * cLat * 50.0 + cLon * cLon * 20.0));
+          float cirrus = vnoise(vec2(rLon * 4.0, lat * 2.0 + 5.0));
+          cirrus = smoothstep(0.65, 0.80, cirrus) * 0.12 * smoothstep(0.1, 0.3, abs(lat)) * smoothstep(0.8, 0.5, abs(lat));
+          col += vec3(0.15, 0.15, 0.10) * cirrus;
+          col += vec3(0.04, 0.04, 0.02) * smoothstep(0.60, 0.85, -lat);
+        }
+        // Hover highlight: brighten + blue rim glow
+        if (abs(float(idx) - u_hoveredPlanet) < 0.5) {
+          vec3 viewDir = normalize(u_camPos - hp);
+          float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
+          col += vec3(0.15, 0.35, 0.65) * rim * 0.8;
+          col *= 1.3;
+        }
+        return col * diff;
       }
 
       vec2 galaxyProject(vec3 rd, vec3 dir, float scl, float tilt, float cosA) {
@@ -513,8 +502,75 @@
             dAlpha = clamp(dAlpha, 0.0, 1.0);
             accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
             accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
+            if (accumulatedAlpha < 0.98) {
+              vec3 satC = planetPos(1, u_time);
+              float sd = length(hitPos.xz - satC.xz);
+              float ringPxW = length(u_camPos - hitPos) / (min(u_resolution.x, u_resolution.y) * 1.8);
+              float rfPx = ringPxW / 2.5;
+              if (sd > 3.0 - ringPxW * 2.0 && sd < 5.5 + ringPxW * 2.0) {
+                float rf = (sd - 3.0) / 2.5;
+                float w = max(0.02, rfPx * 1.0);
+                // C Ring (0-0.20): dark, semi-transparent
+                float cR = smoothstep(-w, w, rf) * (1.0 - smoothstep(0.20 - w, 0.20 + w, rf));
+                // B Ring (0.20-0.56): brightest, most opaque
+                float bR = smoothstep(0.20 - w, 0.20 + w, rf) * (1.0 - smoothstep(0.56 - w, 0.56 + w, rf));
+                // Cassini Division (0.56-0.64): near-transparent gap
+                float cas = smoothstep(0.56 - w, 0.56 + w, rf) * (1.0 - smoothstep(0.64 - w, 0.64 + w, rf));
+                // A Ring (0.64-0.96): medium bright
+                float aR = smoothstep(0.64 - w, 0.64 + w, rf) * (1.0 - smoothstep(0.96 - w, 0.96 + w, rf));
+                float ringBright = cR * 0.35 + bR * 1.0 + aR * 0.75;
+                float ringAlpha = cR * 0.30 + bR * 0.85 + cas * 0.05 + aR * 0.65;
+                vec3 ringCol = mix(vec3(0.50, 0.45, 0.38), vec3(0.93, 0.89, 0.81), ringBright);
+                float texAtten = 1.0 / (1.0 + ringPxW * ringPxW * 900.0);
+                ringCol *= 0.88 + 0.12 * sin(sd * 30.0) * texAtten;
+                // Saturn shadow: test if line from origin to hitPos passes through Saturn
+                vec2 hp2 = hitPos.xz;
+                vec2 sc2 = satC.xz;
+                float tSh = dot(sc2, hp2) / dot(hp2, hp2);
+                float shDist = length(sc2 - hp2 * tSh);
+                float shadow = smoothstep(1.7, 2.3, shDist);
+                shadow = mix(1.0, shadow, smoothstep(0.0, 0.01, tSh) * smoothstep(1.0, 0.99, tSh));
+                ringCol *= mix(0.01, 1.0, shadow);
+                accumulatedColor += ringCol * ringAlpha * (1.0 - accumulatedAlpha);
+                accumulatedAlpha += ringAlpha * (1.0 - accumulatedAlpha);
+              }
+            }
             if (accumulatedAlpha > 0.98) break;
           }
+          if (r > 22.0 && r < 51.0 && accumulatedAlpha < 0.98) {
+            vec3 seg = pos - prevPos;
+            float segL2 = dot(seg, seg);
+            float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
+            for (int p = 0; p < 4; p++) {
+              vec3 pC = planetPos(p, u_time);
+              float pr = planetRadius(p);
+              vec3 oc = prevPos - pC;
+              float bH = dot(oc, seg);
+              float oc2 = dot(oc, oc);
+              float tClose = clamp(-bH / segL2, 0.0, 1.0);
+              vec3 cpVec = oc + seg * tClose;
+              float dist2 = dot(cpVec, cpVec);
+              float prE = pr + edgeW;
+              if (dist2 < prE * prE) {
+                float dist = sqrt(dist2);
+                float alpha = smoothstep(prE, pr, dist);
+                vec3 hitP = pC + normalize(cpVec) * pr;
+                float disc = bH * bH - segL2 * (oc2 - pr * pr);
+                if (disc > 0.0) {
+                  float sqD = sqrt(disc);
+                  float t1 = (-bH - sqD) / segL2;
+                  float t2 = (-bH + sqD) / segL2;
+                  float t = (t1 > 0.0) ? t1 : t2;
+                  if (t > 0.0 && t < 1.0) hitP = prevPos + seg * t;
+                }
+                vec3 pCol = shadePlanet(hitP, pC, pr, p);
+                accumulatedColor += pCol * alpha * (1.0 - accumulatedAlpha);
+                accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
+                if (accumulatedAlpha > 0.98) break;
+              }
+            }
+          }
+          if (accumulatedAlpha > 0.98) break;
           prevY = newY;
         }
 
@@ -601,6 +657,74 @@
     const uCamUp = gl.getUniformLocation(program, 'u_camUp');
     const uRH = gl.getUniformLocation(program, 'u_rH');
     const uRIsco = gl.getUniformLocation(program, 'u_rIsco');
+    const uHoveredPlanet = gl.getUniformLocation(program, 'u_hoveredPlanet');
+
+    /* -- Planet Data -- */
+    const planetData = [
+      { oR: 25.0, ph: 0.0,   sp: 0.027, radius: 2.5, name: 'Minesweeper',            href: 'minesweeper.html' },
+      { oR: 32.0, ph: 2.094, sp: 0.017, radius: 2.0, name: 'Pong',                    href: 'pong.html' },
+      { oR: 40.0, ph: 4.189, sp: 0.010, radius: 1.5, name: 'Nugget Invasion',         href: 'edmund_game/index.html' },
+      { oR: 48.0, ph: 1.047, sp: 0.007, radius: 1.4, name: 'Jumping Axolotl Nuggets', href: 'beatrix_game/index.html' },
+    ];
+    const planetLabels = planetData.map((_, i) => document.getElementById('planet-label-' + i));
+    let hoveredPlanet = -1;
+    let mouseScreenX = -1, mouseScreenY = -1;
+
+    function getPlanetWorldPos(idx, t) {
+      const p = planetData[idx];
+      const ang = p.ph + t * p.sp;
+      return [Math.cos(ang) * p.oR, 0.0, Math.sin(ang) * p.oR];
+    }
+
+    /* Project world coords to screen pixels using camera vectors from render() */
+    let camVecs = null; // set each frame by render()
+    function projectToScreen(wx, wy, wz) {
+      if (!camVecs) return null;
+      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rY, rZ, upX, upY, upZ, W, H } = camVecs;
+      const dx = wx - cpx, dy = wy - cpy, dz = wz - cpz;
+      const depth = dx * fwdX + dy * fwdY + dz * fwdZ;
+      if (depth <= 0) return null;
+      const rx = dx * rX + dy * rY + dz * rZ;
+      const ux = dx * upX + dy * upY + dz * upZ;
+      const minDim = Math.min(W, H);
+      const focal = 1.8;
+      const sx = W * 0.5 + (rx / depth) * focal * minDim;
+      const sy = H * 0.5 - (ux / depth) * focal * minDim;
+      return { x: sx, y: sy, depth };
+    }
+
+    function checkPlanetHover(mx, my) {
+      if (mx < 0 || !camVecs) return -1;
+      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rZ, upX, upY, upZ, W, H, time } = camVecs;
+      const minDim = Math.min(W, H);
+      const focal = 1.8;
+      // Convert screen position to ray direction
+      const ndcX = (mx - W * 0.5) / (focal * minDim);
+      const ndcY = (H * 0.5 - my) / (focal * minDim);
+      const rdx = fwdX + rX * ndcX + upX * ndcY;
+      const rdy = fwdY + 0 * ndcX + upY * ndcY;
+      const rdz = fwdZ + rZ * ndcX + upZ * ndcY;
+      const rdLen = Math.sqrt(rdx * rdx + rdy * rdy + rdz * rdz);
+      const rx = rdx / rdLen, ry = rdy / rdLen, rz = rdz / rdLen;
+
+      let bestIdx = -1, bestT = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const pos = getPlanetWorldPos(i, time);
+        const rad = planetData[i].radius;
+        // Ray-sphere intersection: origin = cam, dir = (rx,ry,rz)
+        const ocx = cpx - pos[0], ocy = cpy - pos[1], ocz = cpz - pos[2];
+        const b = ocx * rx + ocy * ry + ocz * rz;
+        const c = ocx * ocx + ocy * ocy + ocz * ocz - rad * rad;
+        const disc = b * b - c;
+        if (disc < 0) continue;
+        const t = -b - Math.sqrt(disc);
+        if (t > 0 && t < bestT) {
+          bestT = t;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
 
     /* -- Interaction State -- */
     let camAzimuth = 0.0;
@@ -610,24 +734,43 @@
 
     const DEFAULTS = { camAzimuth: 0.0, camElev: -0.32, camDist: 40.0, spin: 0.0 };
 
-    /* -- Mouse Drag (orbit) -- */
+    /* -- Mouse Drag (orbit) + Planet Hover/Click -- */
     let dragging = false;
     let lastX = 0, lastY = 0;
+    let dragStartX = 0, dragStartY = 0;
+    let didDrag = false;
 
     canvas.addEventListener('mousedown', (e) => {
       dragging = true;
+      didDrag = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
       lastX = e.clientX;
       lastY = e.clientY;
     });
     window.addEventListener('mouseup', () => { dragging = false; });
     window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      camAzimuth += dx * 0.005;
-      camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
-      lastX = e.clientX;
-      lastY = e.clientY;
+      mouseScreenX = e.clientX;
+      mouseScreenY = e.clientY;
+      if (dragging) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        camAzimuth += dx * 0.005;
+        camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
+        lastX = e.clientX;
+        lastY = e.clientY;
+        const totalDx = e.clientX - dragStartX;
+        const totalDy = e.clientY - dragStartY;
+        if (totalDx * totalDx + totalDy * totalDy > 9) didDrag = true;
+      }
+      // Update hover (cursor set in render loop)
+      hoveredPlanet = checkPlanetHover(mouseScreenX, mouseScreenY);
+      canvas.style.cursor = hoveredPlanet >= 0 && !dragging ? 'pointer' : dragging ? 'grabbing' : 'grab';
+    });
+    canvas.addEventListener('click', (e) => {
+      if (!didDrag && hoveredPlanet >= 0) {
+        window.location.href = planetData[hoveredPlanet].href;
+      }
     });
 
     /* -- Scroll (zoom) -- */
@@ -638,12 +781,17 @@
 
     /* -- Touch support -- */
     let touchId = null;
+    let touchStartX = 0, touchStartY = 0;
+    let didDragTouch = false;
     canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         e.preventDefault();
         touchId = e.touches[0].identifier;
         lastX = e.touches[0].clientX;
         lastY = e.touches[0].clientY;
+        touchStartX = lastX;
+        touchStartY = lastY;
+        didDragTouch = false;
       }
     }, { passive: false });
     canvas.addEventListener('touchmove', (e) => {
@@ -656,12 +804,25 @@
           camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
           lastX = e.changedTouches[i].clientX;
           lastY = e.changedTouches[i].clientY;
+          const totalDx = lastX - touchStartX;
+          const totalDy = lastY - touchStartY;
+          if (totalDx * totalDx + totalDy * totalDy > 9) didDragTouch = true;
         }
       }
     }, { passive: false });
     canvas.addEventListener('touchend', (e) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId) touchId = null;
+        if (e.changedTouches[i].identifier === touchId) {
+          if (!didDragTouch) {
+            const tx = e.changedTouches[i].clientX;
+            const ty = e.changedTouches[i].clientY;
+            const hit = checkPlanetHover(tx, ty);
+            if (hit >= 0) {
+              window.location.href = planetData[hit].href;
+            }
+          }
+          touchId = null;
+        }
       }
     });
 
@@ -751,8 +912,20 @@
       const z2 = Math.sqrt(3.0 * a2 + z1 * z1);
       const rIsco = 3.0 + z2 - Math.sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2));
 
+      const time = (now - startTime) * 0.001;
+
+      /* Store camera vectors for planet projection & hover detection */
+      camVecs = { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rY, rZ, upX, upY, upZ,
+                  W: baseWidth, H: baseHeight, time };
+
+      /* Re-check hover with latest camera */
+      hoveredPlanet = checkPlanetHover(mouseScreenX, mouseScreenY);
+      if (!dragging) {
+        canvas.style.cursor = hoveredPlanet >= 0 ? 'pointer' : 'grab';
+      }
+
       gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform1f(uTime, (now - startTime) * 0.001);
+      gl.uniform1f(uTime, time);
       gl.uniform1f(uCamDist, camDist);
       gl.uniform1f(uSpin, spin);
       gl.uniform3f(uCamPos, cpx, cpy, cpz);
@@ -761,8 +934,30 @@
       gl.uniform3f(uCamUp, upX, upY, upZ);
       gl.uniform1f(uRH, rH);
       gl.uniform1f(uRIsco, rIsco);
+      gl.uniform1f(uHoveredPlanet, hoveredPlanet);
 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      /* Update planet labels */
+      for (let i = 0; i < 4; i++) {
+        const pos = getPlanetWorldPos(i, time);
+        const scr = projectToScreen(pos[0], pos[1], pos[2]);
+        const label = planetLabels[i];
+        if (scr && scr.x > -100 && scr.x < baseWidth + 100 && scr.y > -100 && scr.y < baseHeight + 100) {
+          const apparentR = (planetData[i].radius / scr.depth) * Math.min(baseWidth, baseHeight) * 1.8;
+          label.style.left = scr.x + 'px';
+          label.style.top = (scr.y - apparentR - 12) + 'px';
+          label.classList.add('visible');
+        } else {
+          label.classList.remove('visible');
+        }
+        if (i === hoveredPlanet) {
+          label.classList.add('hovered');
+        } else {
+          label.classList.remove('hovered');
+        }
+      }
+
       updateHUD();
       requestAnimationFrame(render);
     }

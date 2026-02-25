@@ -62,27 +62,33 @@ body {
   letter-spacing: 0.15em;
   pointer-events: none;
   z-index: 25;
+  background: rgba(0, 4, 16, 0.65);
+  padding: 10px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(60, 140, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .readout-label {
-  color: rgba(60, 140, 255, 0.55);
+  color: rgba(80, 160, 255, 0.85);
   margin-right: 0.8em;
 }
 
 .readout-value {
-  color: rgba(140, 190, 255, 0.75);
+  color: rgba(170, 210, 255, 0.9);
 }
 
 .readout-controls {
   font-size: 0.9em;
   line-height: 1.8;
-  color: rgba(140, 190, 255, 0.5);
+  color: rgba(160, 200, 255, 0.75);
   margin-top: 0.3em;
 }
 
 .readout-scale {
   font-size: 0.6em;
-  color: rgba(255, 160, 80, 0.7);
+  color: rgba(255, 180, 100, 0.85);
   margin-top: 4px;
 }
 
@@ -91,7 +97,7 @@ body {
 }
 
 .readout-warn {
-  color: rgba(255, 160, 80, 0.5);
+  color: rgba(255, 180, 100, 0.7);
   animation: warn-pulse 3s ease-in-out infinite;
 }
 
@@ -145,245 +151,48 @@ body {
 }
 
 /* ============================================
-   RADIAL MENU - centered
+   PLANET LABELS — positioned by JS over planets
    ============================================ */
 
-.radial-menu {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 0;
-  height: 0;
+.planet-label {
+  position: fixed;
   pointer-events: none;
-  z-index: 20;
-}
-
-/* SVG HUD ring graphics */
-.radial-hud-svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 900px;
-  height: 900px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  overflow: visible;
-}
-
-/* --- SVG ring animations --- */
-
-/* Slow clockwise rotation for outer ring elements */
-.ring-rotate-slow {
-  animation: svg-spin 90s linear infinite;
-  transform-origin: center;
-}
-
-/* Medium counter-rotation */
-.ring-rotate-mid {
-  animation: svg-spin 60s linear infinite reverse;
-  transform-origin: center;
-}
-
-/* Tick ring rotation */
-.ring-rotate-ticks {
-  animation: svg-spin 45s linear infinite;
-  transform-origin: center;
-}
-
-.tick-ring-outer {
-  animation: svg-spin 80s linear infinite reverse;
-  transform-origin: center;
-}
-
-@keyframes svg-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-/* Hub center pulse */
-.hub-ring {
-  animation: hub-pulse 3s ease-in-out infinite alternate;
-  transform-origin: center;
-}
-
-.hub-dot {
-  animation: hub-dot-pulse 2s ease-in-out infinite alternate;
-}
-
-@keyframes hub-pulse {
-  0%   { stroke-opacity: 0.25; }
-  100% { stroke-opacity: 0.6; }
-}
-
-@keyframes hub-dot-pulse {
-  0%   { fill-opacity: 0.3; }
-  100% { fill-opacity: 0.8; }
-}
-
-/* Node dots pulse */
-.node-dot {
-  animation: node-glow 2.5s ease-in-out infinite alternate;
-}
-
-@keyframes node-glow {
-  0%   { fill-opacity: 0.3; }
-  100% { fill-opacity: 0.8; }
-}
-
-/* Arc segments staggered pulse */
-.arc-segment {
-  animation: arc-pulse 4s ease-in-out infinite alternate;
-}
-
-.arc-delay-0 { animation-delay: 0s; }
-.arc-delay-1 { animation-delay: 1s; }
-.arc-delay-2 { animation-delay: 2s; }
-.arc-delay-3 { animation-delay: 3s; }
-
-@keyframes arc-pulse {
-  0%   { stroke-opacity: 0.12; }
-  50%  { stroke-opacity: 0.4; }
-  100% { stroke-opacity: 0.12; }
-}
-
-/* Connector line dash flow */
-.connector-line {
-  animation: dash-flow 3s linear infinite;
-}
-
-@keyframes dash-flow {
-  from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: -18; }
-}
-
-/* Major ticks subtle pulse */
-.major-ticks {
-  animation: ticks-pulse 5s ease-in-out infinite alternate;
-}
-
-@keyframes ticks-pulse {
-  0%   { opacity: 0.2; }
-  100% { opacity: 0.45; }
-}
-
-/* ============================================
-   MENU BUTTONS (radial positioned, centered)
-   ============================================ */
-
-.menu-button {
-  --radius: min(42vh, 330px);
-  --deg: calc(var(--angle) * 90deg - 90deg);
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform:
-    rotate(var(--deg))
-    translateY(calc(-1 * var(--radius)))
-    rotate(calc(-1 * var(--deg)));
-  pointer-events: auto;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 190px;
-  margin-left: -95px;
-  margin-top: -24px;
-  padding: 13px 20px;
-  text-align: center;
-
-  background: rgba(8, 16, 40, 0.6);
-  border: 1px solid rgba(60, 140, 255, 0.2);
-  border-radius: 4px;
-  color: rgba(180, 210, 255, 0.85);
-
+  z-index: 25;
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 0.9em;
   font-weight: 300;
-  letter-spacing: 0.18em;
+  font-size: 0.8em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-
-  transition:
-    transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-    background 0.35s ease,
-    border-color 0.35s ease,
-    box-shadow 0.35s ease,
-    color 0.25s ease,
-    letter-spacing 0.35s ease;
+  color: rgba(180, 210, 255, 0.7);
+  white-space: nowrap;
+  padding: 5px 10px;
+  border: 1px solid rgba(60, 140, 255, 0.15);
+  background: rgba(0, 4, 16, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: 3px;
+  transform: translate(-50%, 0);
+  transition: color 0.25s, border-color 0.25s, background 0.25s, text-shadow 0.25s;
+  opacity: 0;
 }
 
-/* Corner accents */
-.menu-button::before,
-.menu-button::after {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-  transition: border-color 0.35s ease, width 0.35s ease, height 0.35s ease;
+.planet-label.visible {
+  opacity: 1;
 }
 
-.menu-button::before {
-  top: -1px;
-  left: -1px;
-  border-top: 1px solid rgba(60, 140, 255, 0.4);
-  border-left: 1px solid rgba(60, 140, 255, 0.4);
-}
-
-.menu-button::after {
-  bottom: -1px;
-  right: -1px;
-  border-bottom: 1px solid rgba(60, 140, 255, 0.4);
-  border-right: 1px solid rgba(60, 140, 255, 0.4);
-}
-
-.menu-button:hover::before {
-  border-color: rgba(100, 180, 255, 0.8);
-  width: 16px;
-  height: 16px;
-}
-
-.menu-button:hover::after {
-  border-color: rgba(100, 180, 255, 0.8);
-  width: 16px;
-  height: 16px;
-}
-
-.menu-button:hover {
-  --radius-hover: calc(min(42vh, 330px) + 16px);
-  transform:
-    rotate(var(--deg))
-    translateY(calc(-1 * var(--radius-hover)))
-    rotate(calc(-1 * var(--deg)))
-    scale(1.14);
-  background: rgba(12, 30, 70, 0.8);
-  border-color: rgba(80, 170, 255, 0.55);
+.planet-label.hovered {
   color: #ffffff;
-  letter-spacing: 0.25em;
-  box-shadow:
-    0 0 30px rgba(60, 140, 255, 0.3),
-    0 0 60px rgba(60, 140, 255, 0.08),
-    inset 0 0 30px rgba(60, 140, 255, 0.06);
-  text-shadow: 0 0 15px rgba(100, 180, 255, 0.6);
+  border-color: rgba(80, 170, 255, 0.55);
+  background: rgba(12, 30, 70, 0.8);
+  text-shadow: 0 0 12px rgba(100, 180, 255, 0.6);
 }
 
-.menu-button:active {
-  --radius-hover: calc(min(42vh, 330px) + 16px);
-  transform:
-    rotate(var(--deg))
-    translateY(calc(-1 * var(--radius-hover)))
-    rotate(calc(-1 * var(--deg)))
-    scale(1.05);
-  transition-duration: 0.08s;
+.pl-bracket {
+  color: rgba(60, 140, 255, 0.5);
 }
 
-.btn-label {
-  pointer-events: none;
+.planet-label.hovered .pl-bracket {
+  color: rgba(100, 180, 255, 0.9);
 }
 
 /* ============================================
