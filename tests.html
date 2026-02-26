@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Regression Tests</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0e1a;
+      color: #c8daf0;
+      font-family: 'Courier New', monospace;
+      padding: 2rem;
+    }
+    h1 {
+      color: rgba(60,140,255,0.9);
+      font-size: 1.4rem;
+      letter-spacing: 0.15em;
+      border-bottom: 1px solid rgba(60,140,255,0.3);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .suite { margin-bottom: 2rem; }
+    .suite-title {
+      color: rgba(60,140,255,0.7);
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .test {
+      padding: 0.4rem 0.8rem;
+      margin: 0.25rem 0;
+      border-left: 3px solid transparent;
+      font-size: 0.85rem;
+    }
+    .test.pass {
+      border-left-color: #3cff6e;
+      color: #a0f0b0;
+    }
+    .test.fail {
+      border-left-color: #ff4050;
+      color: #ffa0a0;
+      background: rgba(255,64,80,0.08);
+    }
+    .badge {
+      display: inline-block;
+      width: 3.2em;
+      text-align: center;
+      font-weight: bold;
+      margin-right: 0.5rem;
+    }
+    .pass .badge { color: #3cff6e; }
+    .fail .badge { color: #ff4050; }
+    .detail {
+      color: rgba(160,180,210,0.6);
+      font-size: 0.75rem;
+      margin-left: 4.2em;
+    }
+    .summary {
+      margin-top: 2rem;
+      padding: 0.8rem 1rem;
+      border: 1px solid rgba(60,140,255,0.3);
+      font-size: 0.95rem;
+    }
+    .summary.all-pass { border-color: #3cff6e; color: #a0f0b0; }
+    .summary.has-fail { border-color: #ff4050; color: #ffa0a0; }
+    #error-box {
+      display: none;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid #ff4050;
+      color: #ffa0a0;
+      background: rgba(255,64,80,0.08);
+    }
+  </style>
+</head>
+<body>
+  <h1>// REGRESSION TESTS</h1>
+  <div id="error-box"></div>
+  <div id="results"></div>
+
+  <script>
+    const results = [];
+
+    function assert(pass, name, detail) {
+      results.push({ pass: !!pass, name, detail });
+    }
+
+    function render() {
+      const container = document.getElementById('results');
+      // Group by suite
+      const suites = {};
+      for (const r of results) {
+        const parts = r.name.split(': ');
+        const suite = parts.length > 1 ? parts[0] : 'General';
+        const test = parts.length > 1 ? parts.slice(1).join(': ') : parts[0];
+        if (!suites[suite]) suites[suite] = [];
+        suites[suite].push({ ...r, shortName: test });
+      }
+      let html = '';
+      for (const [suite, tests] of Object.entries(suites)) {
+        html += `<div class="suite"><div class="suite-title">${suite}</div>`;
+        for (const t of tests) {
+          const cls = t.pass ? 'pass' : 'fail';
+          const badge = t.pass ? 'PASS' : 'FAIL';
+          html += `<div class="test ${cls}"><span class="badge">${badge}</span>${t.shortName}`;
+          if (t.detail) html += `<div class="detail">${t.detail}</div>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+      const total = results.length;
+      const passed = results.filter(r => r.pass).length;
+      const failed = total - passed;
+      const cls = failed === 0 ? 'all-pass' : 'has-fail';
+      html += `<div class="summary ${cls}">${passed}/${total} passed` +
+              (failed > 0 ? ` — ${failed} FAILED` : ' — all clear') + `</div>`;
+      container.innerHTML = html;
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('error-box');
+      box.style.display = 'block';
+      box.textContent = msg;
+    }
+
+    // ---------------------------------------------------------------
+    // Extraction helpers
+    // ---------------------------------------------------------------
+
+    function extractShaderFloat(src, pattern) {
+      const m = src.match(pattern);
+      return m ? parseFloat(m[1]) : null;
+    }
+
+    function extractShaderInt(src, pattern) {
+      const m = src.match(pattern);
+      return m ? parseInt(m[1], 10) : null;
+    }
+
+    // ---------------------------------------------------------------
+    // Main
+    // ---------------------------------------------------------------
+
+    async function run() {
+      let text;
+      try {
+        const resp = await fetch('index.html');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        text = await resp.text();
+      } catch (e) {
+        showError('Could not fetch index.html: ' + e.message);
+        render();
+        return;
+      }
+
+      // --- Extract shader source (everything between the fsSource backticks) ---
+      const shaderMatch = text.match(/const\s+fsSource\s*=\s*`([\s\S]*?)`;/);
+      if (!shaderMatch) { showError('Could not extract fragment shader source.'); render(); return; }
+      const shader = shaderMatch[1];
+
+      // --- Extract JS (everything in the <script> block) ---
+      const scriptMatch = text.match(/<script>([\s\S]*?)<\/script>/);
+      if (!scriptMatch) { showError('Could not extract <script> block.'); render(); return; }
+      const js = scriptMatch[1];
+
+      // =============================================
+      // 1. Early escape threshold > renderable objects
+      // =============================================
+
+      // Pattern: if (r > THRESHOLD && dot(pos, vel) > 0.0) break;
+      const escapeThreshold = extractShaderFloat(
+        shader, /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
+      );
+      assert(escapeThreshold !== null,
+        'Extraction: early escape threshold found',
+        escapeThreshold !== null ? `value = ${escapeThreshold}` : 'regex matched nothing');
+
+      // Extract planet data from JS: planetData array
+      const planetEntries = [...js.matchAll(/\{\s*oR:\s*([\d.]+)\s*,.*?radius:\s*([\d.]+)/g)];
+      assert(planetEntries.length >= 4,
+        'Extraction: planetData entries found',
+        `found ${planetEntries.length} planets`);
+
+      const planets = planetEntries.map(m => ({
+        oR: parseFloat(m[1]),
+        radius: parseFloat(m[2]),
+      }));
+
+      // Extract accretion disc outer edge from shader
+      const outerEdge = extractShaderFloat(shader, /float\s+outerEdge\s*=\s*([\d.]+)/);
+      assert(outerEdge !== null,
+        'Extraction: accretion disc outerEdge found',
+        outerEdge !== null ? `value = ${outerEdge}` : 'regex matched nothing');
+
+      // Invariant 1a: threshold > max(planet oR + radius)
+      if (escapeThreshold !== null && planets.length > 0) {
+        const maxPlanetR = Math.max(...planets.map(p => p.oR + p.radius));
+        assert(escapeThreshold > maxPlanetR,
+          'Early escape: threshold > farthest planet edge',
+          `threshold ${escapeThreshold} vs max planet reach ${maxPlanetR}`);
+      }
+
+      // Invariant 1b: threshold > outerEdge + margin (disc must be fully visible)
+      if (escapeThreshold !== null && outerEdge !== null) {
+        const margin = 2.0; // outerFade extends +1.0 beyond outerEdge
+        assert(escapeThreshold > outerEdge + margin,
+          'Early escape: threshold > accretion disc outer edge + margin',
+          `threshold ${escapeThreshold} vs outerEdge ${outerEdge} + ${margin} = ${outerEdge + margin}`);
+      }
+
+      // =============================================
+      // 2. Iteration budget sufficient for camera dist
+      // =============================================
+
+      // Loop count: for (int i = 0; i < N; i++)
+      const loopCount = extractShaderInt(
+        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)/
+      );
+      assert(loopCount !== null,
+        'Extraction: ray march loop count found',
+        loopCount !== null ? `value = ${loopCount}` : 'regex matched nothing');
+
+      // Default camDist from JS
+      const defaultCamDist = extractShaderFloat(js, /let\s+camDist\s*=\s*([\d.]+)/);
+      assert(defaultCamDist !== null,
+        'Extraction: default camDist found',
+        defaultCamDist !== null ? `value = ${defaultCamDist}` : 'regex matched nothing');
+
+      // Step: max(0.002, min(MULT * (r - r_h), CAP))
+      const stepMatch = shader.match(
+        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*([\d.]+)\s*\)\s*\)/
+      );
+      const stepMin = stepMatch ? parseFloat(stepMatch[1]) : null;
+      const stepMult = stepMatch ? parseFloat(stepMatch[2]) : null;
+      const stepCap = stepMatch ? parseFloat(stepMatch[3]) : null;
+      assert(stepMatch !== null,
+        'Extraction: step size parameters found',
+        stepMatch ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
+
+      // Invariant 2: conservative budget > 2 × camDist
+      // Most of the path is at r >> r_h, so step ≈ cap for distant segments.
+      // Near the hole, steps shrink. Use a weighted estimate:
+      //   ~20 iterations near hole at avg step ~0.5, rest at cap
+      if (loopCount !== null && defaultCamDist !== null && stepCap !== null) {
+        const nearHoleIters = 20;
+        const nearHoleAvgStep = 0.5;
+        const farIters = loopCount - nearHoleIters;
+        const budget = nearHoleIters * nearHoleAvgStep + farIters * stepCap;
+        const required = 2 * defaultCamDist;
+        assert(budget > required,
+          'Iteration budget: path length > 2 × default camDist',
+          `budget ≈ ${budget.toFixed(0)} vs required ${required.toFixed(0)} (${loopCount} iters, cap ${stepCap})`);
+      }
+
+      // =============================================
+      // 3. Step cap vs planet detection
+      // =============================================
+
+      if (stepCap !== null && planets.length > 0) {
+        const minPlanetRadius = Math.min(...planets.map(p => p.radius));
+        // Step cap must be small enough that a ray segment can't skip an entire planet
+        // Factor of 4 gives margin for grazing rays (segment must overlap sphere)
+        assert(stepCap < minPlanetRadius * 4,
+          'Step cap: small enough for planet detection',
+          `cap ${stepCap} < ${minPlanetRadius} × 4 = ${minPlanetRadius * 4}`);
+      }
+
+      // =============================================
+      // 4. Planet check range covers all orbits
+      // =============================================
+
+      // Pattern: if (r > LOW && r < HIGH && accumulatedAlpha ...
+      const rangeMatch = shader.match(
+        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
+      );
+      const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
+      const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
+      assert(rangeMatch !== null,
+        'Extraction: planet check range found',
+        rangeMatch ? `low=${rangeLow}, high=${rangeHigh}` : 'regex matched nothing');
+
+      if (rangeLow !== null && rangeHigh !== null && planets.length > 0) {
+        const minOrbitInner = Math.min(...planets.map(p => p.oR - p.radius));
+        const maxOrbitOuter = Math.max(...planets.map(p => p.oR + p.radius));
+
+        assert(rangeLow < minOrbitInner,
+          'Planet range: lower bound < nearest planet inner edge',
+          `${rangeLow} < ${minOrbitInner}`);
+
+        assert(rangeHigh > maxOrbitOuter,
+          'Planet range: upper bound > farthest planet outer edge',
+          `${rangeHigh} > ${maxOrbitOuter}`);
+      }
+
+      // =============================================
+      // Done with lensing tests
+      // =============================================
+
+      // =============================================
+      // PONG: Fixed resolution & timestep regression
+      // =============================================
+
+      let pongSrc;
+      try {
+        const pResp = await fetch('js/pong.js');
+        if (!pResp.ok) throw new Error(`HTTP ${pResp.status}`);
+        pongSrc = await pResp.text();
+      } catch (e) {
+        showError('Could not fetch js/pong.js: ' + e.message);
+        render();
+        return;
+      }
+
+      // 5a. Fixed game dimensions exist
+      const gwMatch = pongSrc.match(/const\s+GAME_WIDTH\s*=\s*(\d+)/);
+      const ghMatch = pongSrc.match(/const\s+GAME_HEIGHT\s*=\s*(\d+)/);
+      assert(gwMatch !== null,
+        'Pong resolution: GAME_WIDTH constant defined',
+        gwMatch ? `value = ${gwMatch[1]}` : 'not found');
+      assert(ghMatch !== null,
+        'Pong resolution: GAME_HEIGHT constant defined',
+        ghMatch ? `value = ${ghMatch[1]}` : 'not found');
+
+      // 5b. Canvas set to fixed dimensions, not window size
+      const canvasUsesWindow = /canvas\.width\s*=\s*window/.test(pongSrc);
+      assert(!canvasUsesWindow,
+        'Pong resolution: canvas.width never set to window size',
+        canvasUsesWindow ? 'found canvas.width = window...' : 'clean');
+
+      const canvasUsesGameW = /canvas\.width\s*=\s*GAME_WIDTH/.test(pongSrc);
+      assert(canvasUsesGameW,
+        'Pong resolution: canvas.width set to GAME_WIDTH',
+        canvasUsesGameW ? 'found' : 'not found');
+
+      // 5c. fitCanvas function exists for CSS scaling
+      const hasFitCanvas = /function\s+fitCanvas\s*\(/.test(pongSrc);
+      assert(hasFitCanvas,
+        'Pong resolution: fitCanvas() function exists',
+        hasFitCanvas ? 'found' : 'not found');
+
+      // 5d. Game bounds use GAME_WIDTH/GAME_HEIGHT, not canvas.width/height
+      const boundsUseCanvas = /canvas\.(width|height)\s*-\s*(PADDLE|BALL)/.test(pongSrc);
+      assert(!boundsUseCanvas,
+        'Pong resolution: game bounds use GAME constants not canvas dimensions',
+        boundsUseCanvas ? 'found canvas.width/height in bounds logic' : 'clean');
+
+      // 5e. Fixed timestep exists
+      const hasTickRate = /const\s+TICK_RATE\s*=/.test(pongSrc);
+      assert(hasTickRate,
+        'Pong resolution: TICK_RATE constant defined (fixed timestep)',
+        hasTickRate ? 'found' : 'not found — game speed is frame-rate dependent');
+
+      // 5f. Game loop uses accumulator pattern
+      const hasAccumulator = /accumulator\s*[+\-]?=\s*/.test(pongSrc);
+      assert(hasAccumulator,
+        'Pong resolution: accumulator-based game loop',
+        hasAccumulator ? 'found' : 'not found — update() may run once per frame');
+
+      // =============================================
+      // Done
+      // =============================================
+      render();
+    }
+
+    run();
+  </script>
+</body>
+</html>

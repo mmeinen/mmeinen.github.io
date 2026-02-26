@@ -207,9 +207,51 @@ body {
 
 #pongCanvas {
   display: block;
-  width: 100vw;
-  height: 100vh;
   background-color: #0a0a0a;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pong-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: rgba(10,10,10,0.85);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.95em;
+  letter-spacing: 0.1em;
+}
+
+.pong-back {
+  color: rgba(180,200,255,0.8);
+  text-decoration: none;
+  font-size: 0.85em;
+  transition: color 0.2s;
+}
+
+.pong-back:hover {
+  color: #fff;
+}
+
+.pong-score {
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.2em;
+}
+
+.pong-controls {
+  color: rgba(180,200,255,0.5);
+  font-size: 0.8em;
 }
 
 /* ============================================

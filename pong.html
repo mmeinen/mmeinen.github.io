@@ -4,17 +4,18 @@
   <link href="css/style.css" rel="stylesheet" type="text/css">
   <script type="application/javascript" src="js/pong.js"></script>
  </head>
- <body>
+ <body style="background:#0a0a0a;">
    <canvas id="pongCanvas"></canvas>
-   <div id="score" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 2em; font-family: Arial, sans-serif;">
-     <span id="playerScore">0</span> - <span id="aiScore">0</span>
+
+   <div class="pong-hud">
+     <a href="index.html" class="pong-back">&larr; Menu</a>
+     <span class="pong-score"><span id="playerScore">0</span> &ndash; <span id="aiScore">0</span></span>
+     <span class="pong-controls">W/S &middot; R restart</span>
    </div>
+
    <div id="gameOver" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 2em; font-family: Arial, sans-serif; display: none;">
      <div>Game Over!</div>
      <div style="font-size: 0.6em; margin-top: 20px;">Press R to restart</div>
-   </div>
-   <div style="position: absolute; bottom: 20px; left: 20px; color: white; font-family: Arial, sans-serif; font-size: 0.9em;">
-     W/S or Arrow Up/Down to move | R to restart | ESC to menu
    </div>
  </body>
 </html>

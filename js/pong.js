@@ -6,40 +6,50 @@ var aiScore = 0;
 var gameRunning = true;
 var keys = {};
 
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 500;
 const PADDLE_WIDTH = 10;
 const PADDLE_HEIGHT = 100;
 const BALL_SIZE = 10;
-const PADDLE_SPEED = 5;
-const AI_SPEED = 4;
-const BALL_SPEED = 5;
+const PADDLE_SPEED = 3;
+const AI_SPEED = 2.5;
+const BALL_SPEED = 2;
+
+function fitCanvas() {
+    var scaleX = window.innerWidth / GAME_WIDTH;
+    var scaleY = window.innerHeight / GAME_HEIGHT;
+    var scale = Math.min(scaleX, scaleY);
+    canvas.style.width = (GAME_WIDTH * scale) + 'px';
+    canvas.style.height = (GAME_HEIGHT * scale) + 'px';
+}
 
 function init() {
     canvas = document.getElementById('pongCanvas');
     ctx = canvas.getContext('2d');
-    
-    // Set canvas to full screen
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
+
+    canvas.width = GAME_WIDTH;
+    canvas.height = GAME_HEIGHT;
+    fitCanvas();
+
     // Initialize game objects
     player = {
         x: 50,
-        y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+        y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
         width: PADDLE_WIDTH,
         height: PADDLE_HEIGHT,
         speed: PADDLE_SPEED
     };
-    
+
     ai = {
-        x: canvas.width - 50 - PADDLE_WIDTH,
-        y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+        x: GAME_WIDTH - 50 - PADDLE_WIDTH,
+        y: GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2,
         width: PADDLE_WIDTH,
         height: PADDLE_HEIGHT,
         speed: AI_SPEED
     };
-    
+
     resetBall();
-    
+
     // Event listeners
     window.addEventListener('keydown', function(e) {
         keys[e.key.toLowerCase()] = true;
@@ -50,27 +60,18 @@ function init() {
             restart();
         }
     });
-    
+
     window.addEventListener('keyup', function(e) {
         keys[e.key.toLowerCase()] = false;
     });
-    
-    window.addEventListener('resize', function() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        // Keep paddles in bounds
-        player.y = Math.max(0, Math.min(player.y, canvas.height - PADDLE_HEIGHT));
-        ai.y = Math.max(0, Math.min(ai.y, canvas.height - PADDLE_HEIGHT));
-    });
-    
-    // Start game loop
-    gameLoop();
+
+    window.addEventListener('resize', fitCanvas);
 }
 
 function resetBall() {
     ball = {
-        x: canvas.width / 2,
-        y: canvas.height / 2,
+        x: GAME_WIDTH / 2,
+        y: GAME_HEIGHT / 2,
         width: BALL_SIZE,
         height: BALL_SIZE,
         vx: (Math.random() > 0.5 ? 1 : -1) * BALL_SPEED,
@@ -85,7 +86,7 @@ function update() {
     if ((keys['w'] || keys['arrowup']) && player.y > 0) {
         player.y -= player.speed;
     }
-    if ((keys['s'] || keys['arrowdown']) && player.y < canvas.height - PADDLE_HEIGHT) {
+    if ((keys['s'] || keys['arrowdown']) && player.y < GAME_HEIGHT - PADDLE_HEIGHT) {
         player.y += player.speed;
     }
     
@@ -96,7 +97,7 @@ function update() {
     if (ballY < aiCenter - 10) {
         ai.y = Math.max(0, ai.y - ai.speed);
     } else if (ballY > aiCenter + 10) {
-        ai.y = Math.min(canvas.height - PADDLE_HEIGHT, ai.y + ai.speed);
+        ai.y = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, ai.y + ai.speed);
     }
     
     // Ball movement
@@ -104,7 +105,7 @@ function update() {
     ball.y += ball.vy;
     
     // Ball collision with top/bottom walls
-    if (ball.y <= 0 || ball.y >= canvas.height - BALL_SIZE) {
+    if (ball.y <= 0 || ball.y >= GAME_HEIGHT - BALL_SIZE) {
         ball.vy = -ball.vy;
     }
     
@@ -142,7 +143,7 @@ function update() {
         if (aiScore >= 10) {
             endGame('AI');
         }
-    } else if (ball.x > canvas.width) {
+    } else if (ball.x > GAME_WIDTH) {
         playerScore++;
         updateScore();
         resetBall();
@@ -171,8 +172,8 @@ function restart() {
     gameRunning = true;
     document.getElementById('gameOver').style.display = 'none';
     resetBall();
-    player.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
-    ai.y = canvas.height / 2 - PADDLE_HEIGHT / 2;
+    player.y = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    ai.y = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
 }
 
 function draw() {
@@ -185,8 +186,8 @@ function draw() {
     ctx.lineWidth = 2;
     ctx.setLineDash([10, 10]);
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 0);
-    ctx.lineTo(canvas.width / 2, canvas.height);
+    ctx.moveTo(GAME_WIDTH / 2, 0);
+    ctx.lineTo(GAME_WIDTH / 2, GAME_HEIGHT);
     ctx.stroke();
     ctx.setLineDash([]);
     
@@ -200,8 +201,24 @@ function draw() {
     ctx.fillRect(ball.x, ball.y, ball.width, ball.height);
 }
 
-function gameLoop() {
-    update();
+const TICK_RATE = 1000 / 60;
+var lastTime = 0;
+var accumulator = 0;
+
+function gameLoop(timestamp) {
+    if (lastTime === 0) lastTime = timestamp;
+    var delta = timestamp - lastTime;
+    lastTime = timestamp;
+
+    // Cap delta to avoid spiral of death after tab switch
+    if (delta > 200) delta = 200;
+    accumulator += delta;
+
+    while (accumulator >= TICK_RATE) {
+        update();
+        accumulator -= TICK_RATE;
+    }
+
     draw();
     requestAnimationFrame(gameLoop);
 }
@@ -209,6 +226,6 @@ function gameLoop() {
 // Start game when page loads
 window.onload = function() {
     init();
-    gameLoop();
+    requestAnimationFrame(gameLoop);
 };
 
