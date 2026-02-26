@@ -12,6 +12,15 @@ class Renderer {
 	        Renderer.drawTiles(ctx, canvas.width, canvas.height);
 	        Renderer.drawHUD(ctx, canvas.width, canvas.height);
 	        Renderer.drawGotoArrow(ctx, canvas.width, canvas.height);
+
+	        // Bomb flash overlay
+	        var bombAnims = getActiveAnimations('bomb-flash');
+	        if (bombAnims.length > 0) {
+	            var p = bombAnims[0].progress;
+	            var flashAlpha = (1 - p) * 0.4;
+	            ctx.fillStyle = 'rgba(200,40,20,' + flashAlpha + ')';
+	            ctx.fillRect(0, 0, canvas.width, canvas.height);
+	        }
 	    }
 
 	}
@@ -64,32 +73,29 @@ class Renderer {
 
 	static drawHUD(ctx, canvasWidth, canvasHeight) {
 
-	    var miniDims = Renderer.drawMiniMap(ctx, canvasWidth, canvasHeight);
-
-
-	    ctx.fillStyle = ('rgba(255,255,255,1)');
-	    ctx.fillRect(miniDims.x, miniDims.y - 20, miniDims.width, 20);
-
-	    ctx.strokeText("Bombs? " + getNumFlags(), miniDims.x, miniDims.y - 6);
-	    ctx.fillStyle = ('rgba(0,0,0,1)');
-
-	    ctx.fillStyle = ('rgba(0,0,0,1)');
-	    ctx.strokeRect(miniDims.x, miniDims.y, miniDims.width, miniDims.height);
+	    Renderer.drawMiniMap(ctx, canvasWidth, canvasHeight);
 	}
 
 	static drawMiniMap(renderContext, canvasWidth, canvasHeight) {
 
+	    var pad = 12;
 	    var miniHeight = Math.max(canvasHeight / 5);
 	    var miniWidth = Math.max(canvasWidth / 5);
+	    var miniX = pad;
+	    var miniY = canvasHeight - miniHeight - pad;
 
 	    var tilesOut = (miniWidth / TILE_MINI_DIMENSION) - (canvasWidth / TILE_DIMENSION);
-	    var tilesOut = tilesOut / 2;
+	    tilesOut = tilesOut / 2;
 
 	    var tilesOutt = (miniHeight / TILE_MINI_DIMENSION) - (canvasHeight / TILE_DIMENSION);
-	    var tilesOutt = tilesOutt / 2;
+	    tilesOutt = tilesOutt / 2;
 
 	    var miniCameraX = cameraX * (TILE_MINI_DIMENSION / TILE_DIMENSION) - (tilesOut*TILE_MINI_DIMENSION);
 	    var miniCameraY = cameraY * (TILE_MINI_DIMENSION / TILE_DIMENSION) - (tilesOutt*TILE_MINI_DIMENSION);
+
+	    // Dark panel background
+	    renderContext.fillStyle = 'rgba(20,15,10,0.75)';
+	    renderContext.fillRect(miniX - 2, miniY - 2, miniWidth + 4, miniHeight + 4);
 
 	    var left = 0 - TILE_MINI_DIMENSION;
 	    var right = miniWidth;
@@ -98,19 +104,18 @@ class Renderer {
 	    var bottom = miniHeight;
 
 	    var renderPos = {
-	        x: left, 
+	        x: left,
 	        y: top
 	    };
 
 	    while (renderPos.x < right && renderPos.y < bottom) {
 
-
 	        var tileX = Math.floor((miniCameraX + renderPos.x) / TILE_MINI_DIMENSION);
 	        var tileY = Math.floor((miniCameraY + renderPos.y) / TILE_MINI_DIMENSION);
 
-	        renderSimpleTile(renderContext, tileX, tileY, { 
-	            x: renderPos.x,
-	            y: (renderPos.y + canvasHeight - miniHeight)
+	        renderSimpleTile(renderContext, tileX, tileY, {
+	            x: miniX + renderPos.x,
+	            y: miniY + renderPos.y
 	        });
 
 	        renderPos.x += TILE_MINI_DIMENSION;
@@ -121,9 +126,20 @@ class Renderer {
 
 	    }
 
+	    // Gold border
+	    renderContext.strokeStyle = 'rgba(180,140,60,0.6)';
+	    renderContext.lineWidth = 2;
+	    renderContext.strokeRect(miniX - 2, miniY - 2, miniWidth + 4, miniHeight + 4);
 
-
-	    return {x: 0, y: canvasHeight - miniHeight, width: miniWidth, height: miniHeight };
+	    // Camera viewport indicator
+	    var vpScale = TILE_MINI_DIMENSION / TILE_DIMENSION;
+	    var vpW = canvasWidth * vpScale;
+	    var vpH = canvasHeight * vpScale;
+	    var vpX = miniX + (miniWidth / 2) - (vpW / 2);
+	    var vpY = miniY + (miniHeight / 2) - (vpH / 2);
+	    renderContext.strokeStyle = 'rgba(240,210,120,0.7)';
+	    renderContext.lineWidth = 1;
+	    renderContext.strokeRect(vpX, vpY, vpW, vpH);
 	}
 
 	static drawBg(ctx, canvasWidth, canvasHeight) {
@@ -164,9 +180,6 @@ class Renderer {
 
 	static drawGotoArrow(ctx, canvasWidth, canvasHeight) {
 
-		// Check if goal is on screen 
-		// TODO include HUD in this check
-
         var positionGoalX = goalX * TILE_DIMENSION + TILE_DIMENSION/2;
         var positionGoalY = goalY * TILE_DIMENSION + TILE_DIMENSION/2;
 
@@ -177,57 +190,45 @@ class Renderer {
 			return;
 		}
 
-		//todo find our y = mx + b variables. 
-
 		var b, m;
 
 		var x1 = cameraX + (canvasWidth / 2);
 		var x2 = positionGoalX;
 
-		// Check vertical line case
 		if (x1 == x2) {
-			//TODO
 			return;
 		}
 
 		var y1 = cameraY + (canvasHeight / 2);
 		var y2 = positionGoalY;
 
-		// horizontal line case
 		if (y1 == y2) {
-			//TODO
 			return;
 		}
 
 		b = (x2*y1 - x1*y2) / (x2 - x1);
 		m = (y1 - b) / x1;
 
-
-		// Temp positions
 		var lineStartX = 0;
 		var lineStartY = 0;
 
-		// Check if we look at top or bottom line. 
-		var boxX = positionGoalX < cameraX 
+		var boxX = positionGoalX < cameraX
 				   ? cameraX + (TILE_DIMENSION*0.5)
 				   : cameraX + canvasWidth - (TILE_DIMENSION*0.5);
-		var boxY = positionGoalY < cameraY 
+		var boxY = positionGoalY < cameraY
 				   ? cameraY + (TILE_DIMENSION*0.5)
 				   : cameraY + canvasHeight - (TILE_DIMENSION*0.5);
 
-
-		//Check if we are on the X edge
 		var yIntersection = (m * boxX) + b;
 
 		var lineEndY, lineEndX;
-		shiftAmt *= 5;
+		var shiftAmt;
 
 		if (yIntersection > cameraY && yIntersection < (cameraY + canvasHeight)) {
-			//We intersect with y axis! 
 			lineStartX = boxX;
 			lineStartY = yIntersection;
 
-			var shiftAmt = positionGoalX < cameraX ? TILE_DIMENSION : -TILE_DIMENSION;
+			shiftAmt = positionGoalX < cameraX ? TILE_DIMENSION : -TILE_DIMENSION;
 			lineEndX = boxX + shiftAmt;
 			lineEndY = (lineEndX) * m + b;
 		}
@@ -235,52 +236,53 @@ class Renderer {
 			lineStartX = (boxY - b) / m;
 			lineStartY = boxY;
 
-			var shiftAmt = positionGoalY < cameraY ? TILE_DIMENSION : -TILE_DIMENSION;
+			shiftAmt = positionGoalY < cameraY ? TILE_DIMENSION : -TILE_DIMENSION;
 			lineEndY = boxY + shiftAmt;
 			lineEndX = (lineEndY - b) / m;
 		}
 
-
-		Renderer.drawArrow(ctx, 
-						   lineEndX - cameraX, 
-						   lineEndY - cameraY, 
-						   lineStartX - cameraX, 
+		Renderer.drawArrow(ctx,
+						   lineEndX - cameraX,
+						   lineEndY - cameraY,
+						   lineStartX - cameraX,
 						   lineStartY - cameraY);
-
 	}
 
-// Stolen straight outta stack overflow, why re-invent the wheel? 
-// https://stackoverflow.com/questions/808826/draw-arrow-on-canvas-tag
 	static drawArrow(ctx, fromx, fromy, tox, toy){
-        var headlen = 10;
+        var headlen = 16;
+        var angle = Math.atan2(toy-fromy, tox-fromx);
 
-        var angle = Math.atan2(toy-fromy,tox-fromx);
+        // Pulsing opacity via sine wave
+        var pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.004);
+        var alpha = 0.6 + 0.4 * pulse;
+        var goldBright = 'rgba(240,210,120,' + alpha + ')';
+        var goldGlow = 'rgba(200,160,60,' + (alpha * 0.3) + ')';
 
-        //starting path of the arrow from the start square to the end square and drawing the stroke
+        // Glow (wide low-alpha stroke)
         ctx.beginPath();
         ctx.moveTo(fromx, fromy);
         ctx.lineTo(tox, toy);
-        ctx.strokeStyle = "#cc0000";
-        ctx.lineWidth = 10;
+        ctx.strokeStyle = goldGlow;
+        ctx.lineWidth = 16;
+        ctx.lineCap = 'round';
         ctx.stroke();
 
-        //starting a new path from the head of the arrow to one of the sides of the point
+        // Main stroke
+        ctx.beginPath();
+        ctx.moveTo(fromx, fromy);
+        ctx.lineTo(tox, toy);
+        ctx.strokeStyle = goldBright;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Filled triangle arrowhead
         ctx.beginPath();
         ctx.moveTo(tox, toy);
-        ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
-
-        //path from the side point of the arrow, to the other side point
-        ctx.lineTo(tox-headlen*Math.cos(angle+Math.PI/7),toy-headlen*Math.sin(angle+Math.PI/7));
-
-        //path from the side point back to the tip of the arrow, and then again to the opposite side point
-        ctx.lineTo(tox, toy);
-        ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
-
-        //draws the paths created above
-        ctx.strokeStyle = "#cc0000";
-        ctx.lineWidth = 10;
-        ctx.stroke();
-        ctx.fillStyle = "#cc0000";
+        ctx.lineTo(tox - headlen*Math.cos(angle - Math.PI/6), toy - headlen*Math.sin(angle - Math.PI/6));
+        ctx.lineTo(tox - headlen*Math.cos(angle + Math.PI/6), toy - headlen*Math.sin(angle + Math.PI/6));
+        ctx.closePath();
+        ctx.fillStyle = goldBright;
         ctx.fill();
     }
 

@@ -54,11 +54,14 @@ function revealMine(x,y) {
 
   	if (determineMine(x, y)) {
     	coolMineData.set(key, TILE_BOMB);
-    	displayScore();
-    	//TODO end state! 
+    	queueAnimation('bomb-flash', 600, {x: x, y: y}, function() {
+    		displayScore();
+    	});
+    	return true;
   	}
   	else {
     	coolMineData.set(key, determineNumber(x, y));
+    	queueAnimation('reveal', 200, {x: x, y: y});
 	}
 
     if (coolMineData.get(key) === 0) {
@@ -81,23 +84,53 @@ function flagMine(x,y) {
 
     if (coolMineData.has(key)){
     	if (coolMineData.get(key) === TILE_FLAG) {
-	      	delete coolMineData.delete(key);
+	      	coolMineData.delete(key);
 	      	return true;
 	    }
     }
     else {
 	    coolMineData.set(key, TILE_FLAG);
+	    queueAnimation('flag-bounce', 300, {x: x, y: y});
 	    return true;
 	}
 
 	return false;
 }
 
-function displayScore() {
+function chordReveal(x, y) {
+	var state = determineState(x, y);
+	if (state === null || state <= 0) return false;
 
-	var result = confirm("you got to level " + level + ". Play again?");
-	if (result) {
-		startGame();
+	var flagCount = 0;
+	actOnSurrounding(function(inX, inY) {
+		if (determineState(inX, inY) === TILE_FLAG) {
+			flagCount++;
+		}
+	}, x, y);
+
+	if (flagCount !== state) return false;
+
+	var isDirty = false;
+	actOnSurrounding(function(inX, inY) {
+		if (determineState(inX, inY) === null) {
+			if (revealMine(inX, inY)) isDirty = true;
+		}
+	}, x, y);
+
+	return isDirty;
+}
+
+function displayScore() {
+	gameOver = true;
+	var overlay = document.getElementById('msOverlay');
+	var stats = document.getElementById('msStats');
+	if (overlay && stats) {
+		var tilesRevealed = 0;
+		coolMineData.forEach(function(value, key) {
+			if (value >= 0) tilesRevealed++;
+		});
+		stats.innerHTML = 'Reached Level ' + level + '<br>Tiles revealed: ' + tilesRevealed;
+		overlay.style.display = '';
 	}
 }
 
@@ -107,7 +140,7 @@ function getNumFlags() {
 	
 	if (numFlagsDirty) {
 		numFlags = 0;
-		coolMineData.forEach(function(key, value) {
+		coolMineData.forEach(function(value, key) {
 			if (value === TILE_FLAG) {
 				numFlags++;
 			}
@@ -158,6 +191,6 @@ function checkGoal() {
 	}
 
 	if (found) {
-		nextLevel();
+		showLevelBanner();
 	}
 }

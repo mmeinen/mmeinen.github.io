@@ -54,18 +54,39 @@ var BG_CASTLE_PIECES = [
 
 var WINDOW = {x: 320, y:192};
 
+var NUMBER_COLORS = [
+    null,           // 0 — unused
+    '#4488ff',      // 1 — blue
+    '#44bb44',      // 2 — green
+    '#dd3333',      // 3 — red
+    '#2244aa',      // 4 — dark blue
+    '#882222',      // 5 — maroon
+    '#44aaaa',      // 6 — teal
+    '#555555',      // 7 — dark grey
+    '#888888'       // 8 — grey
+];
+
 function renderTile(ctx, x, y, renderPt) {
 
     var state = determineState(x, y);
 
     if (state === null || state === TILE_FLAG) {
 		var castle = determineCastle(x,y);
-		ctx.drawImage(castleSheet, castle.x, castle.y, 32, 32, 
-			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);   
+		ctx.drawImage(castleSheet, castle.x, castle.y, 32, 32,
+			renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 
 		if (castle.x == 32 && castle.y == 64 && determineWindow(x,y)) {
-			ctx.drawImage(castleSheet, WINDOW.x, WINDOW.y, 32, 32, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);  
+			ctx.drawImage(castleSheet, WINDOW.x, WINDOW.y, 32, 32,
+				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+		}
+
+		// Hover highlight on unrevealed/flagged tiles
+		if (x === hoverTileX && y === hoverTileY) {
+			ctx.fillStyle = 'rgba(255,220,120,0.15)';
+			ctx.fillRect(renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+			ctx.strokeStyle = 'rgba(200,170,60,0.5)';
+			ctx.lineWidth = 2;
+			ctx.strokeRect(renderPt.x+1, renderPt.y+1, TILE_DIMENSION-2, TILE_DIMENSION-2);
 		}
     }
 
@@ -79,29 +100,59 @@ function renderTile(ctx, x, y, renderPt) {
 
     if (state !== null) {
 
+        // Check for reveal animation (fade-in)
+        var revealAlpha = 1;
+        var revealAnims = getActiveAnimations('reveal');
+        for (var ri = 0; ri < revealAnims.length; ri++) {
+            if (revealAnims[ri].data.x === x && revealAnims[ri].data.y === y) {
+                revealAlpha = revealAnims[ri].progress;
+                break;
+            }
+        }
+
 	    if (state === TILE_BOMB) {
-			ctx.drawImage(bombSheet, 193, 65, 15, 15, 
+			ctx.drawImage(bombSheet, 193, 65, 15, 15,
 				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 	    }
 	    else if (state === TILE_FLAG) {
-			ctx.drawImage(castleSheet, 389, 453, 21, 21, 
-				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
+	        // Check for flag bounce animation
+	        var flagScale = 1;
+	        var flagAnims = getActiveAnimations('flag-bounce');
+	        for (var fi = 0; fi < flagAnims.length; fi++) {
+	            if (flagAnims[fi].data.x === x && flagAnims[fi].data.y === y) {
+	                var p = flagAnims[fi].progress;
+	                flagScale = 1 + 0.3 * Math.sin(p * Math.PI);
+	                break;
+	            }
+	        }
+	        ctx.save();
+	        ctx.translate(renderPt.x + TILE_DIMENSION/2, renderPt.y + TILE_DIMENSION/2);
+	        ctx.scale(flagScale, flagScale);
+			ctx.drawImage(castleSheet, 389, 453, 21, 21,
+				-TILE_DIMENSION/2, -TILE_DIMENSION/2, TILE_DIMENSION, TILE_DIMENSION);
+	        ctx.restore();
 	    }
 	    else if (state !== 0) {
+	        var prevAlpha = ctx.globalAlpha;
+	        ctx.globalAlpha = revealAlpha;
 	    	var bgCastle = determineBgCastle(x,y);
-			ctx.drawImage(castleSheet, bgCastle.x, bgCastle.y, 32, 32, 
+			ctx.drawImage(castleSheet, bgCastle.x, bgCastle.y, 32, 32,
 				renderPt.x, renderPt.y, TILE_DIMENSION, TILE_DIMENSION);
 
-
-	    	ctx.font = "26px Bookman";
-		    ctx.strokeStyle = 'black';
-		    ctx.lineWidth = 2;
-	        ctx.strokeText(state,renderPt.x+15,renderPt.y+32);
-		    ctx.fillStyle = 'white';
-	        ctx.strokeText(state,renderPt.x+15,renderPt.y+32);
+	    	ctx.font = "bold 24px 'Segoe UI', Arial, sans-serif";
+	    	ctx.textAlign = 'center';
+	    	ctx.textBaseline = 'middle';
+		    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+		    ctx.lineWidth = 3;
+	        ctx.strokeText(state, renderPt.x + TILE_DIMENSION/2, renderPt.y + TILE_DIMENSION/2);
+		    ctx.fillStyle = NUMBER_COLORS[state] || '#ffffff';
+	        ctx.fillText(state, renderPt.x + TILE_DIMENSION/2, renderPt.y + TILE_DIMENSION/2);
+	        ctx.textAlign = 'start';
+	        ctx.textBaseline = 'alphabetic';
+	        ctx.globalAlpha = prevAlpha;
 	    }
 	    else {
-	 		return;
+	    	return;
 	    }
     }
 }
@@ -113,13 +164,16 @@ function renderSimpleTile(ctx, x, y, renderPt) {
     var state = determineState(x, y);
 
     if (x === goalX && y === goalY) {
- 		ctx.fillStyle = ('rgba(0,255,0,1)');
+ 		ctx.fillStyle = 'rgba(240,210,120,1)'; // gold — goal
+    }
+    else if (state === TILE_BOMB) {
+ 		ctx.fillStyle = 'rgba(200,50,40,1)'; // red — bombs
     }
     else if (state !== null) {
- 		ctx.fillStyle = ('rgba(255,255,255,1)');
+ 		ctx.fillStyle = 'rgba(160,140,110,1)'; // light stone — revealed
     }
     else {
-      	ctx.fillStyle = ('rgba(200,0,0,1)');
+      	ctx.fillStyle = 'rgba(50,40,30,1)'; // dark stone — unrevealed
   	}
 
     ctx.fillRect(renderPt.x, renderPt.y, TILE_MINI_DIMENSION, TILE_MINI_DIMENSION);

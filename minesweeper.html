@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
  <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="css/style.css" rel="stylesheet" type="text/css">
   <script type="application/javascript" src="js/Renderer.js"></script>
   <script type="application/javascript" src="js/board.js"></script>
@@ -8,10 +9,10 @@
   <script type="application/javascript" src="js/game.js"></script>
   <script type="application/javascript" src="js/bomb.js"></script>
   <script type="application/javascript" src="js/md5-min.js"></script>
-  <!-- 
+  <!--
 	CREDITS
 	Background - Paulina Riva
-	No modifications made. 
+	No modifications made.
 	https://creativecommons.org/licenses/by/3.0/
 
 
@@ -19,6 +20,27 @@
  </head>
  <body id="body">
    <canvas id="canvas" width="100" height="100"></canvas>
+
+   <!-- HUD Top Bar -->
+   <div class="ms-hud">
+     <a href="index.html" class="ms-back">&larr; Back to Menu</a>
+     <span class="ms-level" id="msLevel">LEVEL 1</span>
+     <span class="ms-flags" id="msFlags">&#9873; 0</span>
+   </div>
+
+   <!-- Game Over Overlay -->
+   <div class="ms-overlay" id="msOverlay" style="display:none;">
+     <div class="ms-overlay-panel">
+       <div class="ms-overlay-title">GAME OVER</div>
+       <div class="ms-overlay-stats" id="msStats"></div>
+       <button class="ms-btn" id="msPlayAgain">Play Again</button>
+       <a href="index.html" class="ms-btn ms-btn-link">Back to Menu</a>
+     </div>
+   </div>
+
+   <!-- Level Complete Banner -->
+   <div class="ms-banner" id="msBanner" style="display:none;">
+     <span id="msBannerText">LEVEL 1 COMPLETE</span>
+   </div>
  </body>
 </html>
-
