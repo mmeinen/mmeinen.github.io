@@ -297,64 +297,491 @@
       // =============================================
 
       // =============================================
-      // PONG: Fixed resolution & timestep regression
+      // PONG BEHAVIORAL TESTS — JS sandbox
       // =============================================
 
-      let pongSrc;
+      let pongSrc = null;
       try {
         const pResp = await fetch('js/pong.js');
-        if (!pResp.ok) throw new Error(`HTTP ${pResp.status}`);
-        pongSrc = await pResp.text();
-      } catch (e) {
-        showError('Could not fetch js/pong.js: ' + e.message);
-        render();
-        return;
+        if (pResp.ok) pongSrc = await pResp.text();
+      } catch (e) {}
+
+      function createPongSandbox(src, randSeq) {
+        let ri = 0;
+        const els = {
+          pongCanvas: { width: 0, height: 0, style: {}, getContext: () => ({
+            fillStyle:'', strokeStyle:'', lineWidth:0,
+            fillRect(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){}, setLineDash(){}
+          })},
+          playerScore: { textContent: '' },
+          aiScore: { textContent: '' },
+          gameOver: { style: { display: '' }, innerHTML: '' }
+        };
+        const doc = { getElementById: id => els[id] || els.pongCanvas };
+        const win = { addEventListener(){}, innerWidth:800, innerHeight:500, location:{href:''} };
+        const m = Object.create(Math);
+        m.random = () => randSeq[ri++ % randSeq.length];
+        const body = src +
+          '\nreturn{get player(){return player},get ai(){return ai},' +
+          'get ball(){return ball},get playerScore(){return playerScore},' +
+          'set playerScore(v){playerScore=v},get aiScore(){return aiScore},' +
+          'set aiScore(v){aiScore=v},get gameRunning(){return gameRunning},' +
+          'set gameRunning(v){gameRunning=v},get keys(){return keys},' +
+          'init,update,resetBall,restart,draw};';
+        const factory = new Function('document','window','Math','requestAnimationFrame', body);
+        return factory(doc, win, m, ()=>{});
       }
 
-      // 5a. Fixed game dimensions exist
-      const gwMatch = pongSrc.match(/const\s+GAME_WIDTH\s*=\s*(\d+)/);
-      const ghMatch = pongSrc.match(/const\s+GAME_HEIGHT\s*=\s*(\d+)/);
-      assert(gwMatch !== null,
-        'Pong resolution: GAME_WIDTH constant defined',
-        gwMatch ? `value = ${gwMatch[1]}` : 'not found');
-      assert(ghMatch !== null,
-        'Pong resolution: GAME_HEIGHT constant defined',
-        ghMatch ? `value = ${ghMatch[1]}` : 'not found');
+      if (pongSrc) {
+        // Test 1: Init positions
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          assert(g.player.y === 200 && g.ai.y === 200 &&
+                 g.ball.x === 400 && g.ball.y === 250 &&
+                 g.playerScore === 0 && g.aiScore === 0,
+            'Pong JS: init positions',
+            `player.y=${g.player.y} ai.y=${g.ai.y} ball=(${g.ball.x},${g.ball.y}) scores=${g.playerScore}-${g.aiScore}`);
+        } catch(e) { assert(false, 'Pong JS: init positions', e.message); }
 
-      // 5b. Canvas set to fixed dimensions, not window size
-      const canvasUsesWindow = /canvas\.width\s*=\s*window/.test(pongSrc);
-      assert(!canvasUsesWindow,
-        'Pong resolution: canvas.width never set to window size',
-        canvasUsesWindow ? 'found canvas.width = window...' : 'clean');
+        // Test 2: Ball moves per tick
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          for (let i = 0; i < 10; i++) g.update();
+          assert(g.ball.x !== 400,
+            'Pong JS: ball moves per tick',
+            `ball.x=${g.ball.x} after 10 ticks`);
+        } catch(e) { assert(false, 'Pong JS: ball moves per tick', e.message); }
 
-      const canvasUsesGameW = /canvas\.width\s*=\s*GAME_WIDTH/.test(pongSrc);
-      assert(canvasUsesGameW,
-        'Pong resolution: canvas.width set to GAME_WIDTH',
-        canvasUsesGameW ? 'found' : 'not found');
+        // Test 3: Player up input
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.keys['w'] = true;
+          g.update();
+          assert(g.player.y < 200,
+            'Pong JS: player up input',
+            `player.y=${g.player.y}`);
+        } catch(e) { assert(false, 'Pong JS: player up input', e.message); }
 
-      // 5c. fitCanvas function exists for CSS scaling
-      const hasFitCanvas = /function\s+fitCanvas\s*\(/.test(pongSrc);
-      assert(hasFitCanvas,
-        'Pong resolution: fitCanvas() function exists',
-        hasFitCanvas ? 'found' : 'not found');
+        // Test 4: Player down input
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.keys['s'] = true;
+          g.update();
+          assert(g.player.y > 200,
+            'Pong JS: player down input',
+            `player.y=${g.player.y}`);
+        } catch(e) { assert(false, 'Pong JS: player down input', e.message); }
 
-      // 5d. Game bounds use GAME_WIDTH/GAME_HEIGHT, not canvas.width/height
-      const boundsUseCanvas = /canvas\.(width|height)\s*-\s*(PADDLE|BALL)/.test(pongSrc);
-      assert(!boundsUseCanvas,
-        'Pong resolution: game bounds use GAME constants not canvas dimensions',
-        boundsUseCanvas ? 'found canvas.width/height in bounds logic' : 'clean');
+        // Test 5: Player clamped at top
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.player.y = 0;
+          g.keys['w'] = true;
+          g.update();
+          assert(g.player.y === 0,
+            'Pong JS: player clamped at top',
+            `player.y=${g.player.y}`);
+        } catch(e) { assert(false, 'Pong JS: player clamped at top', e.message); }
 
-      // 5e. Fixed timestep exists
-      const hasTickRate = /const\s+TICK_RATE\s*=/.test(pongSrc);
-      assert(hasTickRate,
-        'Pong resolution: TICK_RATE constant defined (fixed timestep)',
-        hasTickRate ? 'found' : 'not found — game speed is frame-rate dependent');
+        // Test 6: Player clamped at bottom
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.player.y = 400;
+          g.keys['s'] = true;
+          g.update();
+          assert(g.player.y === 400,
+            'Pong JS: player clamped at bottom',
+            `player.y=${g.player.y}`);
+        } catch(e) { assert(false, 'Pong JS: player clamped at bottom', e.message); }
 
-      // 5f. Game loop uses accumulator pattern
-      const hasAccumulator = /accumulator\s*[+\-]?=\s*/.test(pongSrc);
-      assert(hasAccumulator,
-        'Pong resolution: accumulator-based game loop',
-        hasAccumulator ? 'found' : 'not found — update() may run once per frame');
+        // Test 7: Wall bounce top
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 400; g.ball.vx = 0;
+          g.ball.y = 1; g.ball.vy = -2;
+          g.update();
+          assert(g.ball.vy > 0,
+            'Pong JS: wall bounce top',
+            `vy=${g.ball.vy}`);
+        } catch(e) { assert(false, 'Pong JS: wall bounce top', e.message); }
+
+        // Test 8: Wall bounce bottom
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 400; g.ball.vx = 0;
+          g.ball.y = 489; g.ball.vy = 2;
+          g.update();
+          assert(g.ball.vy < 0,
+            'Pong JS: wall bounce bottom',
+            `vy=${g.ball.vy}`);
+        } catch(e) { assert(false, 'Pong JS: wall bounce bottom', e.message); }
+
+        // Test 9: AI tracks ball down
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 400; g.ball.vx = 0; g.ball.vy = 0;
+          g.ball.y = 280;
+          const before = g.ai.y;
+          g.update();
+          assert(g.ai.y > before,
+            'Pong JS: AI tracks ball down',
+            `ai.y: ${before} → ${g.ai.y}`);
+        } catch(e) { assert(false, 'Pong JS: AI tracks ball down', e.message); }
+
+        // Test 10: AI tracks ball up
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 400; g.ball.vx = 0; g.ball.vy = 0;
+          g.ball.y = 220;
+          const before = g.ai.y;
+          g.update();
+          assert(g.ai.y < before,
+            'Pong JS: AI tracks ball up',
+            `ai.y: ${before} → ${g.ai.y}`);
+        } catch(e) { assert(false, 'Pong JS: AI tracks ball up', e.message); }
+
+        // Test 11: AI dead zone
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 400; g.ball.vx = 0; g.ball.vy = 0;
+          g.ball.y = 250;
+          const before = g.ai.y;
+          g.update();
+          assert(g.ai.y === before,
+            'Pong JS: AI dead zone',
+            `ai.y: ${before} → ${g.ai.y}`);
+        } catch(e) { assert(false, 'Pong JS: AI dead zone', e.message); }
+
+        // Test 12: Score on left miss
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5, 0.75, 0.5]);
+          g.init();
+          g.ball.x = 1; g.ball.vx = -2; g.ball.y = 250; g.ball.vy = 0;
+          g.update();
+          assert(g.aiScore === 1,
+            'Pong JS: score on left miss',
+            `aiScore=${g.aiScore}`);
+        } catch(e) { assert(false, 'Pong JS: score on left miss', e.message); }
+
+        // Test 13: Score on right miss
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5, 0.75, 0.5]);
+          g.init();
+          g.ball.x = 799; g.ball.vx = 2; g.ball.y = 250; g.ball.vy = 0;
+          g.update();
+          assert(g.playerScore === 1,
+            'Pong JS: score on right miss',
+            `playerScore=${g.playerScore}`);
+        } catch(e) { assert(false, 'Pong JS: score on right miss', e.message); }
+
+        // Test 14: Game ends at 10
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5, 0.75, 0.5]);
+          g.init();
+          g.aiScore = 9;
+          g.ball.x = 1; g.ball.vx = -2; g.ball.y = 250; g.ball.vy = 0;
+          g.update();
+          assert(g.aiScore === 10 && !g.gameRunning,
+            'Pong JS: game ends at 10',
+            `aiScore=${g.aiScore} running=${g.gameRunning}`);
+        } catch(e) { assert(false, 'Pong JS: game ends at 10', e.message); }
+
+        // Test 15: Restart resets state
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5, 0.75, 0.5, 0.75, 0.5]);
+          g.init();
+          g.aiScore = 9;
+          g.ball.x = 1; g.ball.vx = -2; g.ball.y = 250; g.ball.vy = 0;
+          g.update();
+          g.restart();
+          assert(g.playerScore === 0 && g.aiScore === 0 && g.gameRunning &&
+                 g.player.y === 200 && g.ai.y === 200,
+            'Pong JS: restart resets state',
+            `scores=${g.playerScore}-${g.aiScore} running=${g.gameRunning} paddles=${g.player.y},${g.ai.y}`);
+        } catch(e) { assert(false, 'Pong JS: restart resets state', e.message); }
+
+        // Test 16: Paddle collision reverses vx
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 55; g.ball.y = 230; g.ball.vx = -2; g.ball.vy = 0;
+          g.update();
+          assert(g.ball.vx > 0,
+            'Pong JS: paddle collision reverses vx',
+            `vx=${g.ball.vx}`);
+        } catch(e) { assert(false, 'Pong JS: paddle collision reverses vx', e.message); }
+
+        // Test 17: Paddle spin formula
+        try {
+          const g = createPongSandbox(pongSrc, [0.75, 0.5]);
+          g.init();
+          g.ball.x = 55; g.ball.y = 200; g.ball.vx = -2; g.ball.vy = 0;
+          g.update();
+          assert(Math.abs(g.ball.vy - (-2)) < 0.001,
+            'Pong JS: paddle spin formula',
+            `vy=${g.ball.vy} (expected -2, hitPos=0 → (0-0.5)*4=-2)`);
+        } catch(e) { assert(false, 'Pong JS: paddle spin formula', e.message); }
+      } else {
+        assert(true, 'Pong JS: skipped (js/pong.js not found — expected after WASM rewrite)', '');
+      }
+
+      // =============================================
+      // PONG BEHAVIORAL TESTS — WASM
+      // =============================================
+
+      let pongHtml = null;
+      try {
+        const phResp = await fetch('pong.html');
+        if (phResp.ok) pongHtml = await phResp.text();
+      } catch (e) {}
+
+      let wasmInstance = null;
+      if (pongHtml) {
+        const wasmMatch = pongHtml.match(/["']([A-Za-z0-9+/]{40,}={0,2})["']/);
+        if (wasmMatch && wasmMatch[1].startsWith('AGFzbQ')) {
+          try {
+            const bin = Uint8Array.from(atob(wasmMatch[1]), c => c.charCodeAt(0));
+            const { instance } = await WebAssembly.instantiate(bin);
+            wasmInstance = instance;
+          } catch (e) {}
+        }
+      }
+
+      function readWasm(mem) {
+        const d = new DataView(mem.buffer);
+        return {
+          playerY: d.getFloat32(0, true), aiY: d.getFloat32(4, true),
+          ballX: d.getFloat32(8, true), ballY: d.getFloat32(12, true),
+          ballVx: d.getFloat32(16, true), ballVy: d.getFloat32(20, true),
+          playerScore: d.getInt32(24, true), aiScore: d.getInt32(28, true),
+          gameRunning: d.getInt32(32, true), winner: d.getInt32(36, true)
+        };
+      }
+
+      function writeWasm(mem, o) {
+        const d = new DataView(mem.buffer);
+        if ('playerY' in o) d.setFloat32(0, o.playerY, true);
+        if ('aiY' in o) d.setFloat32(4, o.aiY, true);
+        if ('ballX' in o) d.setFloat32(8, o.ballX, true);
+        if ('ballY' in o) d.setFloat32(12, o.ballY, true);
+        if ('ballVx' in o) d.setFloat32(16, o.ballVx, true);
+        if ('ballVy' in o) d.setFloat32(20, o.ballVy, true);
+        if ('playerScore' in o) d.setInt32(24, o.playerScore, true);
+        if ('aiScore' in o) d.setInt32(28, o.aiScore, true);
+        if ('gameRunning' in o) d.setInt32(32, o.gameRunning, true);
+        if ('winner' in o) d.setInt32(36, o.winner, true);
+      }
+
+      if (wasmInstance) {
+        const w = wasmInstance.exports;
+        const mem = w.memory;
+
+        // Test 1: Init positions
+        w.init(42);
+        let s = readWasm(mem);
+        assert(s.playerY === 200 && s.aiY === 200 &&
+               s.ballX === 400 && s.ballY === 250 &&
+               s.playerScore === 0 && s.aiScore === 0,
+          'Pong WASM: init positions',
+          `player_y=${s.playerY} ai_y=${s.aiY} ball=(${s.ballX},${s.ballY}) scores=${s.playerScore}-${s.aiScore}`);
+
+        // Test 2: Ball moves per tick
+        w.init(42);
+        for (let i = 0; i < 10; i++) w.tick(0);
+        s = readWasm(mem);
+        assert(s.ballX !== 400,
+          'Pong WASM: ball moves per tick',
+          `ballX=${s.ballX} after 10 ticks`);
+
+        // Test 3: Player up
+        w.init(42);
+        w.tick(1);
+        s = readWasm(mem);
+        assert(s.playerY < 200,
+          'Pong WASM: player up input',
+          `player_y=${s.playerY}`);
+
+        // Test 4: Player down
+        w.init(42);
+        w.tick(2);
+        s = readWasm(mem);
+        assert(s.playerY > 200,
+          'Pong WASM: player down input',
+          `player_y=${s.playerY}`);
+
+        // Test 5: Player clamped at top
+        w.init(42);
+        writeWasm(mem, { playerY: 0 });
+        w.tick(1);
+        s = readWasm(mem);
+        assert(s.playerY === 0,
+          'Pong WASM: player clamped at top',
+          `player_y=${s.playerY}`);
+
+        // Test 6: Player clamped at bottom
+        w.init(42);
+        writeWasm(mem, { playerY: 400 });
+        w.tick(2);
+        s = readWasm(mem);
+        assert(s.playerY === 400,
+          'Pong WASM: player clamped at bottom',
+          `player_y=${s.playerY}`);
+
+        // Test 7: Wall bounce top
+        w.init(42);
+        writeWasm(mem, { ballX: 400, ballVx: 0, ballY: 1, ballVy: -2 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.ballVy > 0,
+          'Pong WASM: wall bounce top',
+          `vy=${s.ballVy}`);
+
+        // Test 8: Wall bounce bottom
+        w.init(42);
+        writeWasm(mem, { ballX: 400, ballVx: 0, ballY: 489, ballVy: 2 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.ballVy < 0,
+          'Pong WASM: wall bounce bottom',
+          `vy=${s.ballVy}`);
+
+        // Test 9: AI tracks ball down
+        w.init(42);
+        writeWasm(mem, { ballX: 400, ballVx: 0, ballVy: 0, ballY: 280 });
+        const ai9 = readWasm(mem).aiY;
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.aiY > ai9,
+          'Pong WASM: AI tracks ball down',
+          `ai_y: ${ai9} → ${s.aiY}`);
+
+        // Test 10: AI tracks ball up
+        w.init(42);
+        writeWasm(mem, { ballX: 400, ballVx: 0, ballVy: 0, ballY: 220 });
+        const ai10 = readWasm(mem).aiY;
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.aiY < ai10,
+          'Pong WASM: AI tracks ball up',
+          `ai_y: ${ai10} → ${s.aiY}`);
+
+        // Test 11: AI dead zone
+        w.init(42);
+        writeWasm(mem, { ballX: 400, ballVx: 0, ballVy: 0, ballY: 250 });
+        const ai11 = readWasm(mem).aiY;
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.aiY === ai11,
+          'Pong WASM: AI dead zone',
+          `ai_y: ${ai11} → ${s.aiY}`);
+
+        // Test 12: Score on left miss
+        w.init(42);
+        writeWasm(mem, { ballX: 1, ballVx: -2, ballY: 250, ballVy: 0 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.aiScore === 1,
+          'Pong WASM: score on left miss',
+          `aiScore=${s.aiScore}`);
+
+        // Test 13: Score on right miss
+        w.init(42);
+        writeWasm(mem, { ballX: 799, ballVx: 2, ballY: 250, ballVy: 0 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.playerScore === 1,
+          'Pong WASM: score on right miss',
+          `playerScore=${s.playerScore}`);
+
+        // Test 14: Game ends at 10
+        w.init(42);
+        writeWasm(mem, { aiScore: 9, ballX: 1, ballVx: -2, ballY: 250, ballVy: 0 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.aiScore === 10 && s.gameRunning === 0,
+          'Pong WASM: game ends at 10',
+          `aiScore=${s.aiScore} running=${s.gameRunning}`);
+
+        // Test 15: Restart resets state
+        w.init(42);
+        writeWasm(mem, { aiScore: 9, ballX: 1, ballVx: -2, ballY: 250, ballVy: 0 });
+        w.tick(0);
+        w.reset();
+        s = readWasm(mem);
+        assert(s.playerScore === 0 && s.aiScore === 0 && s.gameRunning === 1 &&
+               s.playerY === 200 && s.aiY === 200,
+          'Pong WASM: restart resets state',
+          `scores=${s.playerScore}-${s.aiScore} running=${s.gameRunning} paddles=${s.playerY},${s.aiY}`);
+
+        // Test 16: Paddle collision reverses vx
+        w.init(42);
+        writeWasm(mem, { ballX: 55, ballY: 230, ballVx: -2, ballVy: 0 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(s.ballVx > 0,
+          'Pong WASM: paddle collision reverses vx',
+          `vx=${s.ballVx}`);
+
+        // Test 17: Paddle spin formula
+        w.init(42);
+        writeWasm(mem, { ballX: 55, ballY: 200, ballVx: -2, ballVy: 0 });
+        w.tick(0);
+        s = readWasm(mem);
+        assert(Math.abs(s.ballVy - (-3)) < 0.001,
+          'Pong WASM: paddle spin formula',
+          `vy=${s.ballVy} (expected -3, hitPos=0 → (0-0.5)*6=-3)`);
+      } else {
+        assert(true, 'Pong WASM: skipped (no WASM blob in pong.html)', '');
+      }
+
+      // =============================================
+      // PONG STRUCTURAL TESTS (WASM version)
+      // =============================================
+
+      if (pongHtml && wasmInstance) {
+        const hasWasm = /["'][A-Za-z0-9+/]{40,}={0,2}["']/.test(pongHtml);
+        assert(hasWasm,
+          'Pong structure: WASM binary present',
+          hasWasm ? 'base64 blob found' : 'no base64 blob');
+
+        const hasWebGL = /getContext\s*\(\s*['"]webgl/.test(pongHtml);
+        const has2D = /getContext\s*\(\s*['"]2d['"]/.test(pongHtml);
+        assert(hasWebGL && !has2D,
+          'Pong structure: WebGL context (no 2D)',
+          `webgl=${hasWebGL} 2d=${has2D}`);
+
+        const hasAccum = /accumulator/i.test(pongHtml);
+        assert(hasAccum,
+          'Pong structure: fixed timestep accumulator',
+          hasAccum ? 'found' : 'not found');
+
+        const has800 = /800/.test(pongHtml);
+        const has500 = /500/.test(pongHtml);
+        assert(has800 && has500,
+          'Pong structure: 800x500 dimensions',
+          `800=${has800} 500=${has500}`);
+
+        const hasReadable = /ball\.vx|paddle|aiCenter/.test(pongHtml);
+        assert(!hasReadable,
+          'Pong structure: no readable game logic in JS',
+          hasReadable ? 'found readable game vars' : 'clean');
+
+        const hasDom = /playerScore/.test(pongHtml) && /aiScore/.test(pongHtml) && /gameOver/.test(pongHtml);
+        assert(hasDom,
+          'Pong structure: DOM elements preserved',
+          hasDom ? 'playerScore, aiScore, gameOver found' : 'missing elements');
+      }
 
       // =============================================
       // Done

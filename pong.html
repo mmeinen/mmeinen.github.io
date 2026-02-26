@@ -2,7 +2,6 @@
 <html>
  <head>
   <link href="css/style.css" rel="stylesheet" type="text/css">
-  <script type="application/javascript" src="js/pong.js"></script>
  </head>
  <body style="background:#0a0a0a;">
    <canvas id="pongCanvas"></canvas>
@@ -17,6 +16,37 @@
      <div>Game Over!</div>
      <div style="font-size: 0.6em; margin-top: 20px;">Press R to restart</div>
    </div>
+
+   <script>
+!function(){var W="AGFzbQEAAAABEARgAAF/YAABfWAAAGABfwADBwYAAQIDAgMFAwEAAQcgBAZtZW1vcnkCAARpbml0AAMFcmVzZXQABAR0aWNrAAUK3AYGMgEBf0EoKAIAIQAgACAAQQ10cyEAIAAgAEERdnMhACAAIABBBXRzIQBBKCAANgIAIAALEgAQAEH/////B3GzQwAAAE+VC00AQQhDAADIQzgCAEEMQwAAekM4AgBBEEMAAIA/QwAAgL8QAUMAAAA/XhtDAABAQJQ4AgBBFBABQwAAAECUQwAAgD+TQwAAQECUOAIAC0AAQSggAEEBIAAbNgIAQQBDAABIQzgCAEEEQwAASEM4AgBBGEEANgIAQRxBADYCAEEgQQE2AgBBJEEANgIAEAILNABBAEMAAEhDOAIAQQRDAABIQzgCAEEYQQA2AgBBHEEANgIAQSBBATYCAEEkQQA2AgAQAgvPBAIIfQF/QSAoAgBFBEAPC0EAKgIAIQFBBCoCACECQQgqAgAhA0EMKgIAIQRBECoCACEFQRQqAgAhBiAAQQFxIAFDAAAAAF5xBEAgAUMAAJBAkyEBCyAAQQJxQQBHIAFDAADIQ11xBEAgAUMAAJBAkiEBCyACQwAASEKSIQcgBCAHQwAAIEGTXQRAIAJDAABwQJMhAiACQwAAAABdBEBDAAAAACECCwUgBCAHQwAAIEGSXgRAIAJDAABwQJIhAiACQwAAyENeBEBDAADIQyECCwsLIAMgBZIhAyAEIAaSIQQgBEMAAAAAXyAEQwAA9UNgcgRAIAaMIQYLIANDAABwQl8gA0MAAEhCYHEgBEMAACBBkiABYCAEIAFDAADIQpJfcXEgBUMAAAAAXXEEQCAFjCEFIAQgAZNDAADIQpUhCCAIQwAAAD+TQwAAwECUIQZDAABwQiEDCyADQwAAIEGSQwAAOURgIANDAIA7RF9xIARDAAAgQZIgAmAgBCACQwAAyEKSX3FxIAVDAAAAAF5xBEAgBYwhBSAEIAKTQwAAyEKVIQggCEMAAAA/k0MAAMBAlCEGQwCANkQhAwtBACABOAIAQQQgAjgCACADQwAAAABdBEBBHCgCAEEBaiEJQRwgCTYCABACIAlBCk8EQEEgQQA2AgBBJEECNgIACw8LIANDAABIRF4EQEEYKAIAQQFqIQlBGCAJNgIAEAIgCUEKTwRAQSBBADYCAEEkQQE2AgALDwtBCCADOAIAQQwgBDgCAEEQIAU4AgBBFCAGOAIACw==";
+var V="attribute vec2 a;void main(){gl_Position=vec4(a,0,1);}";
+var F="precision highp float;uniform vec2 R;uniform vec4 P,A,B;float bx(vec2 p,vec4 r){vec2 d=abs(p-r.xy-r.zw*0.5)-r.zw*0.5;float px=800.0/R.x;return 1.0-smoothstep(-0.5*px,0.5*px,max(d.x,d.y));}void main(){vec2 p=gl_FragCoord.xy/R*vec2(800.0,500.0);p.y=500.0-p.y;vec3 c=vec3(0.039);float px=800.0/R.x;float lx=1.0-smoothstep(0.5*px,1.5*px,abs(p.x-400.0));c=mix(c,vec3(1),lx*step(mod(p.y,20.0),10.0)*0.2);c=mix(c,vec3(1),bx(p,P));c=mix(c,vec3(1),bx(p,A));c=mix(c,vec3(1),bx(p,B));gl_FragColor=vec4(c,1);}";
+var b=Uint8Array.from(atob(W),function(c){return c.charCodeAt(0)});
+var dpr=window.devicePixelRatio||1;
+var cv=document.getElementById("pongCanvas"),gl=cv.getContext("webgl"),im=0,lt=0,accumulator=0,TR=1000/60;
+var ppY=0,paY=0,pbX=0,pbY=0;
+cv.width=800*dpr;cv.height=500*dpr;
+function fit(){var sx=window.innerWidth/800,sy=window.innerHeight/500,s=Math.min(sx,sy);cv.style.width=800*s+"px";cv.style.height=500*s+"px"}
+fit();window.addEventListener("resize",fit);
+function cs(t,s){var sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);return sh}
+var pg=gl.createProgram();gl.attachShader(pg,cs(gl.VERTEX_SHADER,V));gl.attachShader(pg,cs(gl.FRAGMENT_SHADER,F));gl.linkProgram(pg);gl.useProgram(pg);
+var bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+var al=gl.getAttribLocation(pg,"a");gl.enableVertexAttribArray(al);gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
+var uR=gl.getUniformLocation(pg,"R"),uP=gl.getUniformLocation(pg,"P"),uA=gl.getUniformLocation(pg,"A"),uB=gl.getUniformLocation(pg,"B");
+var dv,wasm,pS=document.getElementById("playerScore"),aS=document.getElementById("aiScore"),gO=document.getElementById("gameOver");
+window.addEventListener("keydown",function(e){var k=e.key.toLowerCase();if(k==="w"||k==="arrowup")im|=1;if(k==="s"||k==="arrowdown")im|=2;if(k==="escape")window.location.href="index.html";if(k==="r"&&dv&&dv.getInt32(32,true)===0)wasm.reset()});
+window.addEventListener("keyup",function(e){var k=e.key.toLowerCase();if(k==="w"||k==="arrowup")im&=~1;if(k==="s"||k==="arrowdown")im&=~2});
+WebAssembly.instantiate(b).then(function(r){wasm=r.instance.exports;dv=new DataView(wasm.memory.buffer);wasm.init(Date.now()|1);ppY=dv.getFloat32(0,true);paY=dv.getFloat32(4,true);pbX=dv.getFloat32(8,true);pbY=dv.getFloat32(12,true);requestAnimationFrame(lp)});
+function lp(t){if(lt===0)lt=t;var d=t-lt;lt=t;if(d>200)d=200;accumulator+=d;while(accumulator>=TR){ppY=dv.getFloat32(0,true);paY=dv.getFloat32(4,true);pbX=dv.getFloat32(8,true);pbY=dv.getFloat32(12,true);wasm.tick(im);accumulator-=TR}
+var a=accumulator/TR,cy=dv.getFloat32(0,true),ca=dv.getFloat32(4,true),cx=dv.getFloat32(8,true),cb=dv.getFloat32(12,true);
+var py=ppY+(cy-ppY)*a,ay=paY+(ca-paY)*a,bx=pbX+(cx-pbX)*a,by=pbY+(cb-pbY)*a;
+if(Math.abs(cx-pbX)>100){bx=cx;by=cb}
+gl.viewport(0,0,cv.width,cv.height);gl.uniform2f(uR,cv.width,cv.height);gl.uniform4f(uP,50,py,10,100);gl.uniform4f(uA,740,ay,10,100);gl.uniform4f(uB,bx,by,10,10);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+var ps=dv.getInt32(24,true),as=dv.getInt32(28,true),run=dv.getInt32(32,true),win=dv.getInt32(36,true);
+pS.textContent=ps;aS.textContent=as;
+if(run===0&&win>0){gO.innerHTML="<div>"+(win===1?"Player":"AI")+" Wins!</div><div style=\"font-size:0.6em;margin-top:20px\">Press R to restart</div>";gO.style.display="block"}else{gO.style.display="none"}
+requestAnimationFrame(lp)}
+}();
+   </script>
  </body>
 </html>
-
