@@ -102,6 +102,7 @@
       uniform vec4 u_planet1;
       uniform vec4 u_planet2;
       uniform vec4 u_planet3;
+      uniform sampler2D u_bbTex;
 
       vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
         float r = length(p);
@@ -115,13 +116,6 @@
         vec3 omega_LT = (2.0 * J - 6.0 * dot(J, rhat) * rhat) / r3;
         acc += 2.0 * cross(omega_LT, v);
         return acc;
-      }
-
-      void verletStep(inout vec3 pos, inout vec3 vel, inout vec3 acc, float h2, float a, float dt) {
-        pos += vel * dt + 0.5 * acc * dt * dt;
-        vec3 newAcc = acceleration(pos, vel, h2, a);
-        vel += 0.5 * (acc + newAcc) * dt;
-        acc = newAcc;
       }
 
       float hash(vec2 p) {
@@ -154,22 +148,11 @@
       }
 
       float fbm(vec2 p) {
-        float v = 0.5 * vnoise(p);
-        p *= 2.1;
-        v += 0.25 * vnoise(p);
-        return v;
+        return 0.5 * vnoise(p);
       }
 
       vec3 blackbodyColor(float t) {
-        t = clamp(t, 0.0, 1.0);
-        vec3 col;
-        col.r = smoothstep(0.0, 0.15, t) * (1.0 - 0.2 * smoothstep(0.75, 1.0, t));
-        col.g = smoothstep(0.05, 0.4, t) * (1.0 - 0.15 * smoothstep(0.8, 1.0, t));
-        col.b = smoothstep(0.3, 0.75, t);
-        col += vec3(0.15, 0.06, 0.0) * smoothstep(0.15, 0.4, t) * smoothstep(0.65, 0.35, t);
-        col += vec3(0.05, 0.05, 0.2) * smoothstep(0.8, 1.0, t);
-        col *= 1.0 + 0.4 * smoothstep(0.25, 0.55, t) * smoothstep(0.85, 0.55, t);
-        return col;
+        return texture2D(u_bbTex, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
       }
 
       float fastAtan2(float y, float x) {
@@ -463,12 +446,14 @@
         float prevY = pos.y;
         float minR = 1000.0;
 
-        vec3 acc = acceleration(pos, vel, L2, spin);
+        float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
+        vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
         float escapeR = max(50.0, u_camDist + 20.0);
 
         for (int i = 0; i < 100; i++) {
           float r = length(pos);
           minR = min(minR, r);
+          if (accumulatedAlpha > 0.98) break;
           if (r < r_h * 1.01) {
             didEscape = false;
             break;
@@ -478,7 +463,10 @@
 
           float dt = max(0.002, min(0.08 * (r - r_h), 5.0));
           vec3 prevPos = pos;
-          verletStep(pos, vel, acc, L2, spin, dt);
+          pos += vel_half * dt;
+          vec3 a = acceleration(pos, vel_half, L2, spin);
+          vel = vel_half + 0.5 * dt * a;
+          vel_half += dt * a;
           float newY = pos.y;
 
           if (prevY * newY < 0.0 && accumulatedAlpha < 0.98) {
@@ -562,7 +550,6 @@
               }
             }
           }
-          if (accumulatedAlpha > 0.98) break;
           prevY = newY;
         }
 
@@ -633,6 +620,32 @@
       uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
       uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
            gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3')];
+
+    // Blackbody 1D lookup texture (replaces 10 smoothstep calls per disk pixel)
+    const uBB=gl.getUniformLocation(pg,'u_bbTex');
+    {
+      const N=256,d=new Uint8Array(N*4);
+      function ss(e0,e1,x){const t=Math.max(0,Math.min(1,(x-e0)/(e1-e0)));return t*t*(3-2*t)}
+      for(let i=0;i<N;i++){
+        const t=i/(N-1);
+        let r=ss(0,.15,t)*(1-.2*ss(.75,1,t));
+        let g=ss(.05,.4,t)*(1-.15*ss(.8,1,t));
+        let b=ss(.3,.75,t);
+        const w=ss(.15,.4,t)*ss(.65,.35,t);r+=.15*w;g+=.06*w;
+        const c=ss(.8,1,t);r+=.05*c;g+=.05*c;b+=.2*c;
+        const m=1+.4*ss(.25,.55,t)*ss(.85,.55,t);r*=m;g*=m;b*=m;
+        d[i*4]=Math.round(Math.min(r,1)*255);d[i*4+1]=Math.round(Math.min(g,1)*255);
+        d[i*4+2]=Math.round(Math.min(b,1)*255);d[i*4+3]=255;
+      }
+      const tx=gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tx);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,N,1,0,gl.RGBA,gl.UNSIGNED_BYTE,d);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.uniform1i(uBB,0);
+    }
 
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
