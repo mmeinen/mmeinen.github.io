@@ -399,13 +399,13 @@
         float scale = 4.0;
         vec3 p = rd * scale;
         vec3 fp = floor(p);
-        for (int dx = 0; dx <= 1; dx++)
-        for (int dy = 0; dy <= 1; dy++)
-        for (int dz = 0; dz <= 1; dz++) {
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dz = -1; dz <= 1; dz++) {
           vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
           vec4 h1 = hash34(cell);
           if (h1.x > 0.22) continue;
-          vec3 gpos = cell + h1.yzw;
+          vec3 gpos = cell + vec3(0.5);
           vec3 gdir = normalize(gpos);
           if (dot(rd, gdir) < 0.94) continue;
           vec4 h2 = hash34(cell + 10.0);
@@ -416,7 +416,7 @@
           float hBri   = h2.w;
           float hCol   = h3.x;
           float hExtra = h3.y;
-          float scl  = 70.0 + hScale * 160.0;
+          float scl  = 140.0 + hScale * 320.0;
           float tilt = hTilt * 6.28318;
           float bright = 0.06 + hBri * 0.30;
           vec3 coreCol = mix(vec3(1.0, 0.82, 0.5), vec3(1.0, 0.95, 0.82), hCol);
@@ -603,445 +603,108 @@
       }
     `;
 
-    /* -- Shader Compilation -- */
-    function compileShader(gl, source, type) {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error('Shader compile error:', gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-      }
-      return shader;
-    }
-
-    const vs = compileShader(gl, vsSource, gl.VERTEX_SHADER);
-    const fs = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
-    const program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('Program link error:', gl.getProgramInfoLog(program));
-    }
-
-    gl.useProgram(program);
-
-    /* Fullscreen quad */
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-
-    const aPos = gl.getAttribLocation(program, 'a_pos');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    /* Uniform locations */
-    const uRes = gl.getUniformLocation(program, 'u_resolution');
-    const uTime = gl.getUniformLocation(program, 'u_time');
-    const uCamDist = gl.getUniformLocation(program, 'u_camDist');
-    const uSpin = gl.getUniformLocation(program, 'u_spin');
-    const uCamPos = gl.getUniformLocation(program, 'u_camPos');
-    const uCamFwd = gl.getUniformLocation(program, 'u_camFwd');
-    const uCamRight = gl.getUniformLocation(program, 'u_camRight');
-    const uCamUp = gl.getUniformLocation(program, 'u_camUp');
-    const uRH = gl.getUniformLocation(program, 'u_rH');
-    const uRIsco = gl.getUniformLocation(program, 'u_rIsco');
-    const uHoveredPlanet = gl.getUniformLocation(program, 'u_hoveredPlanet');
-    const uPlanet = [
-      gl.getUniformLocation(program, 'u_planet0'),
-      gl.getUniformLocation(program, 'u_planet1'),
-      gl.getUniformLocation(program, 'u_planet2'),
-      gl.getUniformLocation(program, 'u_planet3'),
-    ];
-
-    /* -- Planet Data -- */
     const planetData = [
       { oR: 25.0, ph: 0.0,   sp: 0.027, radius: 2.5, name: 'Minesweeper',            href: 'minesweeper.html' },
       { oR: 32.0, ph: 2.094, sp: 0.017, radius: 2.0, name: 'Pong',                    href: 'pong.html' },
       { oR: 40.0, ph: 4.189, sp: 0.010, radius: 1.5, name: 'Nugget Invasion',         href: 'edmund_game/index.html' },
       { oR: 48.0, ph: 1.047, sp: 0.007, radius: 1.4, name: 'Jumping Axolotl Nuggets', href: 'beatrix_game/index.html' },
     ];
-    const planetLabels = planetData.map((_, i) => document.getElementById('planet-label-' + i));
-    let hoveredPlanet = -1;
-    let mouseScreenX = -1, mouseScreenY = -1;
-
-    function getPlanetWorldPos(idx, t) {
-      const p = planetData[idx];
-      const ang = p.ph + t * p.sp;
-      return [Math.cos(ang) * p.oR, 0.0, Math.sin(ang) * p.oR];
-    }
-
-    /* Project world coords to screen pixels using camera vectors from render() */
-    let camVecs = null; // set each frame by render()
-    function projectToScreen(wx, wy, wz) {
-      if (!camVecs) return null;
-      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rY, rZ, upX, upY, upZ, W, H } = camVecs;
-      const dx = wx - cpx, dy = wy - cpy, dz = wz - cpz;
-      const depth = dx * fwdX + dy * fwdY + dz * fwdZ;
-      if (depth <= 0) return null;
-      const rx = dx * rX + dy * rY + dz * rZ;
-      const ux = dx * upX + dy * upY + dz * upZ;
-      const minDim = Math.min(W, H);
-      const focal = 1.8;
-      const sx = W * 0.5 + (rx / depth) * focal * minDim;
-      const sy = H * 0.5 - (ux / depth) * focal * minDim;
-      return { x: sx, y: sy, depth };
-    }
-
-    /* CPU gravitational lensing — port of shader acceleration() + Verlet loop
-       for detecting far-side planet hovers through curved spacetime */
-    function lensAccel(px, py, pz, vx, vy, vz, h2, a) {
-      const r = Math.sqrt(px*px + py*py + pz*pz);
-      const r2 = r * r;
-      const r3 = r2 * r;
-      const r5 = r2 * r3;
-      const f = -1.5 * h2 / r5;
-      let ax = f * px, ay = f * py, az = f * pz;
-      if (Math.abs(a) < 0.001) return [ax, ay, az];
-      // Lense-Thirring: J = (0, a, 0)
-      const rhat_x = px / r, rhat_y = py / r, rhat_z = pz / r;
-      const jDotR = a * rhat_y;
-      const oLT_x = (-6.0 * jDotR * rhat_x) / r3;
-      const oLT_y = (2.0 * a - 6.0 * jDotR * rhat_y) / r3;
-      const oLT_z = (-6.0 * jDotR * rhat_z) / r3;
-      ax += 2.0 * (oLT_y * vz - oLT_z * vy);
-      ay += 2.0 * (oLT_z * vx - oLT_x * vz);
-      az += 2.0 * (oLT_x * vy - oLT_y * vx);
-      return [ax, ay, az];
-    }
-
-    function traceLensedRay(ox, oy, oz, dx, dy, dz, rH, spinVal, time) {
-      let px = ox, py = oy, pz = oz;
-      let vx = dx, vy = dy, vz = dz;
-      // Angular momentum L² = |cross(pos, vel)|²
-      const Lx = py*vz - pz*vy, Ly = pz*vx - px*vz, Lz = px*vy - py*vx;
-      const L2 = Lx*Lx + Ly*Ly + Lz*Lz;
-      let [ax, ay, az] = lensAccel(px, py, pz, vx, vy, vz, L2, spinVal);
-      for (let i = 0; i < 100; i++) {
-        const r = Math.sqrt(px*px + py*py + pz*pz);
-        if (r < rH * 1.01) return -1;
-        if (r > 55.0 && (px*vx + py*vy + pz*vz) > 0.0) return -1;
-        const dt = Math.max(0.002, Math.min(0.08 * (r - rH), 5.0));
-        const ppx = px, ppy = py, ppz = pz;
-        // Verlet integration (matches shader verletStep)
-        px += vx * dt + 0.5 * ax * dt * dt;
-        py += vy * dt + 0.5 * ay * dt * dt;
-        pz += vz * dt + 0.5 * az * dt * dt;
-        const [nax, nay, naz] = lensAccel(px, py, pz, vx, vy, vz, L2, spinVal);
-        vx += 0.5 * (ax + nax) * dt;
-        vy += 0.5 * (ay + nay) * dt;
-        vz += 0.5 * (az + naz) * dt;
-        ax = nax; ay = nay; az = naz;
-        // Check planet intersections in zone r ∈ (22, 51)
-        const rNew = Math.sqrt(px*px + py*py + pz*pz);
-        if (rNew > 22.0 && rNew < 51.0) {
-          const sx = px - ppx, sy = py - ppy, sz = pz - ppz;
-          const sL2 = sx*sx + sy*sy + sz*sz;
-          for (let p = 0; p < 4; p++) {
-            const pos = getPlanetWorldPos(p, time);
-            const pr = planetData[p].radius;
-            const ocx = ppx - pos[0], ocy = ppy - pos[1], ocz = ppz - pos[2];
-            const bH = ocx*sx + ocy*sy + ocz*sz;
-            const tC = Math.max(0, Math.min(-bH / sL2, 1));
-            const cx = ocx + sx * tC, cy = ocy + sy * tC, cz = ocz + sz * tC;
-            if (cx*cx + cy*cy + cz*cz < pr * pr) return p;
-          }
-        }
-      }
-      return -1;
-    }
-
-    function checkPlanetHover(mx, my) {
-      if (mx < 0 || !camVecs) return -1;
-      const { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rZ, upX, upY, upZ, W, H, time, rH } = camVecs;
-      const minDim = Math.min(W, H);
-      const focal = 1.8;
-      // Convert screen position to ray direction
-      const ndcX = (mx - W * 0.5) / (focal * minDim);
-      const ndcY = (H * 0.5 - my) / (focal * minDim);
-      const rdx = fwdX + rX * ndcX + upX * ndcY;
-      const rdy = fwdY + 0 * ndcX + upY * ndcY;
-      const rdz = fwdZ + rZ * ndcX + upZ * ndcY;
-      const rdLen = Math.sqrt(rdx * rdx + rdy * rdy + rdz * rdz);
-      const rx = rdx / rdLen, ry = rdy / rdLen, rz = rdz / rdLen;
-
-      let bestIdx = -1, bestT = Infinity;
-      for (let i = 0; i < 4; i++) {
-        const pos = getPlanetWorldPos(i, time);
-        const rad = planetData[i].radius;
-        // Ray-sphere intersection: origin = cam, dir = (rx,ry,rz)
-        const ocx = cpx - pos[0], ocy = cpy - pos[1], ocz = cpz - pos[2];
-        const b = ocx * rx + ocy * ry + ocz * rz;
-        const c = ocx * ocx + ocy * ocy + ocz * ocz - rad * rad;
-        const disc = b * b - c;
-        if (disc < 0) continue;
-        const t = -b - Math.sqrt(disc);
-        if (t > 0 && t < bestT) {
-          bestT = t;
-          bestIdx = i;
-        }
-      }
-      // Fallback: trace lensed ray for far-side planets behind the black hole
-      if (bestIdx < 0) {
-        bestIdx = traceLensedRay(cpx, cpy, cpz, rx, ry, rz, rH, spin, time);
-      }
-      return bestIdx;
-    }
-
-    /* -- Interaction State -- */
-    let camAzimuth = 0.0;
-    let camElev = -0.32;
     let camDist = 120.0;
-    let spin = 0.0;
 
-    const DEFAULTS = { camAzimuth: 0.0, camElev: -0.32, camDist: 120.0, spin: 0.0 };
+    const WB="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";
+    const pL=planetData.map((_,i)=>document.getElementById('planet-label-'+i));
+    let hP=-1,mSX=-1,mSY=-1,camAz=0,camEl=-0.32,sp=0;
+    const DF={camAz:0,camEl:-0.32,camDist:120,sp:0};
+    let W,dv,wf;
 
-    /* -- Mouse Drag (orbit) + Planet Hover/Click -- */
-    let dragging = false;
-    let lastX = 0, lastY = 0;
-    let dragStartX = 0, dragStartY = 0;
-    let didDrag = false;
+    function cS(g,s,t){const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);if(!g.getShaderParameter(sh,g.COMPILE_STATUS)){console.error(g.getShaderInfoLog(sh));g.deleteShader(sh);return null}return sh}
+    const vs=cS(gl,vsSource,gl.VERTEX_SHADER),fs=cS(gl,fsSource,gl.FRAGMENT_SHADER),pg=gl.createProgram();
+    gl.attachShader(pg,vs);gl.attachShader(pg,fs);gl.linkProgram(pg);
+    if(!gl.getProgramParameter(pg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(pg));
+    gl.useProgram(pg);
+    const bf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    const aP=gl.getAttribLocation(pg,'a_pos');gl.enableVertexAttribArray(aP);gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
+    const uR=gl.getUniformLocation(pg,'u_resolution'),uT=gl.getUniformLocation(pg,'u_time'),
+      uCD=gl.getUniformLocation(pg,'u_camDist'),uSp=gl.getUniformLocation(pg,'u_spin'),
+      uCP=gl.getUniformLocation(pg,'u_camPos'),uCF=gl.getUniformLocation(pg,'u_camFwd'),
+      uCR=gl.getUniformLocation(pg,'u_camRight'),uCU=gl.getUniformLocation(pg,'u_camUp'),
+      uRH=gl.getUniformLocation(pg,'u_rH'),uRI=gl.getUniformLocation(pg,'u_rIsco'),
+      uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
+      uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
+           gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3')];
 
-    canvas.addEventListener('mousedown', (e) => {
-      dragging = true;
-      didDrag = false;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-      lastX = e.clientX;
-      lastY = e.clientY;
-    });
-    window.addEventListener('mouseup', () => { dragging = false; });
-    window.addEventListener('mousemove', (e) => {
-      mouseScreenX = e.clientX;
-      mouseScreenY = e.clientY;
-      if (dragging) {
-        const dx = e.clientX - lastX;
-        const dy = e.clientY - lastY;
-        camAzimuth += dx * 0.005;
-        camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
-        lastX = e.clientX;
-        lastY = e.clientY;
-        const totalDx = e.clientX - dragStartX;
-        const totalDy = e.clientY - dragStartY;
-        if (totalDx * totalDx + totalDy * totalDy > 9) didDrag = true;
-      }
-      // Update hover (cursor set in render loop)
-      hoveredPlanet = checkPlanetHover(mouseScreenX, mouseScreenY);
-      canvas.style.cursor = hoveredPlanet >= 0 && !dragging ? 'pointer' : dragging ? 'grabbing' : 'grab';
-    });
-    canvas.addEventListener('click', (e) => {
-      if (!didDrag && hoveredPlanet >= 0) {
-        window.location.href = planetData[hoveredPlanet].href;
-      }
+    const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
+    WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
+      W=r.instance.exports;
+      const mem=W.memory;
+      dv=new DataView(mem.buffer);
+      wf=W.frame;
+      for(let i=0;i<4;i++){const p=planetData[i],b=0x0D0+i*16;dv.setFloat32(b,p.oR,true);dv.setFloat32(b+4,p.ph,true);dv.setFloat32(b+8,p.sp,true);dv.setFloat32(b+12,p.radius,true)}
+      dv.setFloat32(0x000,camAz,true);dv.setFloat32(0x004,camEl,true);dv.setFloat32(0x008,camDist,true);
+      dv.setFloat32(0x00C,sp,true);dv.setFloat32(0x014,-1,true);dv.setFloat32(0x024,renderScale,true);
+      render();
     });
 
-    /* -- Scroll (zoom) -- */
-    canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      camDist = Math.max(5, Math.min(300, camDist + e.deltaY * 0.05));
-    }, { passive: false });
+    function wMem(){dv.setFloat32(0x000,camAz,true);dv.setFloat32(0x004,camEl,true);dv.setFloat32(0x008,camDist,true);dv.setFloat32(0x00C,sp,true);dv.setFloat32(0x014,mSX,true);dv.setFloat32(0x018,mSY,true);dv.setFloat32(0x01C,baseWidth,true);dv.setFloat32(0x020,baseHeight,true);dv.setFloat32(0x024,renderScale,true)}
 
-    /* -- Touch support -- */
-    let touchId = null;
-    let touchStartX = 0, touchStartY = 0;
-    let didDragTouch = false;
-    canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        e.preventDefault();
-        touchId = e.touches[0].identifier;
-        lastX = e.touches[0].clientX;
-        lastY = e.touches[0].clientY;
-        touchStartX = lastX;
-        touchStartY = lastY;
-        didDragTouch = false;
-      }
-    }, { passive: false });
-    canvas.addEventListener('touchmove', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId) {
-          e.preventDefault();
-          const dx = e.changedTouches[i].clientX - lastX;
-          const dy = e.changedTouches[i].clientY - lastY;
-          camAzimuth += dx * 0.005;
-          camElev = Math.max(-1.5, Math.min(1.5, camElev + dy * 0.005));
-          lastX = e.changedTouches[i].clientX;
-          lastY = e.changedTouches[i].clientY;
-          const totalDx = lastX - touchStartX;
-          const totalDy = lastY - touchStartY;
-          if (totalDx * totalDx + totalDy * totalDy > 9) didDragTouch = true;
-        }
-      }
-    }, { passive: false });
-    canvas.addEventListener('touchend', (e) => {
-      for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId) {
-          if (!didDragTouch) {
-            const tx = e.changedTouches[i].clientX;
-            const ty = e.changedTouches[i].clientY;
-            const hit = checkPlanetHover(tx, ty);
-            if (hit >= 0) {
-              window.location.href = planetData[hit].href;
-            }
-          }
-          touchId = null;
-        }
-      }
+    let dr=false,lX=0,lY=0,dsX=0,dsY=0,dD=false;
+    canvas.addEventListener('mousedown',e=>{dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY});
+    window.addEventListener('mouseup',()=>{dr=false});
+    window.addEventListener('mousemove',e=>{
+      mSX=e.clientX;mSY=e.clientY;
+      if(dr){camAz+=( e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>9)dD=true}
+    });
+    canvas.addEventListener('click',()=>{if(!dD&&hP>=0)window.location.href=planetData[hP].href});
+    canvas.addEventListener('wheel',e=>{e.preventDefault();camDist=Math.max(5,Math.min(300,camDist+e.deltaY*0.05))},{passive:false});
+
+    let tId=null,tSX=0,tSY=0,dDT=false;
+    canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){e.preventDefault();tId=e.touches[0].identifier;lX=e.touches[0].clientX;lY=e.touches[0].clientY;tSX=lX;tSY=lY;dDT=false}},{passive:false});
+    canvas.addEventListener('touchmove',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){e.preventDefault();const dx=e.changedTouches[i].clientX-lX,dy=e.changedTouches[i].clientY-lY;camAz+=dx*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+dy*0.005));lX=e.changedTouches[i].clientX;lY=e.changedTouches[i].clientY;const tx=lX-tSX,ty=lY-tSY;if(tx*tx+ty*ty>9)dDT=true}}},{passive:false});
+    canvas.addEventListener('touchend',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){if(!dDT){mSX=e.changedTouches[i].clientX;mSY=e.changedTouches[i].clientY;wMem();wf();hP=dv.getInt32(0x068,true);if(hP>=0)window.location.href=planetData[hP].href}tId=null}}});
+
+    window.addEventListener('keydown',e=>{
+      if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
+      else if(e.key==='['||e.key==='ArrowLeft')sp=Math.max(-2,sp-0.02);
+      else if(e.key==='r'||e.key==='R'){camAz=DF.camAz;camEl=DF.camEl;camDist=DF.camDist;sp=DF.sp}
     });
 
-    /* -- Keyboard (spin + reset) -- */
-    window.addEventListener('keydown', (e) => {
-      if (e.key === ']' || e.key === 'ArrowRight') {
-        spin = Math.min(2.0, spin + 0.02);
-      } else if (e.key === '[' || e.key === 'ArrowLeft') {
-        spin = Math.max(-2.0, spin - 0.02);
-      } else if (e.key === 'r' || e.key === 'R') {
-        camAzimuth = DEFAULTS.camAzimuth;
-        camElev = DEFAULTS.camElev;
-        camDist = DEFAULTS.camDist;
-        spin = DEFAULTS.spin;
+    const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
+      hF=document.getElementById('hud-fps'),hSc=document.getElementById('hud-scale');
+    let fC=0,lFT=performance.now(),lFrT=performance.now();
+    const t0=performance.now();
+
+    function render(){
+      const now=performance.now(),ft=now-lFrT;lFrT=now;
+      dv.setFloat32(0x028,ft,true);
+      dv.setFloat32(0x010,(now-t0)*0.001,true);
+      wMem();
+      wf();
+      const rs=dv.getFloat32(0x06C,true);
+      if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
+      hP=dv.getInt32(0x068,true);
+      if(!dr)canvas.style.cursor=hP>=0?'pointer':'grab';
+      else canvas.style.cursor='grabbing';
+      gl.uniform2f(uR,canvas.width,canvas.height);
+      gl.uniform1f(uT,(now-t0)*0.001);
+      gl.uniform1f(uCD,camDist);
+      gl.uniform1f(uSp,sp);
+      gl.uniform3f(uCP,dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true));
+      gl.uniform3f(uCF,dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true));
+      gl.uniform3f(uCR,dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true));
+      gl.uniform3f(uCU,dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true));
+      gl.uniform1f(uRH,dv.getFloat32(0x060,true));
+      gl.uniform1f(uRI,dv.getFloat32(0x064,true));
+      gl.uniform1f(uHP,hP);
+      for(let i=0;i<4;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+      for(let i=0;i<4;i++){const b=0x0A0+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
+        if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}
+        if(i===hP)lb.classList.add('hovered');else lb.classList.remove('hovered');
       }
-    });
-
-    /* -- HUD Update -- */
-    const hudSpin = document.getElementById('hud-spin');
-    const hudDist = document.getElementById('hud-dist');
-    const hudFps = document.getElementById('hud-fps');
-    const hudScale = document.getElementById('hud-scale');
-
-    let frameCount = 0;
-    let lastFpsTime = performance.now();
-    let lastFrameTime = performance.now();
-    let lastDomUpdateTime = 0;
-    const labelCache = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
-
-    function updateHUD() {
-      frameCount++;
-      const now = performance.now();
-      if (now - lastFpsTime >= 500) {
-        const fps = (frameCount / (now - lastFpsTime)) * 1000;
-        hudFps.textContent = Math.round(fps);
-        hudSpin.textContent = spin.toFixed(3);
-        hudDist.textContent = camDist.toFixed(1) + ' M';
-        if (renderScale < 0.99) {
-          hudScale.textContent = Math.round(renderScale * 100) + '% RES';
-        } else {
-          hudScale.textContent = '';
-        }
-        frameCount = 0;
-        lastFpsTime = now;
-      }
-    }
-
-    /* -- Render Loop with Adaptive Resolution -- */
-    const startTime = performance.now();
-
-    function render() {
-      const now = performance.now();
-      const frameTime = now - lastFrameTime;
-      lastFrameTime = now;
-
-      let scaleChanged = false;
-      if (frameTime > 28) {
-        const newScale = Math.max(0.35, renderScale * 0.85);
-        if (Math.abs(newScale - renderScale) > 0.005) { renderScale = newScale; scaleChanged = true; }
-      } else if (frameTime < 20) {
-        const newScale = Math.min(1.0, renderScale * 1.05);
-        if (Math.abs(newScale - renderScale) > 0.005) { renderScale = newScale; scaleChanged = true; }
-      }
-      if (scaleChanged) resize();
-
-      /* Precompute camera vectors and metrics on CPU */
-      const cosEl = Math.cos(camElev), sinEl = Math.sin(camElev);
-      const cosAz = Math.cos(camAzimuth), sinAz = Math.sin(camAzimuth);
-      const cpx = camDist * cosEl * sinAz;
-      const cpy = camDist * sinEl;
-      const cpz = camDist * cosEl * cosAz;
-      const fLen = Math.sqrt(cpx * cpx + cpy * cpy + cpz * cpz);
-      const fwdX = -cpx / fLen, fwdY = -cpy / fLen, fwdZ = -cpz / fLen;
-      /* right = normalize(cross(fwd, worldUp(0,1,0))) */
-      const rLen = Math.sqrt(fwdZ * fwdZ + fwdX * fwdX);
-      const rX = fwdZ / rLen, rY = 0, rZ = -fwdX / rLen;
-      /* up = cross(right, fwd) */
-      const upX = rY * fwdZ - rZ * fwdY;
-      const upY = rZ * fwdX - rX * fwdZ;
-      const upZ = rX * fwdY - rY * fwdX;
-
-      const absSpin = Math.abs(spin);
-      const rH = 1.0 + Math.sqrt(Math.max(1.0 - absSpin * absSpin, 0.0));
-      const a2 = absSpin * absSpin;
-      const z1 = 1.0 + Math.cbrt(Math.max(1.0 - a2, 0.0))
-                      * (Math.cbrt(1.0 + absSpin) + Math.cbrt(Math.max(1.0 - absSpin, 0.0)));
-      const z2 = Math.sqrt(3.0 * a2 + z1 * z1);
-      const rIsco = 3.0 + z2 - Math.sqrt((3.0 - z1) * (3.0 + z1 + 2.0 * z2));
-
-      const time = (now - startTime) * 0.001;
-
-      /* Store camera vectors for planet projection & hover detection */
-      camVecs = { cpx, cpy, cpz, fwdX, fwdY, fwdZ, rX, rY, rZ, upX, upY, upZ,
-                  W: baseWidth, H: baseHeight, time, rH };
-
-      /* Re-check hover with latest camera */
-      hoveredPlanet = checkPlanetHover(mouseScreenX, mouseScreenY);
-      if (!dragging) {
-        canvas.style.cursor = hoveredPlanet >= 0 ? 'pointer' : 'grab';
-      }
-
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform1f(uTime, time);
-      gl.uniform1f(uCamDist, camDist);
-      gl.uniform1f(uSpin, spin);
-      gl.uniform3f(uCamPos, cpx, cpy, cpz);
-      gl.uniform3f(uCamFwd, fwdX, fwdY, fwdZ);
-      gl.uniform3f(uCamRight, rX, rY, rZ);
-      gl.uniform3f(uCamUp, upX, upY, upZ);
-      gl.uniform1f(uRH, rH);
-      gl.uniform1f(uRIsco, rIsco);
-      gl.uniform1f(uHoveredPlanet, hoveredPlanet);
-
-      /* Upload planet positions as uniforms */
-      for (let i = 0; i < 4; i++) {
-        const pos = getPlanetWorldPos(i, time);
-        gl.uniform4f(uPlanet[i], pos[0], pos[1], pos[2], planetData[i].radius);
-      }
-
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-      /* Update planet labels — throttled to every 50ms */
-      if (now - lastDomUpdateTime > 50) {
-        lastDomUpdateTime = now;
-        for (let i = 0; i < 4; i++) {
-          const pos = getPlanetWorldPos(i, time);
-          const scr = projectToScreen(pos[0], pos[1], pos[2]);
-          const label = planetLabels[i];
-          if (scr && scr.x > -100 && scr.x < baseWidth + 100 && scr.y > -100 && scr.y < baseHeight + 100) {
-            const apparentR = (planetData[i].radius / scr.depth) * Math.min(baseWidth, baseHeight) * 1.8;
-            const lx = Math.round(scr.x);
-            const ly = Math.round(scr.y - apparentR - 12);
-            if (Math.abs(lx - (labelCache[i].x || 0)) > 1 || Math.abs(ly - (labelCache[i].y || 0)) > 1) {
-              label.style.left = lx + 'px';
-              label.style.top = ly + 'px';
-              labelCache[i].x = lx;
-              labelCache[i].y = ly;
-            }
-            label.classList.add('visible');
-          } else {
-            label.classList.remove('visible');
-          }
-          if (i === hoveredPlanet) {
-            label.classList.add('hovered');
-          } else {
-            label.classList.remove('hovered');
-          }
-        }
-      }
-
-      updateHUD();
+      fC++;if(now-lFT>=500){const fps=fC/(now-lFT)*1000;hF.textContent=Math.round(fps);hS.textContent=sp.toFixed(3);hD.textContent=camDist.toFixed(1)+' M';hSc.textContent=renderScale<0.99?Math.round(renderScale*100)+'% RES':'';fC=0;lFT=now}
       requestAnimationFrame(render);
     }
-    render();
    </script>
  </body>
 </html>

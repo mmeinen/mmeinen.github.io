@@ -784,6 +784,49 @@
       }
 
       // =============================================
+      // SCENE STRUCTURAL TESTS (WASM version)
+      // =============================================
+
+      {
+        const hasWasmBlob = /["'][A-Za-z0-9+/]{40,}={0,2}["']/.test(js);
+        assert(hasWasmBlob,
+          'Scene structure: WASM binary present',
+          hasWasmBlob ? 'base64 blob found in script' : 'no base64 blob');
+
+        const hasEnvSin = /env[\s\S]*?sin/.test(js);
+        const hasEnvCos = /env[\s\S]*?cos/.test(js);
+        const hasEnvSqrt = /env[\s\S]*?sqrt/.test(js);
+        assert(hasEnvSin && hasEnvCos && hasEnvSqrt,
+          'Scene structure: WASM imports sin/cos/sqrt',
+          `sin=${hasEnvSin} cos=${hasEnvCos} sqrt=${hasEnvSqrt}`);
+
+        const hasLensAccel = /function\s+lensAccel/.test(js);
+        const hasTraceLensed = /function\s+traceLensedRay/.test(js);
+        const hasCheckHover = /function\s+checkPlanetHover/.test(js);
+        assert(!hasLensAccel && !hasTraceLensed && !hasCheckHover,
+          'Scene structure: no CPU ray tracing in JS',
+          `lensAccel=${hasLensAccel} traceLensedRay=${hasTraceLensed} checkPlanetHover=${hasCheckHover}`);
+
+        const hasCosElSinAz = /cosEl\s*\*\s*sinAz/.test(js);
+        const hasMathCosCamElev = /Math\.cos\s*\(\s*camElev\s*\)/.test(js);
+        assert(!hasCosElSinAz && !hasMathCosCamElev,
+          'Scene structure: camera math moved to WASM',
+          `cosEl*sinAz=${hasCosElSinAz} Math.cos(camElev)=${hasMathCosCamElev}`);
+
+        assert(shaderMatch !== null,
+          'Scene structure: shader source preserved',
+          shaderMatch ? 'const fsSource extraction works' : 'failed');
+
+        assert(planetEntries.length >= 4,
+          'Scene structure: planetData preserved',
+          `found ${planetEntries.length} planets`);
+
+        assert(defaultCamDist !== null,
+          'Scene structure: camDist preserved',
+          defaultCamDist !== null ? `let camDist = ${defaultCamDist}` : 'not found');
+      }
+
+      // =============================================
       // Done
       // =============================================
       render();
