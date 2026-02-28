@@ -147,8 +147,28 @@
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
 
-      float fbm(vec2 p) {
-        return 0.5 * vnoise(p);
+      float vnoise3(vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = mix(hash3(i), hash3(i + vec3(1,0,0)), f.x);
+        float b = mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x);
+        float c = mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x);
+        float d = mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x);
+        return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
+      }
+
+      float fbm(vec3 p) {
+        float v = 0.0, a = 0.5;
+        mat3 rot = mat3(0.00, 0.80, 0.60,
+                        -0.80, 0.36, -0.48,
+                        -0.60, -0.48, 0.64);
+        for (int i = 0; i < 4; i++) {
+          v += a * vnoise3(p);
+          p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
+          a *= 0.5;
+        }
+        return v;
       }
 
       vec3 blackbodyColor(float t) {
@@ -167,14 +187,15 @@
         return r;
       }
 
-      vec3 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
+      vec4 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
         float r = length(hitPos.xz);
         float outerEdge = 14.0;
         float innerFade = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
         float outerFade = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
         float diskMask = innerFade * outerFade;
-        if (diskMask < 0.001) return vec3(0.0);
+        if (diskMask < 0.001) return vec4(0.0);
 
+        // Physics
         float rRatio = r_isco / r;
         float T = inversesqrt(r * sqrt(r)) * sqrt(sqrt(max(1.0 - sqrt(rRatio), 0.0)));
         float Tpeak = inversesqrt(r_isco * sqrt(r_isco)) * 0.63;
@@ -191,27 +212,59 @@
         float dopplerFlux = min(g * g * g * g, 6.0);
 
         float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
+
+        // Disk UV: seamless cylindrical mapping (cos/sin eliminates atan2 seam)
+        float detailFade = smoothstep(0.0, 5.0, r - r_isco);
+        float logR = log(r);
+        float flow = u_time * 0.04 * inversesqrt(r);
+        float tAngle = fastAtan2(hitPos.z, hitPos.x) + flow;
+        vec3 diskUV = vec3(cos(tAngle) * 3.0, sin(tAngle) * 3.0, logR * 5.0);
+
+        // Domain warp: organic turbulent distortion (IQ technique)
+        vec3 warp = vec3(
+          vnoise3(diskUV * 0.7),
+          vnoise3(diskUV * 0.7 + vec3(5.2, 1.3, 3.7)),
+          0.0
+        );
+        vec3 warpedUV = diskUV + warp * 1.5;
+
+        // Front layer: detailed cloud density (3D rotated FBM)
+        float density = fbm(warpedUV);
+
+        // Slab geometry: finite disk thickness creates depth
+        float slabH = 6.0;
+        float cosIncidence = abs(rayDir.y) + 0.2;
+        float pathLen = min(slabH / cosIncidence, 12.0);
+
+        // Back layer: diffuse underlayer with large parallax offset for depth
+        vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
+        float backDensity = vnoise3((warpedUV + parallax) * 0.6);
+
+        // Beer's law front-to-back volume compositing
+        float frontTau = max(density - 0.05, 0.0) * 8.0;
+        float frontCloud = 1.0 - exp(-frontTau);
+        float backTau = max(backDensity - 0.1, 0.0) * 6.0;
+        float backCloud = 1.0 - exp(-backTau);
+
+        // Front occludes back; back fills remaining gaps
+        float cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
+
+        // Path length: oblique views traverse more material
+        float pathBoost = 0.4 + 0.6 * min(pathLen, 12.0) / 12.0;
+
+        float structure = mix(1.0, cloud, detailFade);
+
+        // Temperature: original blackbody coloring (radial + Doppler + gravity)
         float Tshifted = Tnorm * clamp(g, 0.2, 3.0) * gGrav;
         vec3 col = blackbodyColor(Tshifted);
-        float brightness = dopplerFlux * gGrav * T * 6.0;
 
-        float detailFade = smoothstep(0.0, 2.5, r - r_isco);
-        float angle = fastAtan2(hitPos.z, hitPos.x);
-        vec2 diskUV = vec2(angle * 2.0 + u_time * 0.4, log(r) * 6.0);
-        float turb = fbm(diskUV * 3.0);
-        brightness *= 0.65 + 0.35 * turb * detailFade;
+        // Volumetric emission: path-length-enhanced brightness
+        float brightness = dopplerFlux * gGrav * T * 6.0 * mix(0.3, 1.0, structure) * pathBoost;
 
-        float spiral = 0.75 + 0.25 * sin(angle * 4.0 - log(r) * 8.0 + u_time * 0.7) * detailFade;
-        brightness *= spiral;
+        // Volumetric absorption: path-length-enhanced opacity
+        float alpha = diskMask * mix(0.25, 0.95, structure) * pathBoost;
 
-        return col * brightness * diskMask;
-      }
-
-      float diskOpacity(float r, float r_isco) {
-        float outerEdge = 14.0;
-        float inner = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
-        float outer = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
-        return inner * outer * 0.9;
+        return vec4(col * brightness, clamp(alpha, 0.0, 1.0));
       }
 
 
@@ -449,8 +502,10 @@
         float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
         vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
         float escapeR = max(50.0, u_camDist + 20.0);
+        float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
+        float convThresh = pixelAngle * pixelAngle * 0.0625;
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 250; i++) {
           float r = length(pos);
           minR = min(minR, r);
           if (accumulatedAlpha > 0.98) break;
@@ -473,9 +528,9 @@
             float frac = prevY / (prevY - newY);
             vec3 hitPos = mix(prevPos, pos, frac);
             float hitR = length(hitPos.xz);
-            vec3 dCol = diskShading(hitPos, r_isco, spin, vel);
-            float dAlpha = diskOpacity(hitR, r_isco);
-            dAlpha = clamp(dAlpha, 0.0, 1.0);
+            vec4 disk = diskShading(hitPos, r_isco, spin, vel);
+            vec3 dCol = disk.rgb;
+            float dAlpha = clamp(disk.a, 0.0, 1.0);
             accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
             accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
             if (accumulatedAlpha < 0.98) {
@@ -513,7 +568,7 @@
             }
             if (accumulatedAlpha > 0.98) break;
           }
-          if (r > 22.0 && r < 51.0 && accumulatedAlpha < 0.98) {
+          if (r > 22.0 && r < 55.0 && accumulatedAlpha < 0.98) {
             vec3 seg = pos - prevPos;
             float segL2 = dot(seg, seg);
             float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
@@ -549,6 +604,13 @@
                 if (accumulatedAlpha > 0.98) break;
               }
             }
+          }
+          // Convergence escape: per-step deflection is sub-pixel, ray is
+          // outbound, past all planet orbits, and moving away from the disk
+          float aDt2 = dot(a, a) * dt * dt;
+          if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 3025.0
+              && dot(pos, vel) > 0.0 && pos.y * vel.y > 0.0) {
+            break;
           }
           prevY = newY;
         }
