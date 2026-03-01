@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreeCell</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0e1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+    }
+    .top-bar {
+      width: 1024px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .top-bar a {
+      color: rgba(60,140,255,0.7);
+      text-decoration: none;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+    .top-bar a:hover { color: rgba(60,140,255,1); }
+    h1 {
+      color: rgba(60,140,255,0.9);
+      font-size: 22px;
+      letter-spacing: 4px;
+      text-shadow: 0 0 12px rgba(60,140,255,0.3);
+    }
+    canvas {
+      border: 1px solid rgba(60,140,255,0.2);
+      border-radius: 4px;
+      display: block;
+      cursor: pointer;
+    }
+    .controls {
+      color: rgba(60,140,255,0.4);
+      font-size: 11px;
+      margin-top: 8px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <a href="../index.html">&larr; Menu</a>
+    <h1>FREECELL</h1>
+    <span style="width:60px"></span>
+  </div>
+  <canvas id="gameCanvas" width="1024" height="680"></canvas>
+  <div class="controls">
+    Click to select / place &nbsp;|&nbsp; N = New Game &nbsp;|&nbsp; Z = Undo
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -40,6 +40,20 @@ body {
   text-shadow: 0 0 8px rgba(100, 200, 255, 0.8);
 }
 
+.back-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 14px;
+  color: rgba(60, 140, 255, 0.8);
+  text-decoration: none;
+  letter-spacing: 1px;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: rgba(60, 140, 255, 1);
+}
+
 #controls-hint {
   margin-top: 12px;
   font-size: 13px;

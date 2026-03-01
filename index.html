@@ -55,6 +55,12 @@
        <div class="planet-label" id="planet-label-3" data-planet="3">
          <span class="pl-bracket">[</span> JUMPING AXOLOTL NUGGETS <span class="pl-bracket">]</span>
        </div>
+       <div class="planet-label" id="planet-label-4" data-planet="4">
+         <span class="pl-bracket">[</span> TRAVELLERS <span class="pl-bracket">]</span>
+       </div>
+       <div class="planet-label" id="planet-label-5" data-planet="5">
+         <span class="pl-bracket">[</span> FREECELL <span class="pl-bracket">]</span>
+       </div>
      </div>
    </div>
 
@@ -102,6 +108,8 @@
       uniform vec4 u_planet1;
       uniform vec4 u_planet2;
       uniform vec4 u_planet3;
+      uniform vec4 u_planet4;
+      uniform vec4 u_planet5;
       uniform sampler2D u_bbTex;
 
       vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
@@ -318,7 +326,7 @@
           col = vec3(0.67, 0.82, 0.86) + vec3(-0.005, 0.008, 0.008) * bands;
           col += vec3(0.08, 0.06, 0.04) * smoothstep(0.50, 0.85, lat);
           col *= 1.0 - smoothstep(0.88, 1.0, abs(lat)) * 0.15;
-        } else {
+        } else if (idx == 3) {
           // Neptune: deep blue, dark spot, bright companion clouds, cirrus
           float rLon = lon - u_time * 0.09;
           float turb = vnoise(vec2(lat * 10.0, rLon * 2.0)) * 0.04;
@@ -339,6 +347,37 @@
           cirrus = smoothstep(0.65, 0.80, cirrus) * 0.12 * smoothstep(0.1, 0.3, abs(lat)) * smoothstep(0.8, 0.5, abs(lat));
           col += vec3(0.15, 0.15, 0.10) * cirrus;
           col += vec3(0.04, 0.04, 0.02) * smoothstep(0.60, 0.85, -lat);
+        } else if (idx == 4) {
+          // Venus: pale yellow-white, thick cloud bands, no surface features
+          float rLon = lon - u_time * 0.003;
+          float turb = vnoise(vec2(lat * 8.0, rLon * 3.0)) * 0.04;
+          float latN = lat + turb;
+          float bands = sin(latN * 18.0) * 0.05 + sin(latN * 8.0) * 0.08;
+          col = vec3(0.92, 0.85, 0.65) + vec3(-0.02, 0.01, 0.03) * bands;
+          col *= 1.0 - smoothstep(0.6, 0.95, abs(lat)) * 0.15;
+          float yPat = sin(rLon * 2.0 + lat * 3.0) * 0.03;
+          col += vec3(-0.01, -0.01, 0.01) * yPat * smoothstep(0.5, 0.0, abs(lat));
+        } else if (idx == 5) {
+          // Earth: blue oceans, green/brown land, white polar caps, cloud wisps
+          float rLon = lon - u_time * 0.08;
+          float turb = vnoise(vec2(lat * 10.0, rLon * 3.0)) * 0.05;
+          float latN = lat + turb;
+          // Continent mask: large-scale land shapes
+          float land = vnoise(vec2(rLon * 1.5 + 2.0, latN * 2.0));
+          land += vnoise(vec2(rLon * 3.0 + 5.0, latN * 4.0)) * 0.4;
+          land = smoothstep(0.55, 0.75, land);
+          // Ocean base
+          vec3 ocean = mix(vec3(0.05, 0.15, 0.45), vec3(0.10, 0.28, 0.55), vnoise(vec2(rLon * 4.0, latN * 3.0)));
+          // Land: green near equator, brown at mid-latitudes
+          vec3 landCol = mix(vec3(0.18, 0.38, 0.12), vec3(0.42, 0.32, 0.18), smoothstep(0.2, 0.6, abs(latN)));
+          col = mix(ocean, landCol, land);
+          // Polar ice caps
+          float polar = smoothstep(0.70, 0.90, abs(lat));
+          col = mix(col, vec3(0.90, 0.92, 0.95), polar);
+          // Cloud wisps
+          float clouds = vnoise(vec2(rLon * 3.0 + u_time * 0.02, latN * 2.5));
+          clouds = smoothstep(0.50, 0.70, clouds) * 0.45;
+          col = mix(col, vec3(0.95, 0.95, 0.97), clouds);
         }
         // Hover highlight: brighten + blue rim glow
         if (abs(float(idx) - u_hoveredPlanet) < 0.5) {
@@ -568,13 +607,13 @@
             }
             if (accumulatedAlpha > 0.98) break;
           }
-          if (r > 22.0 && r < 55.0 && accumulatedAlpha < 0.98) {
+          if (r > 16.0 && r < 55.0 && accumulatedAlpha < 0.98) {
             vec3 seg = pos - prevPos;
             float segL2 = dot(seg, seg);
             float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
             float segLen = sqrt(segL2);
-            for (int p = 0; p < 4; p++) {
-              vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : u_planet3;
+            for (int p = 0; p < 6; p++) {
+              vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : (p == 4) ? u_planet4 : u_planet5;
               vec3 pC = pl.xyz;
               float pr = pl.w;
               vec3 segMid = 0.5 * (prevPos + pos);
@@ -657,10 +696,12 @@
       { oR: 32.0, ph: 2.094, sp: 0.017, radius: 2.0, name: 'Pong',                    href: 'pong.html' },
       { oR: 40.0, ph: 4.189, sp: 0.010, radius: 1.5, name: 'Nugget Invasion',         href: 'edmund_game/index.html' },
       { oR: 48.0, ph: 1.047, sp: 0.007, radius: 1.4, name: 'Jumping Axolotl Nuggets', href: 'beatrix_game/index.html' },
+      { oR: 19.0, ph: 3.5,   sp: 0.040, radius: 0.54, name: 'Travellers',              href: 'fps/index.html' },
+      { oR: 22.0, ph: 5.5,   sp: 0.033, radius: 0.6,  name: 'Freecell',                href: 'freecell/index.html' },
     ];
     let camDist = 120.0;
 
-    const WB="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";
+    const WB="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";
     const pL=planetData.map((_,i)=>document.getElementById('planet-label-'+i));
     let hP=-1,mSX=-1,mSY=-1,camAz=0,camEl=-0.32,sp=0;
     const DF={camAz:0,camEl:-0.32,camDist:120,sp:0};
@@ -681,7 +722,8 @@
       uRH=gl.getUniformLocation(pg,'u_rH'),uRI=gl.getUniformLocation(pg,'u_rIsco'),
       uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
       uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
-           gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3')];
+           gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3'),
+           gl.getUniformLocation(pg,'u_planet4'),gl.getUniformLocation(pg,'u_planet5')];
 
     // Blackbody 1D lookup texture (replaces 10 smoothstep calls per disk pixel)
     const uBB=gl.getUniformLocation(pg,'u_bbTex');
@@ -715,7 +757,7 @@
       const mem=W.memory;
       dv=new DataView(mem.buffer);
       wf=W.frame;
-      for(let i=0;i<4;i++){const p=planetData[i],b=0x0D0+i*16;dv.setFloat32(b,p.oR,true);dv.setFloat32(b+4,p.ph,true);dv.setFloat32(b+8,p.sp,true);dv.setFloat32(b+12,p.radius,true)}
+      for(let i=0;i<6;i++){const p=planetData[i],b=0x100+i*16;dv.setFloat32(b,p.oR,true);dv.setFloat32(b+4,p.ph,true);dv.setFloat32(b+8,p.sp,true);dv.setFloat32(b+12,p.radius,true)}
       dv.setFloat32(0x000,camAz,true);dv.setFloat32(0x004,camEl,true);dv.setFloat32(0x008,camDist,true);
       dv.setFloat32(0x00C,sp,true);dv.setFloat32(0x014,-1,true);dv.setFloat32(0x024,renderScale,true);
       render();
@@ -730,13 +772,13 @@
       mSX=e.clientX;mSY=e.clientY;
       if(dr){camAz+=( e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>9)dD=true}
     });
-    canvas.addEventListener('click',()=>{if(!dD&&hP>=0)window.location.href=planetData[hP].href});
+    canvas.addEventListener('click',()=>{if(!dD&&hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href});
     canvas.addEventListener('wheel',e=>{e.preventDefault();camDist=Math.max(5,Math.min(300,camDist+e.deltaY*0.05))},{passive:false});
 
     let tId=null,tSX=0,tSY=0,dDT=false;
     canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){e.preventDefault();tId=e.touches[0].identifier;lX=e.touches[0].clientX;lY=e.touches[0].clientY;tSX=lX;tSY=lY;dDT=false}},{passive:false});
     canvas.addEventListener('touchmove',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){e.preventDefault();const dx=e.changedTouches[i].clientX-lX,dy=e.changedTouches[i].clientY-lY;camAz+=dx*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+dy*0.005));lX=e.changedTouches[i].clientX;lY=e.changedTouches[i].clientY;const tx=lX-tSX,ty=lY-tSY;if(tx*tx+ty*ty>9)dDT=true}}},{passive:false});
-    canvas.addEventListener('touchend',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){if(!dDT){mSX=e.changedTouches[i].clientX;mSY=e.changedTouches[i].clientY;wMem();wf();hP=dv.getInt32(0x068,true);if(hP>=0)window.location.href=planetData[hP].href}tId=null}}});
+    canvas.addEventListener('touchend',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){if(!dDT){mSX=e.changedTouches[i].clientX;mSY=e.changedTouches[i].clientY;wMem();wf();hP=dv.getInt32(0x068,true);if(hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href}tId=null}}});
 
     window.addEventListener('keydown',e=>{
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
@@ -771,9 +813,9 @@
       gl.uniform1f(uRH,dv.getFloat32(0x060,true));
       gl.uniform1f(uRI,dv.getFloat32(0x064,true));
       gl.uniform1f(uHP,hP);
-      for(let i=0;i<4;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
+      for(let i=0;i<6;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-      for(let i=0;i<4;i++){const b=0x0A0+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
+      for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
         if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}
         if(i===hP)lb.classList.add('hovered');else lb.classList.remove('hovered');
       }

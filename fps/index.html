@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPS</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255,255,255,0.5); font-size: 24px;
+    pointer-events: none; z-index: 10;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
+  }
+  #prompt {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(60,140,255,0.8); font-family: monospace;
+    font-size: 18px; text-align: center;
+    pointer-events: none; z-index: 10;
+    text-shadow: 0 0 8px rgba(60,140,255,0.4);
+  }
+  #hud {
+    position: fixed; bottom: 16px; left: 16px;
+    color: rgba(60,140,255,0.6); font-family: monospace;
+    font-size: 13px; pointer-events: none; z-index: 10;
+    text-shadow: 0 0 4px rgba(0,0,0,0.6);
+  }
+  .back-link {
+    position: fixed; top: 12px; left: 16px;
+    color: #fff; font-family: monospace;
+    font-size: 14px; text-decoration: none; z-index: 20;
+    letter-spacing: 1px; transition: color 0.2s;
+    background: rgba(0,0,0,0.5); padding: 4px 10px;
+    border-radius: 4px;
+  }
+  .back-link:hover { color: rgba(60,140,255,1); }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back-link">&larr; Back to Menu</a>
+<canvas id="c"></canvas>
+<div id="crosshair" style="display:none;">+</div>
+<div id="prompt">Click to enter</div>
+<div id="hud"></div>
+
+<script>
+"use strict";
+
+/* ── WebGL bootstrap ────────────────────────────────────── */
+const canvas = document.getElementById("c");
+const gl = canvas.getContext("webgl2");
+if (!gl) document.body.textContent = "WebGL 2 required";
+
+const promptEl  = document.getElementById("prompt");
+const crosshairEl = document.getElementById("crosshair");
+const hudEl     = document.getElementById("hud");
+
+function resize() {
+  canvas.width  = innerWidth  * devicePixelRatio;
+  canvas.height = innerHeight * devicePixelRatio;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+addEventListener("resize", resize);
+resize();
+
+/* ── Shaders ────────────────────────────────────────────── */
+const terrainVS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNorm;
+uniform mat4 uVP;
+out vec3 vWorldPos;
+out vec3 vNorm;
+void main() {
+  vWorldPos = aPos;
+  vNorm = aNorm;
+  gl_Position = uVP * vec4(aPos, 1.0);
+}`;
+
+const terrainFS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNorm;
+uniform vec3 uEye;
+uniform vec3 uSunDir;
+out vec4 fragColor;
+
+/* simple hash noise for colour variation */
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1,0));
+  float c = hash(i + vec2(0,1));
+  float d = hash(i + vec2(1,1));
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+
+void main() {
+  vec3 N = normalize(vNorm);
+  float slope = 1.0 - N.y;           /* 0 = flat, 1 = vertical */
+  float h = vWorldPos.y;
+
+  /* colour detail noise at two scales */
+  float n1 = vnoise(vWorldPos.xz * 2.0);
+  float n2 = vnoise(vWorldPos.xz * 8.0);
+  float detail = n1 * 0.6 + n2 * 0.4;
+
+  /* biome colours */
+  vec3 grassA = vec3(0.13, 0.30, 0.06);
+  vec3 grassB = vec3(0.22, 0.44, 0.11);
+  vec3 grass  = mix(grassA, grassB, detail);
+
+  vec3 dirt = vec3(0.34, 0.24, 0.12) + 0.06 * detail;
+  vec3 rock = vec3(0.44, 0.42, 0.38) + 0.05 * (detail - 0.5);
+  vec3 snow = vec3(0.92, 0.94, 0.96);
+
+  /* blend by slope — rocky mountains */
+  vec3 col = grass;
+  col = mix(col, dirt, smoothstep(0.12, 0.25, slope));
+  col = mix(col, rock, smoothstep(0.20, 0.35, slope));
+
+  /* snow at high elevations, less on steep faces */
+  float snowMask = smoothstep(32.0, 42.0, h) * (1.0 - smoothstep(0.25, 0.55, slope));
+  col = mix(col, snow, snowMask);
+
+  /* sun diffuse + ambient */
+  float diff = max(dot(N, uSunDir), 0.0);
+  float amb  = 0.28;
+  col *= amb + (1.0 - amb) * diff;
+
+  /* sky-coloured exponential fog */
+  float dist = length(vWorldPos - uEye);
+  float fog  = exp(-dist * 0.007);
+  vec3 fogCol = vec3(0.62, 0.76, 0.92);
+  col = mix(fogCol, col, fog);
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* sky fullscreen pass */
+const skyVS = `#version 300 es
+out vec2 vUV;
+void main() {
+  /* fullscreen triangle */
+  float x = float((gl_VertexID & 1) << 2) - 1.0;
+  float y = float((gl_VertexID & 2) << 1) - 1.0;
+  vUV = vec2(x, y) * 0.5 + 0.5;
+  gl_Position = vec4(x, y, 0.9999, 1.0);
+}`;
+
+const skyFS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform vec3 uSunDir;
+out vec4 fragColor;
+void main() {
+  /* vertical gradient: horizon haze → sky blue → deeper blue */
+  float t = vUV.y;
+  vec3 horizon = vec3(0.62, 0.76, 0.92);
+  vec3 zenith  = vec3(0.22, 0.42, 0.78);
+  vec3 col = mix(horizon, zenith, smoothstep(0.0, 0.7, t));
+
+  /* faint sun glow (upper area) */
+  float sunDot = max(dot(normalize(vec3(vUV.x - 0.5, t - 0.3, 0.5)), uSunDir), 0.0);
+  col += vec3(1.0, 0.95, 0.8) * pow(sunDot, 32.0) * 0.3;
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* rock fragment shader — flat-shaded grey */
+const rockFS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNorm;
+uniform vec3 uEye;
+uniform vec3 uSunDir;
+out vec4 fragColor;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec3 N = normalize(vNorm);
+
+  /* grey rock with subtle per-face variation */
+  float detail = hash(floor(vWorldPos.xz * 3.0 + vWorldPos.yy * 2.0));
+  vec3 col = vec3(0.42, 0.40, 0.37) + 0.10 * (detail - 0.5);
+
+  /* darken undersides / crevices */
+  col *= 0.7 + 0.3 * max(N.y, 0.0);
+
+  /* sun diffuse + ambient */
+  float diff = max(dot(N, uSunDir), 0.0);
+  col *= 0.30 + 0.70 * diff;
+
+  /* fog */
+  float dist = length(vWorldPos - uEye);
+  float fog  = exp(-dist * 0.007);
+  vec3 fogCol = vec3(0.62, 0.76, 0.92);
+  col = mix(fogCol, col, fog);
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* sword viewmodel shader — rendered in view space */
+const swordVS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNorm;
+uniform mat4 uProj;
+uniform mat4 uModel;
+out vec3 vNorm;
+void main() {
+  vec4 vp = uModel * vec4(aPos, 1.0);
+  vNorm = mat3(uModel) * aNorm;
+  gl_Position = uProj * vp;
+}`;
+
+const swordFS = `#version 300 es
+precision highp float;
+in vec3 vNorm;
+uniform vec3 uSunDir;
+uniform vec3 uTint;
+out vec4 fragColor;
+void main() {
+  vec3 N = normalize(vNorm);
+  float diff = max(dot(N, uSunDir), 0.0);
+  vec3 col = uTint * (0.35 + 0.65 * diff);
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* enemy fragment shader — dark red */
+const enemyFS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNorm;
+uniform vec3 uEye;
+uniform vec3 uSunDir;
+out vec4 fragColor;
+void main() {
+  vec3 N = normalize(vNorm);
+  vec3 col = vec3(0.55, 0.12, 0.10);
+  float diff = max(dot(N, uSunDir), 0.0);
+  col *= 0.30 + 0.70 * diff;
+  float dist = length(vWorldPos - uEye);
+  float fog = exp(-dist * 0.007);
+  col = mix(vec3(0.62, 0.76, 0.92), col, fog);
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* tree fragment shader — tinted with noise variation + fog */
+const treeFS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNorm;
+uniform vec3 uEye;
+uniform vec3 uSunDir;
+uniform vec3 uTint;
+out vec4 fragColor;
+void main() {
+  vec3 N = normalize(vNorm);
+  float detail = fract(sin(dot(floor(vWorldPos.xz * 2.0 + vWorldPos.yy), vec2(127.1,311.7))) * 43758.5453);
+  float diff = max(dot(N, uSunDir), 0.0);
+  vec3 col = uTint * (1.0 + 0.18 * (detail - 0.5));
+  col *= 0.28 + 0.72 * diff;
+  float dist = length(vWorldPos - uEye);
+  float fog = exp(-dist * 0.007);
+  col = mix(vec3(0.62, 0.76, 0.92), col, fog);
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* building fragment shader — concrete with windows */
+const buildingFS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNorm;
+uniform vec3 uEye;
+uniform vec3 uSunDir;
+out vec4 fragColor;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void main() {
+  vec3 N = normalize(vNorm);
+
+  /* per-building colour from position hash */
+  float bid = hash(floor(vWorldPos.xz / 6.0));
+  vec3 wall = mix(vec3(0.52, 0.50, 0.47), vec3(0.68, 0.64, 0.58), bid);
+
+  /* window pattern on walls */
+  float isWall = 1.0 - abs(N.y);
+  float horiz = abs(N.x) > 0.5 ? vWorldPos.z : vWorldPos.x;
+  float wh = fract(horiz * 0.45);
+  float wv = fract(vWorldPos.y * 0.35);
+  float win = step(0.18, wh) * step(wh, 0.72) *
+              step(0.18, wv) * step(wv, 0.62) *
+              isWall * step(5.5, vWorldPos.y);
+  vec3 windowCol = vec3(0.10, 0.16, 0.28);
+  vec3 col = mix(wall, windowCol, win * 0.85);
+
+  /* roof is darker */
+  col = mix(col, wall * 0.6, step(0.9, N.y));
+
+  /* lighting + fog */
+  float diff = max(dot(N, uSunDir), 0.0);
+  col *= 0.30 + 0.70 * diff;
+  float dist = length(vWorldPos - uEye);
+  float fog = exp(-dist * 0.007);
+  col = mix(vec3(0.62, 0.76, 0.92), col, fog);
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+function compileShader(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+function linkProgram(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(vs, gl.VERTEX_SHADER));
+  gl.attachShader(p, compileShader(fs, gl.FRAGMENT_SHADER));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+    console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+const terrainProg = linkProgram(terrainVS, terrainFS);
+const skyProg     = linkProgram(skyVS, skyFS);
+
+const tUniVP   = gl.getUniformLocation(terrainProg, "uVP");
+const tUniEye  = gl.getUniformLocation(terrainProg, "uEye");
+const tUniSun  = gl.getUniformLocation(terrainProg, "uSunDir");
+const sUniSun  = gl.getUniformLocation(skyProg, "uSunDir");
+
+const rockProg = linkProgram(terrainVS, rockFS);
+const rUniVP   = gl.getUniformLocation(rockProg, "uVP");
+const rUniEye  = gl.getUniformLocation(rockProg, "uEye");
+const rUniSun  = gl.getUniformLocation(rockProg, "uSunDir");
+
+const swordProg  = linkProgram(swordVS, swordFS);
+const swUniProj  = gl.getUniformLocation(swordProg, "uProj");
+const swUniModel = gl.getUniformLocation(swordProg, "uModel");
+const swUniSun   = gl.getUniformLocation(swordProg, "uSunDir");
+const swUniTint  = gl.getUniformLocation(swordProg, "uTint");
+
+const treeProg  = linkProgram(terrainVS, treeFS);
+const trUniVP   = gl.getUniformLocation(treeProg, "uVP");
+const trUniEye  = gl.getUniformLocation(treeProg, "uEye");
+const trUniSun  = gl.getUniformLocation(treeProg, "uSunDir");
+const trUniTint = gl.getUniformLocation(treeProg, "uTint");
+
+const bldgProg  = linkProgram(terrainVS, buildingFS);
+const bUniVP    = gl.getUniformLocation(bldgProg, "uVP");
+const bUniEye   = gl.getUniformLocation(bldgProg, "uEye");
+const bUniSun   = gl.getUniformLocation(bldgProg, "uSunDir");
+
+const enemyProg = linkProgram(terrainVS, enemyFS);
+const eUniVP    = gl.getUniformLocation(enemyProg, "uVP");
+const eUniEye   = gl.getUniformLocation(enemyProg, "uEye");
+const eUniSun   = gl.getUniformLocation(enemyProg, "uSunDir");
+
+/* sun direction (normalised) */
+const sunDir = new Float32Array([0.4, 0.75, 0.3]);
+{ const l = Math.hypot(...sunDir); sunDir[0]/=l; sunDir[1]/=l; sunDir[2]/=l; }
+
+/* ── Noise & terrain generation ─────────────────────────── */
+function hashN(x, y) {
+  /* integer hash → [0,1) */
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function smoothNoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = hashN(ix, iy),   b = hashN(ix+1, iy);
+  const c = hashN(ix, iy+1), d = hashN(ix+1, iy+1);
+  return a*(1-sx)*(1-sy) + b*sx*(1-sy) + c*(1-sx)*sy + d*sx*sy;
+}
+
+function fbm(x, y, octaves) {
+  let val = 0, amp = 1, freq = 1, total = 0;
+  for (let i = 0; i < octaves; i++) {
+    val += smoothNoise(x * freq, y * freq) * amp;
+    total += amp;
+    amp *= 0.48;
+    freq *= 2.1;
+  }
+  return val / total;
+}
+
+/* terrain parameters */
+const GRID = 192;            /* vertices per side */
+const CELL = 1.6;            /* world units per cell */
+const MESH_SPAN = GRID * CELL; /* total mesh coverage */
+
+/* legacy placement radius (objects spawn within this range of origin) */
+const SIZE = 500;
+const HALF = SIZE / 2;
+
+/* city location */
+const CITY_CX = 105, CITY_CZ = 105, CITY_FLAT_R2 = 900, CITY_H = 4.0;
+
+/* procedural height — works at any world coordinate */
+function computeHeight(wx, wz) {
+  let h = fbm(wx * 0.004 + 50, wz * 0.004 + 50, 4) * 55;
+  h += fbm(wx * 0.012, wz * 0.012, 4) * 14;
+  h += fbm(wx * 0.04,  wz * 0.04,  3) * 4;
+  const dc = Math.hypot(wx, wz);
+  h *= 0.3 + 0.7 * (1 - Math.exp(-dc * dc / 2500));
+  const cd2 = (wx - CITY_CX) * (wx - CITY_CX) + (wz - CITY_CZ) * (wz - CITY_CZ);
+  const cf = Math.exp(-cd2 / CITY_FLAT_R2);
+  return h * (1 - cf) + CITY_H * cf;
+}
+
+/* procedural terrainHeight — replaces old array lookup */
+function terrainHeight(wx, wz) { return computeHeight(wx, wz); }
+
+/* mesh data */
+const vertCount = GRID * GRID;
+const verts = new Float32Array(vertCount * 6);
+const hCache = new Float32Array(GRID * GRID);
+let meshCX = 0, meshCZ = 0; /* current mesh center */
+const REBUILD_DIST = 40;     /* rebuild when player moves this far from center */
+
+function rebuildTerrain(cx, cz) {
+  meshCX = cx; meshCZ = cz;
+  const halfG = GRID / 2;
+  /* pass 1: cache heights */
+  for (let gy = 0; gy < GRID; gy++) {
+    for (let gx = 0; gx < GRID; gx++) {
+      const wx = cx + (gx - halfG) * CELL;
+      const wz = cz + (gy - halfG) * CELL;
+      hCache[gy * GRID + gx] = computeHeight(wx, wz);
+    }
+  }
+  /* pass 2: build vertices + normals from cache */
+  function hAt(gx, gy) {
+    gx = Math.max(0, Math.min(GRID-1, gx));
+    gy = Math.max(0, Math.min(GRID-1, gy));
+    return hCache[gy * GRID + gx];
+  }
+  for (let gy = 0; gy < GRID; gy++) {
+    for (let gx = 0; gx < GRID; gx++) {
+      const i = (gy * GRID + gx) * 6;
+      const wx = cx + (gx - halfG) * CELL;
+      const wz = cz + (gy - halfG) * CELL;
+      verts[i]   = wx;
+      verts[i+1] = hCache[gy * GRID + gx];
+      verts[i+2] = wz;
+      const hL = hAt(gx-1,gy), hR = hAt(gx+1,gy);
+      const hD = hAt(gx,gy-1), hU = hAt(gx,gy+1);
+      let nx = (hL - hR) / (2 * CELL), ny = 1.0, nz = (hD - hU) / (2 * CELL);
+      const nl = Math.hypot(nx, ny, nz);
+      verts[i+3] = nx/nl; verts[i+4] = ny/nl; verts[i+5] = nz/nl;
+    }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts);
+}
+
+/* index buffer (static — topology never changes) */
+const quadCount = (GRID-1) * (GRID-1);
+const indices = new Uint32Array(quadCount * 6);
+let idx = 0;
+for (let gy = 0; gy < GRID-1; gy++) {
+  for (let gx = 0; gx < GRID-1; gx++) {
+    const tl = gy * GRID + gx;
+    const tr = tl + 1;
+    const bl = tl + GRID;
+    const br = bl + 1;
+    indices[idx++] = tl; indices[idx++] = bl; indices[idx++] = tr;
+    indices[idx++] = tr; indices[idx++] = bl; indices[idx++] = br;
+  }
+}
+const indexCount = idx;
+
+/* GPU setup */
+const terrainVAO = gl.createVertexArray();
+gl.bindVertexArray(terrainVAO);
+
+const vbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+
+const STRIDE = 24;
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, STRIDE, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, STRIDE, 12);
+
+const ebo = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+/* initial build centered on spawn */
+rebuildTerrain(0, 0);
+
+/* sky VAO (empty — uses gl_VertexID) */
+const skyVAO = gl.createVertexArray();
+
+/* ── Rock generation ───────────────────────────────────── */
+const ROCK_COUNT = 500;
+const ROCK_LATS = 5, ROCK_LONS = 8;
+const TRIS_PER_ROCK = ROCK_LATS * ROCK_LONS * 2;
+const FLAT_VERTS_PER_ROCK = TRIS_PER_ROCK * 3;
+
+/* seeded RNG */
+function mkRng(seed) {
+  let s = seed | 0;
+  return function() {
+    s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+
+const rockBuf = new Float32Array(ROCK_COUNT * FLAT_VERTS_PER_ROCK * 6);
+let rockVertTotal = 0;
+const rocks = []; /* per-rock metadata for hit testing */
+
+for (let ri = 0; ri < ROCK_COUNT; ri++) {
+  const rng = mkRng(ri * 7919 + 37);
+  const vertStart = rockVertTotal;
+
+  /* random world position */
+  const wx = (rng() - 0.5) * SIZE * 0.88;
+  const wz = (rng() - 0.5) * SIZE * 0.88;
+  const groundH = terrainHeight(wx, wz);
+
+  /* size: bias toward smaller rocks */
+  const raw = rng();
+  const scale = 0.2 + raw * raw * 2.5;
+  const scaleY = scale * (0.4 + rng() * 0.6);
+
+  /* random Y rotation */
+  const rotY = rng() * Math.PI * 2;
+  const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+
+  /* generate deformed sphere positions */
+  const pts = [];
+  for (let lat = 0; lat <= ROCK_LATS; lat++) {
+    const theta = Math.PI * lat / ROCK_LATS;
+    for (let lon = 0; lon <= ROCK_LONS; lon++) {
+      const phi = 2 * Math.PI * lon / ROCK_LONS;
+      const r = 0.45 + 0.55 * rng();
+      let lx = r * Math.sin(theta) * Math.cos(phi);
+      let ly = r * Math.cos(theta);
+      let lz = r * Math.sin(theta) * Math.sin(phi);
+      /* flatten bottom so it sits on ground */
+      if (ly < 0) ly *= 0.3;
+      /* scale */
+      lx *= scale; ly *= scaleY; lz *= scale;
+      /* rotate around Y */
+      const rx = lx * cosR - lz * sinR;
+      const rz = lx * sinR + lz * cosR;
+      /* translate — sink slightly into terrain */
+      pts.push(rx + wx, ly + groundH - scale * 0.12, rz + wz);
+    }
+  }
+
+  /* emit triangles with per-face (flat) normals */
+  const stride = ROCK_LONS + 1;
+  for (let lat = 0; lat < ROCK_LATS; lat++) {
+    for (let lon = 0; lon < ROCK_LONS; lon++) {
+      const a = lat * stride + lon;
+      const b = a + stride;
+      const tris = [[a, a+1, b], [a+1, b+1, b]];
+      for (const tri of tris) {
+        const p0 = [pts[tri[0]*3], pts[tri[0]*3+1], pts[tri[0]*3+2]];
+        const p1 = [pts[tri[1]*3], pts[tri[1]*3+1], pts[tri[1]*3+2]];
+        const p2 = [pts[tri[2]*3], pts[tri[2]*3+1], pts[tri[2]*3+2]];
+        const e1 = [p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
+        const e2 = [p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]];
+        const n = cross(e1, e2);
+        const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+        n[0] /= nl; n[1] /= nl; n[2] /= nl;
+        for (const p of [p0, p1, p2]) {
+          const o = rockVertTotal * 6;
+          rockBuf[o]   = p[0]; rockBuf[o+1] = p[1]; rockBuf[o+2] = p[2];
+          rockBuf[o+3] = n[0]; rockBuf[o+4] = n[1]; rockBuf[o+5] = n[2];
+          rockVertTotal++;
+        }
+      }
+    }
+  }
+
+  /* store bounding sphere for hit testing */
+  rocks.push({
+    x: wx, y: groundH + scaleY * 0.3, z: wz,
+    radius: Math.max(scale, scaleY) * 0.85,
+    vertStart, vertCount: rockVertTotal - vertStart, alive: true
+  });
+}
+
+/* upload rocks to GPU */
+const rockVAO = gl.createVertexArray();
+gl.bindVertexArray(rockVAO);
+
+const rockVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, rockVBO);
+gl.bufferData(gl.ARRAY_BUFFER, rockBuf.subarray(0, rockVertTotal * 6), gl.STATIC_DRAW);
+
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+/* ── Box helper (flat-shaded, 36 verts per box) ────────── */
+function makeBox(x0,y0,z0, x1,y1,z1) {
+  const F = [ /* [4 corners, normal] per face */
+    [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],[0,0,1]],
+    [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[0,0,-1]],
+    [[x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[1,0,0]],
+    [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[-1,0,0]],
+    [[x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0],[0,1,0]],
+    [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1],[0,-1,0]],
+  ];
+  const o = [];
+  for (const [a,b,c,d,n] of F)
+    for (const p of [a,b,c, a,c,d]) o.push(...p, ...n);
+  return o;
+}
+
+/* ── Sword mesh (view-space geometry) ──────────────────── */
+const swordData = new Float32Array([
+  ...makeBox(-0.012, -0.08, -0.012,  0.012,  0.08, 0.012),  /* handle */
+  ...makeBox(-0.05,   0.07, -0.015,  0.05,   0.10, 0.015),  /* crossguard */
+  ...makeBox(-0.010,  0.10, -0.005,  0.010,  0.55, 0.005),  /* blade */
+]);
+const swordVertCount = swordData.length / 6;
+
+const swordVAO = gl.createVertexArray();
+gl.bindVertexArray(swordVAO);
+const swordVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, swordVBO);
+gl.bufferData(gl.ARRAY_BUFFER, swordData, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+/* ── Enemy generation ──────────────────────────────────── */
+const ENEMY_COUNT = 80;
+const enemies = [];
+const enemyTemplate = new Float32Array([
+  ...makeBox(-0.3, 0.0, -0.2,  0.3, 1.5, 0.2),   /* body */
+  ...makeBox(-0.18, 1.5, -0.18, 0.18, 1.9, 0.18), /* head */
+  ...makeBox(-0.08, 0.9, -0.45, 0.08, 1.1, -0.2), /* left arm stub */
+  ...makeBox(-0.08, 0.9,  0.2,  0.08, 1.1, 0.45), /* right arm stub */
+]);
+const VERTS_PER_ENEMY = enemyTemplate.length / 6;
+
+const enemyBuf = new Float32Array(ENEMY_COUNT * enemyTemplate.length);
+let enemyVertTotal = 0;
+
+for (let ei = 0; ei < ENEMY_COUNT; ei++) {
+  const rng = mkRng(ei * 6311 + 131);
+  const ex = (rng() - 0.5) * SIZE * 0.80;
+  const ez = (rng() - 0.5) * SIZE * 0.80;
+  if (Math.hypot(ex, ez) < 25) { continue; }
+  const ey = terrainHeight(ex, ez);
+  const vertStart = enemyVertTotal;
+
+  for (let v = 0; v < VERTS_PER_ENEMY; v++) {
+    const si = v * 6, di = enemyVertTotal * 6;
+    enemyBuf[di]   = enemyTemplate[si]   + ex;
+    enemyBuf[di+1] = enemyTemplate[si+1] + ey;
+    enemyBuf[di+2] = enemyTemplate[si+2] + ez;
+    enemyBuf[di+3] = enemyTemplate[si+3];
+    enemyBuf[di+4] = enemyTemplate[si+4];
+    enemyBuf[di+5] = enemyTemplate[si+5];
+    enemyVertTotal++;
+  }
+
+  enemies.push({
+    x: ex, y: ey + 0.95, z: ez, groundY: ey, radius: 1.2,
+    vertStart, vertCount: enemyVertTotal - vertStart, alive: true,
+    state: "wander",
+    facing: rng() * Math.PI * 2,
+    wanderAngle: rng() * Math.PI * 2,
+    wanderTimer: 1 + rng() * 3,
+    atkCooldown: 0,
+  });
+}
+
+/* city enemies — spawn 25 inside the city */
+for (let ci = 0; ci < 25; ci++) {
+  const rng = mkRng(ci * 8831 + 997);
+  const ex = CITY_CX + (rng() - 0.5) * 50;
+  const ez = CITY_CZ + (rng() - 0.5) * 50;
+  const ey = terrainHeight(ex, ez);
+  const vertStart = enemyVertTotal;
+  for (let v = 0; v < VERTS_PER_ENEMY; v++) {
+    const si = v * 6, di = enemyVertTotal * 6;
+    enemyBuf[di]   = enemyTemplate[si]   + ex;
+    enemyBuf[di+1] = enemyTemplate[si+1] + ey;
+    enemyBuf[di+2] = enemyTemplate[si+2] + ez;
+    enemyBuf[di+3] = enemyTemplate[si+3];
+    enemyBuf[di+4] = enemyTemplate[si+4];
+    enemyBuf[di+5] = enemyTemplate[si+5];
+    enemyVertTotal++;
+  }
+  enemies.push({
+    x: ex, y: ey + 0.95, z: ez, groundY: ey, radius: 1.2,
+    vertStart, vertCount: enemyVertTotal - vertStart, alive: true,
+    state: "wander", facing: rng() * Math.PI * 2,
+    wanderAngle: rng() * Math.PI * 2, wanderTimer: 1 + rng() * 3,
+    atkCooldown: 0,
+  });
+}
+
+const enemyVAO = gl.createVertexArray();
+gl.bindVertexArray(enemyVAO);
+const enemyVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
+gl.bufferData(gl.ARRAY_BUFFER, enemyBuf.subarray(0, enemyVertTotal * 6), gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+/* ── Tree generation (forest patches via noise) ────────── */
+const TRUNK_TEMPLATE = new Float32Array(makeBox(-0.12, 0, -0.12, 0.12, 3.5, 0.12));
+const CANOPY_TEMPLATE = new Float32Array([
+  ...makeBox(-1.5, 2.5, -1.5, 1.5, 4.0, 1.5),
+  ...makeBox(-1.1, 4.0, -1.1, 1.1, 5.2, 1.1),
+  ...makeBox(-0.6, 5.2, -0.6, 0.6, 6.2, 0.6),
+]);
+const TRUNK_V = TRUNK_TEMPLATE.length / 6;   /* 36 */
+const CANOPY_V = CANOPY_TEMPLATE.length / 6; /* 108 */
+const MAX_TREES = 600;
+
+const trunkArr  = new Float32Array(MAX_TREES * TRUNK_V * 6);
+const canopyArr = new Float32Array(MAX_TREES * CANOPY_V * 6);
+let trunkVertCount = 0, canopyVertCount = 0, treeCount = 0;
+
+function placeTreeVerts(template, vCount, buf, vertOffset, wx, wz, gY, scale, cosR, sinR) {
+  for (let v = 0; v < vCount; v++) {
+    const si = v * 6, di = (vertOffset + v) * 6;
+    const lx = template[si] * scale, ly = template[si+1] * scale, lz = template[si+2] * scale;
+    buf[di]     = lx * cosR - lz * sinR + wx;
+    buf[di + 1] = ly + gY;
+    buf[di + 2] = lx * sinR + lz * cosR + wz;
+    const nx = template[si+3], nz = template[si+5];
+    buf[di + 3] = nx * cosR - nz * sinR;
+    buf[di + 4] = template[si+4];
+    buf[di + 5] = nx * sinR + nz * cosR;
+  }
+}
+
+for (let ti = 0; ti < 4000 && treeCount < MAX_TREES; ti++) {
+  const rng = mkRng(ti * 4931 + 271);
+  const tx = (rng() - 0.5) * SIZE * 0.88;
+  const tz = (rng() - 0.5) * SIZE * 0.88;
+
+  /* forest mask — noise creates organic patches */
+  if (fbm(tx * 0.012 + 200, tz * 0.012 + 200, 3) < 0.44) continue;
+
+  /* skip spawn area and city */
+  if (Math.hypot(tx, tz) < 30) continue;
+  if (Math.hypot(tx - CITY_CX, tz - CITY_CZ) < 40) continue;
+
+  const gY = terrainHeight(tx, tz);
+
+  /* below treeline */
+  if (gY > 28) continue;
+
+  /* reject steep slopes */
+  const hL = terrainHeight(tx - 1, tz), hR = terrainHeight(tx + 1, tz);
+  const hD = terrainHeight(tx, tz - 1), hU = terrainHeight(tx, tz + 1);
+  if (Math.hypot(hR - hL, hU - hD) > 1.2) continue;
+
+  const scale = 0.6 + rng() * 0.7;
+  const rotY = rng() * Math.PI * 2;
+  const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+
+  placeTreeVerts(TRUNK_TEMPLATE, TRUNK_V, trunkArr, trunkVertCount, tx, tz, gY, scale, cosR, sinR);
+  trunkVertCount += TRUNK_V;
+
+  placeTreeVerts(CANOPY_TEMPLATE, CANOPY_V, canopyArr, canopyVertCount, tx, tz, gY, scale, cosR, sinR);
+  canopyVertCount += CANOPY_V;
+
+  treeCount++;
+}
+
+/* combine into one buffer: [all trunks | all canopy] */
+const treeBuf = new Float32Array(trunkVertCount * 6 + canopyVertCount * 6);
+treeBuf.set(trunkArr.subarray(0, trunkVertCount * 6));
+treeBuf.set(canopyArr.subarray(0, canopyVertCount * 6), trunkVertCount * 6);
+
+const treeVAO = gl.createVertexArray();
+gl.bindVertexArray(treeVAO);
+const treeVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, treeVBO);
+gl.bufferData(gl.ARRAY_BUFFER, treeBuf, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+/* ── City building generation ──────────────────────────── */
+const CITY_EXTENT = 22;
+const BLOCK = 7;
+const bldgVerts = [];
+
+for (let gx = -CITY_EXTENT; gx <= CITY_EXTENT; gx += BLOCK) {
+  for (let gz = -CITY_EXTENT; gz <= CITY_EXTENT; gz += BLOCK) {
+    /* skip some blocks for plazas / open space */
+    if (hashN(gx + 50, gz + 50) < 0.15) continue;
+
+    /* jitter position within cell */
+    const jx = (hashN(gx + 10, gz) - 0.5) * 1.5;
+    const jz = (hashN(gx, gz + 10) - 0.5) * 1.5;
+    const bx = CITY_CX + gx + jx;
+    const bz = CITY_CZ + gz + jz;
+    const gY = terrainHeight(bx, bz);
+
+    /* random building dimensions */
+    const bw = 1.8 + hashN(gx + 20, gz) * 3.2;
+    const bd = 1.8 + hashN(gx, gz + 20) * 3.2;
+    const tallness = hashN(gx + 30, gz + 30);
+    const bh = 4 + tallness * tallness * 18;
+
+    bldgVerts.push(...makeBox(bx - bw, gY, bz - bd, bx + bw, gY + bh, bz + bd));
+  }
+}
+
+const bldgData = new Float32Array(bldgVerts);
+const bldgVertCount = bldgData.length / 6;
+
+const bldgVAO = gl.createVertexArray();
+gl.bindVertexArray(bldgVAO);
+const bldgVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, bldgVBO);
+gl.bufferData(gl.ARRAY_BUFFER, bldgData, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+
+/* ── Matrix math ────────────────────────────────────────── */
+function perspective(fov, aspect, near, far) {
+  const f = 1.0 / Math.tan(fov / 2), nf = 1 / (near - far);
+  return new Float32Array([
+    f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0
+  ]);
+}
+
+function lookDir(eye, dir, up) {
+  const f = dir;
+  const r = cross(f, up); normalize3(r);
+  const u = cross(r, f);
+  return new Float32Array([
+    r[0],u[0],-f[0],0, r[1],u[1],-f[1],0, r[2],u[2],-f[2],0,
+    -dot3(r,eye), -dot3(u,eye), dot3(f,eye), 1
+  ]);
+}
+
+function cross(a, b) {
+  return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+}
+function dot3(a, b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function normalize3(v) {
+  const l = Math.hypot(v[0],v[1],v[2]);
+  v[0]/=l; v[1]/=l; v[2]/=l;
+}
+function mul4(a, b) {
+  const o = new Float32Array(16);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++)
+      o[j*4+i] = a[i]*b[j*4]+a[4+i]*b[j*4+1]+a[8+i]*b[j*4+2]+a[12+i]*b[j*4+3];
+  return o;
+}
+
+/* ── Camera ─────────────────────────────────────────────── */
+const EYE_HEIGHT = 3.0;
+const cam = {
+  x: 0, y: 0, z: 0,
+  yaw: 0, pitch: -0.1,
+  speed: 14.0,
+};
+cam.y = terrainHeight(0, 0) + EYE_HEIGHT;
+const PITCH_LIMIT = Math.PI / 2 - 0.01;
+
+/* ── Input ──────────────────────────────────────────────── */
+const keys = {};
+addEventListener("keydown", e => { keys[e.code] = true;  });
+addEventListener("keyup",   e => { keys[e.code] = false; });
+
+let locked = false;
+const SWING_DUR = 0.15;
+let swingTimer = 0;
+let kills = 0;
+
+canvas.addEventListener("click", () => {
+  if (!locked) { canvas.requestPointerLock(); return; }
+  swingTimer = SWING_DUR;
+  tryHitEnemy();
+  tryBreakRock();
+});
+document.addEventListener("pointerlockchange", () => {
+  locked = !!document.pointerLockElement;
+  promptEl.style.display   = locked ? "none" : "block";
+  crosshairEl.style.display = locked ? "block" : "none";
+});
+addEventListener("mousemove", e => {
+  if (!locked) return;
+  cam.yaw   += e.movementX * 0.002;
+  cam.pitch -= e.movementY * 0.002;
+  cam.pitch  = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, cam.pitch));
+});
+
+/* ── Melee hit detection ───────────────────────────────── */
+const SWORD_RANGE = 5;
+function tryHitEnemy() {
+  const dx = Math.cos(cam.pitch) * Math.cos(cam.yaw);
+  const dy = Math.sin(cam.pitch);
+  const dz = Math.cos(cam.pitch) * Math.sin(cam.yaw);
+  let bestDist = SWORD_RANGE;
+  let bestIdx = -1;
+
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    if (!e.alive) continue;
+    const vx = e.x - cam.x, vy = e.y - cam.y, vz = e.z - cam.z;
+    const dist = Math.hypot(vx, vy, vz);
+    if (dist > SWORD_RANGE) continue;
+    /* must be roughly in front */
+    const dot = (vx*dx + vy*dy + vz*dz) / dist;
+    if (dot < 0.4) continue;
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+
+  if (bestIdx >= 0) {
+    const e = enemies[bestIdx];
+    e.alive = false;
+    kills++;
+    const start = e.vertStart * 6;
+    const count = e.vertCount * 6;
+    for (let i = start; i < start + count; i++) enemyBuf[i] = 0;
+    gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
+    gl.bufferSubData(gl.ARRAY_BUFFER, start * 4, enemyBuf.subarray(start, start + count));
+  }
+}
+
+/* ── Rock breaking (ray-sphere intersection) ───────────── */
+const REACH = 10;
+function tryBreakRock() {
+  const ox = cam.x, oy = cam.y, oz = cam.z;
+  const dx = Math.cos(cam.pitch) * Math.cos(cam.yaw);
+  const dy = Math.sin(cam.pitch);
+  const dz = Math.cos(cam.pitch) * Math.sin(cam.yaw);
+
+  let bestT = REACH;
+  let bestIdx = -1;
+
+  for (let i = 0; i < rocks.length; i++) {
+    const r = rocks[i];
+    if (!r.alive) continue;
+    const ocx = ox - r.x, ocy = oy - r.y, ocz = oz - r.z;
+    const b = 2 * (ocx * dx + ocy * dy + ocz * dz);
+    const c = ocx * ocx + ocy * ocy + ocz * ocz - r.radius * r.radius;
+    const disc = b * b - 4 * c;
+    if (disc < 0) continue;
+    const t = (-b - Math.sqrt(disc)) / 2;
+    if (t > 0 && t < bestT) { bestT = t; bestIdx = i; }
+  }
+
+  if (bestIdx >= 0) {
+    const r = rocks[bestIdx];
+    r.alive = false;
+    const start = r.vertStart * 6;
+    const count = r.vertCount * 6;
+    for (let i = start; i < start + count; i++) rockBuf[i] = 0;
+    gl.bindBuffer(gl.ARRAY_BUFFER, rockVBO);
+    gl.bufferSubData(gl.ARRAY_BUFFER, start * 4, rockBuf.subarray(start, start + count));
+  }
+}
+
+/* ── Player health ─────────────────────────────────────── */
+let hp = 100;
+let hurtFlash = 0;
+
+/* ── Enemy AI ──────────────────────────────────────────── */
+const WANDER_SPEED = 2.5;
+const CHASE_SPEED  = 7.0;
+const DETECT_RANGE = 28;
+const LOSE_RANGE   = 50;
+const ATTACK_RANGE = 2.5;
+const ATTACK_DMG   = 8;
+/* no boundary limit — world is infinite */
+
+function updateEnemies(dt) {
+  let needUpload = false;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = cam.x - e.x, dz = cam.z - e.z;
+    const distSq = dx * dx + dz * dz;
+    const dist = Math.sqrt(distSq);
+
+    /* state transitions */
+    if (e.state === "wander" && dist < DETECT_RANGE) {
+      e.state = "chase";
+    } else if (e.state === "chase" && dist > LOSE_RANGE) {
+      e.state = "wander";
+      e.wanderTimer = 1 + Math.random() * 3;
+      e.wanderAngle = e.facing;
+    }
+
+    /* movement */
+    let moveX = 0, moveZ = 0;
+    if (e.state === "wander") {
+      e.wanderTimer -= dt;
+      if (e.wanderTimer <= 0) {
+        e.wanderAngle += (Math.random() - 0.5) * 2.5;
+        e.wanderTimer = 2 + Math.random() * 3;
+      }
+      moveX = Math.cos(e.wanderAngle) * WANDER_SPEED * dt;
+      moveZ = Math.sin(e.wanderAngle) * WANDER_SPEED * dt;
+      e.facing = e.wanderAngle;
+    } else {
+      /* chase */
+      if (dist > ATTACK_RANGE) {
+        const inv = CHASE_SPEED * dt / dist;
+        moveX = dx * inv;
+        moveZ = dz * inv;
+        e.facing = Math.atan2(dz, dx);
+      }
+      /* attack */
+      e.atkCooldown -= dt;
+      if (dist < ATTACK_RANGE && e.atkCooldown <= 0) {
+        hp = Math.max(0, hp - ATTACK_DMG);
+        hurtFlash = 0.25;
+        e.atkCooldown = 0.8;
+      }
+    }
+
+    /* apply movement */
+    e.x += moveX;
+    e.z += moveZ;
+    e.groundY = terrainHeight(e.x, e.z);
+    e.y = e.groundY + 0.95;
+
+    /* rebuild vertices: rotate template by facing, then translate */
+    const cf = Math.cos(e.facing), sf = Math.sin(e.facing);
+    for (let v = 0; v < VERTS_PER_ENEMY; v++) {
+      const si = v * 6, di = (e.vertStart + v) * 6;
+      const lx = enemyTemplate[si], lz = enemyTemplate[si + 2];
+      enemyBuf[di]     = lx * cf - lz * sf + e.x;
+      enemyBuf[di + 1] = enemyTemplate[si + 1] + e.groundY;
+      enemyBuf[di + 2] = lx * sf + lz * cf + e.z;
+      /* rotate normals too */
+      const nx = enemyTemplate[si + 3], nz = enemyTemplate[si + 5];
+      enemyBuf[di + 3] = nx * cf - nz * sf;
+      enemyBuf[di + 4] = enemyTemplate[si + 4];
+      enemyBuf[di + 5] = nx * sf + nz * cf;
+    }
+    needUpload = true;
+  }
+  if (needUpload) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, enemyBuf.subarray(0, enemyVertTotal * 6));
+  }
+}
+
+/* ── Render loop ────────────────────────────────────────── */
+let lastT = 0, frameCount = 0, fpsAccum = 0, fps = 0;
+
+gl.enable(gl.DEPTH_TEST);
+gl.enable(gl.CULL_FACE);
+
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((t - lastT) / 1000, 0.05);
+  lastT = t;
+
+  /* fps */
+  frameCount++; fpsAccum += dt;
+  if (fpsAccum >= 0.5) { fps = Math.round(frameCount/fpsAccum); frameCount=0; fpsAccum=0; }
+
+  /* movement on XZ plane */
+  const fwd   = [Math.cos(cam.yaw), 0, Math.sin(cam.yaw)];
+  const right = [Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)];
+  let speed = cam.speed;
+  if (keys["ShiftLeft"] || keys["ShiftRight"]) speed *= 2.5;
+  const v = speed * dt;
+
+  if (keys["KeyW"] || keys["ArrowUp"])    { cam.x += fwd[0]*v;   cam.z += fwd[2]*v; }
+  if (keys["KeyS"] || keys["ArrowDown"])  { cam.x -= fwd[0]*v;   cam.z -= fwd[2]*v; }
+  if (keys["KeyA"] || keys["ArrowLeft"])  { cam.x += right[0]*v;  cam.z += right[2]*v; }
+  if (keys["KeyD"] || keys["ArrowRight"]) { cam.x -= right[0]*v;  cam.z -= right[2]*v; }
+
+  /* rebuild terrain mesh when player moves far from center */
+  if (Math.hypot(cam.x - meshCX, cam.z - meshCZ) > REBUILD_DIST)
+    rebuildTerrain(cam.x, cam.z);
+
+  /* stick to terrain */
+  const groundY = terrainHeight(cam.x, cam.z);
+  cam.y = groundY + EYE_HEIGHT;
+
+  /* update enemies */
+  updateEnemies(dt);
+  if (hurtFlash > 0) hurtFlash -= dt;
+
+  /* view + projection */
+  const dir = [
+    Math.cos(cam.pitch) * Math.cos(cam.yaw),
+    Math.sin(cam.pitch),
+    Math.cos(cam.pitch) * Math.sin(cam.yaw),
+  ];
+  const aspect = canvas.width / canvas.height;
+  const proj = perspective(Math.PI / 3, aspect, 0.2, 600);
+  const view = lookDir([cam.x, cam.y, cam.z], dir, [0,1,0]);
+  const vp   = mul4(proj, view);
+
+  /* ── draw sky ── */
+  gl.depthMask(false);
+  gl.useProgram(skyProg);
+  gl.uniform3fv(sUniSun, sunDir);
+  gl.bindVertexArray(skyVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.depthMask(true);
+
+  /* ── draw terrain ── */
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(terrainProg);
+  gl.uniformMatrix4fv(tUniVP, false, vp);
+  gl.uniform3f(tUniEye, cam.x, cam.y, cam.z);
+  gl.uniform3fv(tUniSun, sunDir);
+
+  gl.bindVertexArray(terrainVAO);
+  gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, 0);
+
+  /* ── draw rocks ── */
+  gl.useProgram(rockProg);
+  gl.uniformMatrix4fv(rUniVP, false, vp);
+  gl.uniform3f(rUniEye, cam.x, cam.y, cam.z);
+  gl.uniform3fv(rUniSun, sunDir);
+  gl.bindVertexArray(rockVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, rockVertTotal);
+
+  /* ── draw buildings ── */
+  gl.useProgram(bldgProg);
+  gl.uniformMatrix4fv(bUniVP, false, vp);
+  gl.uniform3f(bUniEye, cam.x, cam.y, cam.z);
+  gl.uniform3fv(bUniSun, sunDir);
+  gl.bindVertexArray(bldgVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, bldgVertCount);
+
+  /* ── draw trees ── */
+  gl.useProgram(treeProg);
+  gl.uniformMatrix4fv(trUniVP, false, vp);
+  gl.uniform3f(trUniEye, cam.x, cam.y, cam.z);
+  gl.uniform3fv(trUniSun, sunDir);
+  gl.bindVertexArray(treeVAO);
+  gl.uniform3f(trUniTint, 0.35, 0.22, 0.10); /* trunk — brown */
+  gl.drawArrays(gl.TRIANGLES, 0, trunkVertCount);
+  gl.uniform3f(trUniTint, 0.10, 0.32, 0.06); /* canopy — dark green */
+  gl.drawArrays(gl.TRIANGLES, trunkVertCount, canopyVertCount);
+
+  /* ── draw enemies ── */
+  gl.useProgram(enemyProg);
+  gl.uniformMatrix4fv(eUniVP, false, vp);
+  gl.uniform3f(eUniEye, cam.x, cam.y, cam.z);
+  gl.uniform3fv(eUniSun, sunDir);
+  gl.bindVertexArray(enemyVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, enemyVertTotal);
+
+  /* ── draw sword (viewmodel) ── */
+  if (swingTimer > 0) swingTimer -= dt;
+  const swingT = Math.max(0, swingTimer / SWING_DUR);
+  /* smoothstep-based swing: top-right to bottom-left diagonal */
+  const s = swingT > 0 ? (swingT < 0.5
+    ? swingT * 2                           /* 0→1 attack */
+    : 1.0 - (swingT - 0.5) * 2) : 0;      /* 1→0 return */
+  const sw = s * s * (3 - 2 * s);          /* smoothstep */
+  /* idle: sword rests at right hip, blade pointing up-right  */
+  /* swing: sweeps diagonally across the screen               */
+  const tx = 0.25 - sw * 0.55;             /* right → left */
+  const ty = -0.30 + sw * 0.15;            /* stays visible */
+  const tz = -0.45 - sw * 0.35;            /* thrust forward */
+  const rollA  = -0.4 + sw * 1.5;          /* diagonal roll */
+  const pitchA = -0.2 + sw * 0.9;          /* swing forward */
+  const cp = Math.cos(pitchA), sp = Math.sin(pitchA);
+  const cr = Math.cos(rollA),  sr = Math.sin(rollA);
+  const swordModel = new Float32Array([
+    cr,       cp*sr,      sp*sr,    0,
+    -sr,      cp*cr,      sp*cr,    0,
+    0,        -sp,        cp,       0,
+    tx,       ty,         tz,       1
+  ]);
+
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.disable(gl.CULL_FACE);
+  gl.useProgram(swordProg);
+  gl.uniformMatrix4fv(swUniProj, false, proj);
+  gl.uniformMatrix4fv(swUniModel, false, swordModel);
+  gl.uniform3fv(swUniSun, sunDir);
+  /* handle = brown, blade = silver, crossguard = dark */
+  gl.bindVertexArray(swordVAO);
+  gl.uniform3f(swUniTint, 0.35, 0.22, 0.10);  /* handle */
+  gl.drawArrays(gl.TRIANGLES, 0, 36);
+  gl.uniform3f(swUniTint, 0.25, 0.20, 0.15);  /* crossguard */
+  gl.drawArrays(gl.TRIANGLES, 36, 36);
+  gl.uniform3f(swUniTint, 0.72, 0.74, 0.78);  /* blade */
+  gl.drawArrays(gl.TRIANGLES, 72, 36);
+  gl.enable(gl.CULL_FACE);
+
+  /* damage flash overlay */
+  if (hurtFlash > 0) {
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    /* reuse sky shader with a red tint hack — just draw a red quad */
+    gl.depthMask(false);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(skyProg);
+    /* tint the screen red by overdrawing sky with modified uniforms */
+    gl.bindVertexArray(skyVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, 0); /* no-op, use canvas overlay instead */
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    canvas.style.boxShadow = `inset 0 0 ${60 + hurtFlash * 200}px rgba(255,0,0,${hurtFlash * 1.5})`;
+  } else {
+    canvas.style.boxShadow = "none";
+  }
+
+  /* HUD */
+  const hpCol = hp > 50 ? "rgba(60,140,255,0.8)" : hp > 25 ? "rgba(255,160,80,0.9)" : "rgba(255,50,50,1)";
+  hudEl.innerHTML =
+    `<span style="color:${hpCol}">HP ${hp}</span>  kills ${kills}/${enemies.length}  pos ${cam.x.toFixed(0)}, ${cam.z.toFixed(0)}  fps ${fps}`;
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

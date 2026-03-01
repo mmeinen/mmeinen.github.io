@@ -20,23 +20,29 @@
   ;; 0x060 rH(f32)  0x064 rIsco(f32)
   ;; 0x068 hoveredPlanet(i32)  0x06C renderScale(f32 output)
   ;;
-  ;; -- Planet world positions (4 × 3 floats) --
+  ;; -- Planet world positions (6 × 3 floats) --
   ;; 0x070 p0x 0x074 p0y 0x078 p0z
   ;; 0x07C p1x 0x080 p1y 0x084 p1z
   ;; 0x088 p2x 0x08C p2y 0x090 p2z
   ;; 0x094 p3x 0x098 p3y 0x09C p3z
+  ;; 0x0A0 p4x 0x0A4 p4y 0x0A8 p4z
+  ;; 0x0AC p5x 0x0B0 p5y 0x0B4 p5z
   ;;
-  ;; -- Planet screen positions (4 × 3 floats: sx, sy, depth) --
-  ;; 0x0A0 p0_sx 0x0A4 p0_sy 0x0A8 p0_depth
-  ;; 0x0AC p1_sx ...
-  ;; 0x0B8 p2_sx ...
-  ;; 0x0C4 p3_sx ...
+  ;; -- Planet screen positions (6 × 3 floats: sx, sy, depth) --
+  ;; 0x0B8 p0_sx 0x0BC p0_sy 0x0C0 p0_depth
+  ;; 0x0C4 p1_sx ...
+  ;; 0x0D0 p2_sx ...
+  ;; 0x0DC p3_sx ...
+  ;; 0x0E8 p4_sx ...
+  ;; 0x0F4 p5_sx ...
   ;;
-  ;; -- Planet orbital data (4 × 4 floats: oR, ph, sp, radius) --
-  ;; 0x0D0 planet0 oR,ph,sp,radius
-  ;; 0x0E0 planet1 ...
-  ;; 0x0F0 planet2 ...
-  ;; 0x100 planet3 ...
+  ;; -- Planet orbital data (6 × 4 floats: oR, ph, sp, radius) --
+  ;; 0x100 planet0 oR,ph,sp,radius
+  ;; 0x110 planet1 ...
+  ;; 0x120 planet2 ...
+  ;; 0x130 planet3 ...
+  ;; 0x140 planet4 ...
+  ;; 0x150 planet5 ...
 
   ;; ===== Helper: cbrt via Newton's method =====
   (func $cbrt (param $x f32) (result f32)
@@ -76,7 +82,7 @@
   )
 
   ;; ===== Get planet world position =====
-  ;; Reads orbital data from 0x0D0 + idx*16, returns via globals
+  ;; Reads orbital data from 0x100 + idx*16, returns via globals
   (global $gx (mut f32) (f32.const 0))
   (global $gy (mut f32) (f32.const 0))
   (global $gz (mut f32) (f32.const 0))
@@ -85,7 +91,7 @@
     (local $base i32)
     (local $oR f32) (local $ph f32) (local $sp f32)
     (local $ang f32)
-    (local.set $base (i32.add (i32.const 0x0D0) (i32.mul (local.get $idx) (i32.const 16))))
+    (local.set $base (i32.add (i32.const 0x100) (i32.mul (local.get $idx) (i32.const 16))))
     (local.set $oR (f32.load (local.get $base)))
     (local.set $ph (f32.load offset=4 (local.get $base)))
     (local.set $sp (f32.load offset=8 (local.get $base)))
@@ -300,14 +306,14 @@
         (local.set $ax (local.get $nax))
         (local.set $ay (local.get $nay))
         (local.set $az (local.get $naz))
-        ;; Check planet intersections if r in (22, 51)
+        ;; Check planet intersections if r in (16, 51)
         (local.set $rNew (call $sqrt (f32.add (f32.add
           (f32.mul (local.get $px) (local.get $px))
           (f32.mul (local.get $py) (local.get $py)))
           (f32.mul (local.get $pz) (local.get $pz))
         )))
         (if (i32.and
-              (f32.gt (local.get $rNew) (f32.const 22))
+              (f32.gt (local.get $rNew) (f32.const 16))
               (f32.lt (local.get $rNew) (f32.const 51)))
           (then
             (local.set $sx (f32.sub (local.get $px) (local.get $ppx)))
@@ -321,14 +327,14 @@
             (local.set $p (i32.const 0))
             (block $pDone
               (loop $pLoop
-                (br_if $pDone (i32.ge_u (local.get $p) (i32.const 4)))
+                (br_if $pDone (i32.ge_u (local.get $p) (i32.const 6)))
                 ;; Read planet world pos from 0x070 + p*12
                 (local.set $pbase (i32.add (i32.const 0x070) (i32.mul (local.get $p) (i32.const 12))))
                 (local.set $pcx (f32.load (local.get $pbase)))
                 (local.set $pcy (f32.load offset=4 (local.get $pbase)))
                 (local.set $pcz (f32.load offset=8 (local.get $pbase)))
-                ;; Read radius from orbital data 0x0D0 + p*16 + 12
-                (local.set $pr (f32.load (i32.add (i32.const 0x0DC) (i32.mul (local.get $p) (i32.const 16)))))
+                ;; Read radius from orbital data 0x100 + p*16 + 12
+                (local.set $pr (f32.load (i32.add (i32.const 0x10C) (i32.mul (local.get $p) (i32.const 16)))))
                 ;; oc = prevPos - planetCenter
                 (local.set $ocx (f32.sub (local.get $ppx) (local.get $pcx)))
                 (local.set $ocy (f32.sub (local.get $ppy) (local.get $pcy)))
@@ -426,13 +432,13 @@
     (local.set $i (i32.const 0))
     (block $done
       (loop $ploop
-        (br_if $done (i32.ge_u (local.get $i) (i32.const 4)))
+        (br_if $done (i32.ge_u (local.get $i) (i32.const 6)))
         ;; Read planet world pos from 0x070 + i*12
         (local.set $pbase (i32.add (i32.const 0x070) (i32.mul (local.get $i) (i32.const 12))))
         (local.set $pcx (f32.load (local.get $pbase)))
         (local.set $pcy (f32.load offset=4 (local.get $pbase)))
         (local.set $pcz (f32.load offset=8 (local.get $pbase)))
-        (local.set $pr (f32.load (i32.add (i32.const 0x0DC) (i32.mul (local.get $i) (i32.const 16)))))
+        (local.set $pr (f32.load (i32.add (i32.const 0x10C) (i32.mul (local.get $i) (i32.const 16)))))
         ;; oc = cam - planet
         (local.set $ocx (f32.sub (local.get $cpx) (local.get $pcx)))
         (local.set $ocy (f32.sub (local.get $cpy) (local.get $pcy)))
@@ -575,11 +581,11 @@
     ))
     (f32.store (i32.const 0x060) (local.get $rH))
     (f32.store (i32.const 0x064) (local.get $rIsco))
-    ;; Compute 4 planet world positions -> store at 0x070
+    ;; Compute 6 planet world positions -> store at 0x070
     (local.set $i (i32.const 0))
     (block $pdone
       (loop $ploop
-        (br_if $pdone (i32.ge_u (local.get $i) (i32.const 4)))
+        (br_if $pdone (i32.ge_u (local.get $i) (i32.const 6)))
         (call $getPlanetPos (local.get $i))
         (local.set $pbase (i32.add (i32.const 0x070) (i32.mul (local.get $i) (i32.const 12))))
         (f32.store (local.get $pbase) (global.get $gx))
@@ -589,18 +595,18 @@
         (br $ploop)
       )
     )
-    ;; Project 4 planets to screen -> store at 0x0A0
+    ;; Project 6 planets to screen -> store at 0x0B8
     (local.set $i (i32.const 0))
     (block $sdone
       (loop $sloop
-        (br_if $sdone (i32.ge_u (local.get $i) (i32.const 4)))
+        (br_if $sdone (i32.ge_u (local.get $i) (i32.const 6)))
         (local.set $pbase (i32.add (i32.const 0x070) (i32.mul (local.get $i) (i32.const 12))))
         (call $projectToScreen
           (f32.load (local.get $pbase))
           (f32.load offset=4 (local.get $pbase))
           (f32.load offset=8 (local.get $pbase))
         )
-        (local.set $pbase (i32.add (i32.const 0x0A0) (i32.mul (local.get $i) (i32.const 12))))
+        (local.set $pbase (i32.add (i32.const 0x0B8) (i32.mul (local.get $i) (i32.const 12))))
         (f32.store (local.get $pbase) (global.get $gx))
         (f32.store offset=4 (local.get $pbase) (global.get $gy))
         (f32.store offset=8 (local.get $pbase) (global.get $gz))
