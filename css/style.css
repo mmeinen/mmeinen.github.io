@@ -33,6 +33,9 @@ body {
   height: 100vh;
   z-index: 1;
   cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 
@@ -108,10 +111,10 @@ body {
   50%      { opacity: 0.7; }
 }
 
-.hud-readout-tl { top: 3vh; left: 3vw; }
-.hud-readout-tr { top: 3vh; right: 3vw; text-align: right; }
-.hud-readout-bl { bottom: 3vh; left: 3vw; }
-.hud-readout-br { bottom: 3vh; right: 3vw; text-align: right; }
+.hud-readout-tl { top: max(3vh, env(safe-area-inset-top, 0px)); left: max(3vw, env(safe-area-inset-left, 0px)); }
+.hud-readout-tr { top: max(3vh, env(safe-area-inset-top, 0px)); right: max(3vw, env(safe-area-inset-right, 0px)); text-align: right; }
+.hud-readout-bl { bottom: max(3vh, env(safe-area-inset-bottom, 0px)); left: max(3vw, env(safe-area-inset-left, 0px)); }
+.hud-readout-br { bottom: max(3vh, env(safe-area-inset-bottom, 0px)); right: max(3vw, env(safe-area-inset-right, 0px)); text-align: right; }
 
 /* ============================================
    TITLE - centered
@@ -192,6 +195,54 @@ body {
 
 .planet-label.hovered .pl-bracket {
   color: rgba(100, 180, 255, 0.9);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE — phones
+   ============================================ */
+
+@media (max-width: 600px) {
+  .menu-title-wrap {
+    top: 3vh;
+  }
+
+  .menu-title {
+    font-size: 1.5em;
+    letter-spacing: 0.2em;
+  }
+
+  .menu-subtitle {
+    font-size: 0.55em;
+  }
+
+  .planet-label {
+    font-size: 0.65em;
+    padding: 3px 7px;
+  }
+
+  /* Hide helm controls and FPS readout — not useful on mobile */
+  .hud-readout-bl,
+  .hud-readout-br {
+    display: none;
+  }
+
+  /* Keep SPIN and RANGE but make them compact */
+  .hud-readout-tl,
+  .hud-readout-tr {
+    font-size: 0.75em;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .menu-title {
+    font-size: 1.2em;
+    letter-spacing: 0.15em;
+  }
+
+  .menu-subtitle {
+    font-size: 0.5em;
+  }
 }
 
 /* ============================================

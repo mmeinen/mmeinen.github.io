@@ -69,6 +69,7 @@
    <script>
     const canvas = document.getElementById('canvas');
     const gl = canvas.getContext('webgl', { antialias: true });
+    gl.getExtension('OES_standard_derivatives');
 
     let baseWidth = window.innerWidth;
     let baseHeight = window.innerHeight;
@@ -92,6 +93,7 @@
 
     /* -- Fragment Shader -- */
     const fsSource = `
+      #extension GL_OES_standard_derivatives : enable
       precision highp float;
       uniform vec2  u_resolution;
       uniform float u_time;
@@ -173,6 +175,7 @@
                         -0.60, -0.48, 0.64);
         for (int i = 0; i < 4; i++) {
           v += a * vnoise3(p);
+          if (i >= 2 && u_camDist < 50.0) break;
           p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
           a *= 0.5;
         }
@@ -198,8 +201,10 @@
       vec4 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
         float r = length(hitPos.xz);
         float outerEdge = 14.0;
-        float innerFade = smoothstep(r_isco - 0.3, r_isco + 0.8, r);
-        float outerFade = smoothstep(outerEdge + 1.0, outerEdge - 2.0, r);
+        // Screen-space AA: widen smoothsteps for lensed images where r changes rapidly per pixel
+        float fw = fwidth(r);
+        float innerFade = smoothstep(r_isco - 0.3 - fw, r_isco + 0.8 + fw, r);
+        float outerFade = smoothstep(outerEdge + 1.0 + fw, outerEdge - 2.0 - fw, r);
         float diskMask = innerFade * outerFade;
         if (diskMask < 0.001) return vec4(0.0);
 
@@ -216,7 +221,10 @@
         vec2 rayDir2D = normalize(rayDir.xz);
         float cosAngle = dot(orbDir, rayDir2D);
         float gamma = 1.0 / sqrt(max(1.0 - vOrb * vOrb, 0.04));
-        float g = 1.0 / (gamma * max(1.0 - vOrb * cosAngle, 0.15));
+        float gRaw = 1.0 / (gamma * max(1.0 - vOrb * cosAngle, 0.15));
+        // Fade Doppler toward 1.0 near ISCO where hit-position jitter gets amplified by g^4
+        float dopplerFade = smoothstep(r_isco, r_isco + 2.0, r);
+        float g = mix(1.0, gRaw, dopplerFade);
         float dopplerFlux = min(g * g * g * g, 6.0);
 
         float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
@@ -229,12 +237,9 @@
         vec3 diskUV = vec3(cos(tAngle) * 3.0, sin(tAngle) * 3.0, logR * 5.0);
 
         // Domain warp: organic turbulent distortion (IQ technique)
-        vec3 warp = vec3(
-          vnoise3(diskUV * 0.7),
-          vnoise3(diskUV * 0.7 + vec3(5.2, 1.3, 3.7)),
-          0.0
-        );
-        vec3 warpedUV = diskUV + warp * 1.5;
+        float warpX = vnoise3(diskUV * 0.7);
+        float warpY = (u_camDist < 50.0) ? warpX * 0.7 : vnoise3(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
+        vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * 1.5;
 
         // Front layer: detailed cloud density (3D rotated FBM)
         float density = fbm(warpedUV);
@@ -244,18 +249,20 @@
         float cosIncidence = abs(rayDir.y) + 0.2;
         float pathLen = min(slabH / cosIncidence, 12.0);
 
-        // Back layer: diffuse underlayer with large parallax offset for depth
-        vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
-        float backDensity = vnoise3((warpedUV + parallax) * 0.6);
-
         // Beer's law front-to-back volume compositing
         float frontTau = max(density - 0.05, 0.0) * 8.0;
         float frontCloud = 1.0 - exp(-frontTau);
-        float backTau = max(backDensity - 0.1, 0.0) * 6.0;
-        float backCloud = 1.0 - exp(-backTau);
-
-        // Front occludes back; back fills remaining gaps
-        float cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
+        float cloud;
+        if (u_camDist >= 50.0) {
+          // Back layer: diffuse underlayer with large parallax offset for depth
+          vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
+          float backDensity = vnoise3((warpedUV + parallax) * 0.6);
+          float backTau = max(backDensity - 0.1, 0.0) * 6.0;
+          float backCloud = 1.0 - exp(-backTau);
+          cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
+        } else {
+          cloud = frontCloud;
+        }
 
         // Path length: oblique views traverse more material
         float pathBoost = 0.4 + 0.6 * min(pathLen, 12.0) / 12.0;
@@ -548,7 +555,7 @@
           float r = length(pos);
           minR = min(minR, r);
           if (accumulatedAlpha > 0.98) break;
-          if (r < r_h * 1.01) {
+          if (r < r_h * 1.05) {
             didEscape = false;
             break;
           }
@@ -658,7 +665,7 @@
 
         // Smooth capture factor: 1.0 = captured (black), 0.0 = escaped (full color)
         float captureWidth = r_h * 0.15;
-        float captureFactor = 1.0 - smoothstep(r_h, r_h * 1.01 + captureWidth, minR);
+        float captureFactor = 1.0 - smoothstep(r_h, r_h * 1.05 + captureWidth, minR);
 
         if (accumulatedAlpha < 1.0) {
           // Photon ring glow: computed for ALL rays (not gated on escape)
