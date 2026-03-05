@@ -198,6 +198,193 @@ body {
 }
 
 /* ============================================
+   FLY MODE HUD
+   ============================================ */
+
+.fly-hud-mode {
+  display: none;
+  position: absolute;
+  top: max(3vh, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 0.9em;
+  letter-spacing: 0.2em;
+  color: rgba(255, 160, 80, 0.9);
+  text-shadow: 0 0 12px rgba(255, 140, 60, 0.4);
+  background: rgba(0, 4, 16, 0.65);
+  padding: 8px 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 160, 80, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  animation: warn-pulse 3s ease-in-out infinite;
+}
+
+.fly-hud-mode.active {
+  display: block;
+}
+
+.fly-crosshair {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.fly-crosshair.active::before,
+.fly-crosshair.active::after {
+  content: '';
+  position: absolute;
+  background: rgba(60, 140, 255, 0.5);
+}
+
+.fly-crosshair.active::before {
+  width: 20px;
+  height: 1px;
+  top: 0;
+  left: -10px;
+}
+
+.fly-crosshair.active::after {
+  width: 1px;
+  height: 20px;
+  top: -10px;
+  left: 0;
+}
+
+.fly-crosshair.active {
+  display: block;
+}
+
+.fly-hud-speed {
+  display: none;
+  position: absolute;
+  bottom: max(3vh, env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 300;
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  color: rgba(170, 210, 255, 0.9);
+  background: rgba(0, 4, 16, 0.65);
+  padding: 8px 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(60, 140, 255, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.fly-hud-speed.active {
+  display: block;
+}
+
+.fly-bullet-time {
+  display: none;
+  position: absolute;
+  top: calc(max(3vh, env(safe-area-inset-top, 0px)) + 50px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 0.85em;
+  letter-spacing: 0.2em;
+  color: rgba(255, 160, 80, 0.9);
+  text-shadow: 0 0 12px rgba(255, 140, 60, 0.4);
+  background: rgba(0, 4, 16, 0.65);
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 160, 80, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  animation: warn-pulse 1.5s ease-in-out infinite;
+}
+
+.fly-bullet-time.active {
+  display: block;
+}
+
+/* --- Thrust Slider (Nav mode) --- */
+.fly-thrust-slider {
+  display: none;
+  position: absolute;
+  right: max(3vw, env(safe-area-inset-right, 0px));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  width: 48px;
+  text-align: center;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  pointer-events: auto;
+}
+.fly-thrust-slider.active { display: block; }
+
+.thrust-label {
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: rgba(80, 160, 255, 0.85);
+  margin-bottom: 2px;
+}
+.thrust-val {
+  font-size: 0.85em;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  color: rgba(170, 210, 255, 0.9);
+  margin-bottom: 8px;
+}
+.thrust-track {
+  position: relative;
+  width: 4px;
+  height: 200px;
+  margin: 0 auto;
+  background: rgba(60, 140, 255, 0.12);
+  border: 1px solid rgba(60, 140, 255, 0.2);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.thrust-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(60, 140, 255, 0.25);
+  border-radius: 0 0 2px 2px;
+  pointer-events: none;
+}
+.thrust-handle {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  width: 24px;
+  height: 10px;
+  background: rgba(60, 140, 255, 0.6);
+  border: 1px solid rgba(100, 180, 255, 0.7);
+  border-radius: 3px;
+  cursor: grab;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.thrust-handle:hover,
+.thrust-handle.dragging {
+  background: rgba(80, 170, 255, 0.8);
+  box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
+  cursor: grabbing;
+}
+
+/* ============================================
    MOBILE RESPONSIVE — phones
    ============================================ */
 
@@ -224,6 +411,15 @@ body {
   .hud-readout-bl,
   .hud-readout-br {
     display: none;
+  }
+
+  /* Nav mode is desktop-only */
+  .fly-hud-mode,
+  .fly-bullet-time,
+  .fly-crosshair,
+  .fly-hud-speed,
+  .fly-thrust-slider {
+    display: none !important;
   }
 
   /* Keep SPIN and RANGE but make them compact */
