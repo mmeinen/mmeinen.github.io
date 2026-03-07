@@ -411,12 +411,35 @@ const GRID = 192;            /* vertices per side */
 const CELL = 1.6;            /* world units per cell */
 const MESH_SPAN = GRID * CELL; /* total mesh coverage */
 
-/* legacy placement radius (objects spawn within this range of origin) */
-const SIZE = 500;
-const HALF = SIZE / 2;
+/* ── Procedural city grid ──────────────────────────────── */
+const CITY_GRID = 250;
+const CITY_FLAT_R2 = 900, CITY_H = 4.0;
 
-/* city location */
-const CITY_CX = 105, CITY_CZ = 105, CITY_FLAT_R2 = 900, CITY_H = 4.0;
+function getCityCenter(gx, gz) {
+  if (hashN(gx * 13 + 7000, gz * 17 + 7000) > 0.25) return null;
+  return {
+    x: (gx + 0.3 + hashN(gx * 13 + 8000, gz * 17) * 0.4) * CITY_GRID,
+    z: (gz + 0.3 + hashN(gx * 13, gz * 17 + 8000) * 0.4) * CITY_GRID,
+  };
+}
+
+function nearestCity(wx, wz) {
+  const gx = Math.floor(wx / CITY_GRID), gz = Math.floor(wz / CITY_GRID);
+  let best = null, bestD2 = Infinity;
+  for (let dz = -1; dz <= 1; dz++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const c = getCityCenter(gx + dx, gz + dz);
+      if (!c) continue;
+      const d2 = (wx - c.x) ** 2 + (wz - c.z) ** 2;
+      if (d2 < bestD2) { bestD2 = d2; best = c; }
+    }
+  return best ? { x: best.x, z: best.z, dist2: bestD2 } : null;
+}
+
+/* ── Chunk streaming constants ─────────────────────────── */
+const CHUNK = 80;
+const STREAM_R = 3;
+let lastStreamCX = Infinity, lastStreamCZ = Infinity;
 
 /* procedural height — works at any world coordinate */
 function computeHeight(wx, wz) {
@@ -425,12 +448,15 @@ function computeHeight(wx, wz) {
   h += fbm(wx * 0.04,  wz * 0.04,  3) * 4;
   const dc = Math.hypot(wx, wz);
   h *= 0.3 + 0.7 * (1 - Math.exp(-dc * dc / 2500));
-  const cd2 = (wx - CITY_CX) * (wx - CITY_CX) + (wz - CITY_CZ) * (wz - CITY_CZ);
-  const cf = Math.exp(-cd2 / CITY_FLAT_R2);
-  return h * (1 - cf) + CITY_H * cf;
+  /* flatten near procedural cities */
+  const city = nearestCity(wx, wz);
+  if (city && city.dist2 < 2500) {
+    const cf = Math.exp(-city.dist2 / CITY_FLAT_R2);
+    h = h * (1 - cf) + CITY_H * cf;
+  }
+  return h;
 }
 
-/* procedural terrainHeight — replaces old array lookup */
 function terrainHeight(wx, wz) { return computeHeight(wx, wz); }
 
 /* mesh data */
@@ -516,11 +542,11 @@ rebuildTerrain(0, 0);
 /* sky VAO (empty — uses gl_VertexID) */
 const skyVAO = gl.createVertexArray();
 
-/* ── Rock generation ───────────────────────────────────── */
-const ROCK_COUNT = 500;
+/* ── Rock generation (streamed per chunk) ──────────────── */
 const ROCK_LATS = 5, ROCK_LONS = 8;
 const TRIS_PER_ROCK = ROCK_LATS * ROCK_LONS * 2;
 const FLAT_VERTS_PER_ROCK = TRIS_PER_ROCK * 3;
+const MAX_ROCKS = 800;
 
 /* seeded RNG */
 function mkRng(seed) {
@@ -531,92 +557,80 @@ function mkRng(seed) {
   };
 }
 
-const rockBuf = new Float32Array(ROCK_COUNT * FLAT_VERTS_PER_ROCK * 6);
+const rockBuf = new Float32Array(MAX_ROCKS * FLAT_VERTS_PER_ROCK * 6);
 let rockVertTotal = 0;
-const rocks = []; /* per-rock metadata for hit testing */
+const rocks = [];
+const brokenRockKeys = new Set();
 
-for (let ri = 0; ri < ROCK_COUNT; ri++) {
-  const rng = mkRng(ri * 7919 + 37);
-  const vertStart = rockVertTotal;
-
-  /* random world position */
-  const wx = (rng() - 0.5) * SIZE * 0.88;
-  const wz = (rng() - 0.5) * SIZE * 0.88;
-  const groundH = terrainHeight(wx, wz);
-
-  /* size: bias toward smaller rocks */
-  const raw = rng();
-  const scale = 0.2 + raw * raw * 2.5;
-  const scaleY = scale * (0.4 + rng() * 0.6);
-
-  /* random Y rotation */
-  const rotY = rng() * Math.PI * 2;
-  const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
-
-  /* generate deformed sphere positions */
-  const pts = [];
-  for (let lat = 0; lat <= ROCK_LATS; lat++) {
-    const theta = Math.PI * lat / ROCK_LATS;
-    for (let lon = 0; lon <= ROCK_LONS; lon++) {
-      const phi = 2 * Math.PI * lon / ROCK_LONS;
-      const r = 0.45 + 0.55 * rng();
-      let lx = r * Math.sin(theta) * Math.cos(phi);
-      let ly = r * Math.cos(theta);
-      let lz = r * Math.sin(theta) * Math.sin(phi);
-      /* flatten bottom so it sits on ground */
-      if (ly < 0) ly *= 0.3;
-      /* scale */
-      lx *= scale; ly *= scaleY; lz *= scale;
-      /* rotate around Y */
-      const rx = lx * cosR - lz * sinR;
-      const rz = lx * sinR + lz * cosR;
-      /* translate — sink slightly into terrain */
-      pts.push(rx + wx, ly + groundH - scale * 0.12, rz + wz);
+function generateChunkRocks(cx, cz) {
+  const rng = mkRng(cx * 79193 + cz * 29123 + 3701);
+  const count = 4 + Math.floor(rng() * 8);
+  for (let ri = 0; ri < count && rocks.length < MAX_ROCKS; ri++) {
+    const rKey = cx + ',' + cz + ',r' + ri;
+    const wx = cx * CHUNK + rng() * CHUNK;
+    const wz = cz * CHUNK + rng() * CHUNK;
+    if (brokenRockKeys.has(rKey)) { rng(); rng(); rng(); continue; }
+    const groundH = terrainHeight(wx, wz);
+    const raw = rng();
+    const scale = 0.2 + raw * raw * 2.5;
+    const scaleY = scale * (0.4 + rng() * 0.6);
+    const rotY = rng() * Math.PI * 2;
+    const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+    const vertStart = rockVertTotal;
+    const pts = [];
+    for (let lat = 0; lat <= ROCK_LATS; lat++) {
+      const theta = Math.PI * lat / ROCK_LATS;
+      for (let lon = 0; lon <= ROCK_LONS; lon++) {
+        const phi = 2 * Math.PI * lon / ROCK_LONS;
+        const r = 0.45 + 0.55 * rng();
+        let lx = r * Math.sin(theta) * Math.cos(phi);
+        let ly = r * Math.cos(theta);
+        let lz = r * Math.sin(theta) * Math.sin(phi);
+        if (ly < 0) ly *= 0.3;
+        lx *= scale; ly *= scaleY; lz *= scale;
+        const rx = lx * cosR - lz * sinR;
+        const rz = lx * sinR + lz * cosR;
+        pts.push(rx + wx, ly + groundH - scale * 0.12, rz + wz);
+      }
     }
-  }
-
-  /* emit triangles with per-face (flat) normals */
-  const stride = ROCK_LONS + 1;
-  for (let lat = 0; lat < ROCK_LATS; lat++) {
-    for (let lon = 0; lon < ROCK_LONS; lon++) {
-      const a = lat * stride + lon;
-      const b = a + stride;
-      const tris = [[a, a+1, b], [a+1, b+1, b]];
-      for (const tri of tris) {
-        const p0 = [pts[tri[0]*3], pts[tri[0]*3+1], pts[tri[0]*3+2]];
-        const p1 = [pts[tri[1]*3], pts[tri[1]*3+1], pts[tri[1]*3+2]];
-        const p2 = [pts[tri[2]*3], pts[tri[2]*3+1], pts[tri[2]*3+2]];
-        const e1 = [p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
-        const e2 = [p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]];
-        const n = cross(e1, e2);
-        const nl = Math.hypot(n[0], n[1], n[2]) || 1;
-        n[0] /= nl; n[1] /= nl; n[2] /= nl;
-        for (const p of [p0, p1, p2]) {
-          const o = rockVertTotal * 6;
-          rockBuf[o]   = p[0]; rockBuf[o+1] = p[1]; rockBuf[o+2] = p[2];
-          rockBuf[o+3] = n[0]; rockBuf[o+4] = n[1]; rockBuf[o+5] = n[2];
-          rockVertTotal++;
+    const stride = ROCK_LONS + 1;
+    for (let lat = 0; lat < ROCK_LATS; lat++) {
+      for (let lon = 0; lon < ROCK_LONS; lon++) {
+        const a = lat * stride + lon;
+        const b = a + stride;
+        const tris = [[a, a+1, b], [a+1, b+1, b]];
+        for (const tri of tris) {
+          const p0 = [pts[tri[0]*3], pts[tri[0]*3+1], pts[tri[0]*3+2]];
+          const p1 = [pts[tri[1]*3], pts[tri[1]*3+1], pts[tri[1]*3+2]];
+          const p2 = [pts[tri[2]*3], pts[tri[2]*3+1], pts[tri[2]*3+2]];
+          const e1 = [p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
+          const e2 = [p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]];
+          const n = cross(e1, e2);
+          const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+          n[0] /= nl; n[1] /= nl; n[2] /= nl;
+          for (const p of [p0, p1, p2]) {
+            const o = rockVertTotal * 6;
+            rockBuf[o]   = p[0]; rockBuf[o+1] = p[1]; rockBuf[o+2] = p[2];
+            rockBuf[o+3] = n[0]; rockBuf[o+4] = n[1]; rockBuf[o+5] = n[2];
+            rockVertTotal++;
+          }
         }
       }
     }
+    rocks.push({
+      x: wx, y: groundH + scaleY * 0.3, z: wz,
+      radius: Math.max(scale, scaleY) * 0.85,
+      vertStart, vertCount: rockVertTotal - vertStart, alive: true,
+      rockKey: rKey,
+    });
   }
-
-  /* store bounding sphere for hit testing */
-  rocks.push({
-    x: wx, y: groundH + scaleY * 0.3, z: wz,
-    radius: Math.max(scale, scaleY) * 0.85,
-    vertStart, vertCount: rockVertTotal - vertStart, alive: true
-  });
 }
 
-/* upload rocks to GPU */
 const rockVAO = gl.createVertexArray();
 gl.bindVertexArray(rockVAO);
-
 const rockVBO = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, rockVBO);
-gl.bufferData(gl.ARRAY_BUFFER, rockBuf.subarray(0, rockVertTotal * 6), gl.STATIC_DRAW);
-
+gl.bufferData(gl.ARRAY_BUFFER, MAX_ROCKS * FLAT_VERTS_PER_ROCK * 6 * 4, gl.DYNAMIC_DRAW);
 gl.enableVertexAttribArray(0);
 gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
 gl.enableVertexAttribArray(1);
@@ -656,8 +670,8 @@ gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
 gl.enableVertexAttribArray(1);
 gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
 
-/* ── Enemy generation ──────────────────────────────────── */
-const ENEMY_COUNT = 80;
+/* ── Enemy generation (streamed per chunk) ─────────────── */
+const MAX_ENEMIES = 200;
 const enemies = [];
 const enemyTemplate = new Float32Array([
   ...makeBox(-0.3, 0.0, -0.2,  0.3, 1.5, 0.2),   /* body */
@@ -667,85 +681,75 @@ const enemyTemplate = new Float32Array([
 ]);
 const VERTS_PER_ENEMY = enemyTemplate.length / 6;
 
-const enemyBuf = new Float32Array(ENEMY_COUNT * enemyTemplate.length);
+const enemyBuf = new Float32Array(MAX_ENEMIES * enemyTemplate.length);
 let enemyVertTotal = 0;
+const spawnedEnemyChunks = new Set();
+const killedEnemyKeys = new Set();
 
-for (let ei = 0; ei < ENEMY_COUNT; ei++) {
-  const rng = mkRng(ei * 6311 + 131);
-  const ex = (rng() - 0.5) * SIZE * 0.80;
-  const ez = (rng() - 0.5) * SIZE * 0.80;
-  if (Math.hypot(ex, ez) < 25) { continue; }
-  const ey = terrainHeight(ex, ez);
-  const vertStart = enemyVertTotal;
-
-  for (let v = 0; v < VERTS_PER_ENEMY; v++) {
-    const si = v * 6, di = enemyVertTotal * 6;
-    enemyBuf[di]   = enemyTemplate[si]   + ex;
-    enemyBuf[di+1] = enemyTemplate[si+1] + ey;
-    enemyBuf[di+2] = enemyTemplate[si+2] + ez;
-    enemyBuf[di+3] = enemyTemplate[si+3];
-    enemyBuf[di+4] = enemyTemplate[si+4];
-    enemyBuf[di+5] = enemyTemplate[si+5];
-    enemyVertTotal++;
+function spawnChunkEnemies(cx, cz, key) {
+  const rng = mkRng(cx * 51397 + cz * 29123 + 77777);
+  const city = nearestCity(cx * CHUNK + CHUNK / 2, cz * CHUNK + CHUNK / 2);
+  const inCity = city && city.dist2 < 2500;
+  const count = inCity ? 3 + Math.floor(rng() * 3) : 1 + Math.floor(rng() * 2);
+  for (let i = 0; i < count && enemies.length < MAX_ENEMIES; i++) {
+    const eKey = cx + ',' + cz + ',' + i;
+    const ex = cx * CHUNK + rng() * CHUNK;
+    const ez = cz * CHUNK + rng() * CHUNK;
+    const f1 = rng(), f2 = rng();
+    if (killedEnemyKeys.has(eKey)) continue;
+    if (Math.hypot(ex, ez) < 25) continue;
+    const ey = terrainHeight(ex, ez);
+    enemies.push({
+      x: ex, y: ey + 0.95, z: ez, groundY: ey, radius: 1.2,
+      alive: true, state: "wander",
+      facing: f1 * Math.PI * 2,
+      wanderAngle: f2 * Math.PI * 2,
+      wanderTimer: 1 + Math.random() * 3,
+      atkCooldown: 0,
+      chunkKey: key, enemyKey: eKey,
+    });
   }
-
-  enemies.push({
-    x: ex, y: ey + 0.95, z: ez, groundY: ey, radius: 1.2,
-    vertStart, vertCount: enemyVertTotal - vertStart, alive: true,
-    state: "wander",
-    facing: rng() * Math.PI * 2,
-    wanderAngle: rng() * Math.PI * 2,
-    wanderTimer: 1 + rng() * 3,
-    atkCooldown: 0,
-  });
 }
 
-/* city enemies — spawn 25 inside the city */
-for (let ci = 0; ci < 25; ci++) {
-  const rng = mkRng(ci * 8831 + 997);
-  const ex = CITY_CX + (rng() - 0.5) * 50;
-  const ez = CITY_CZ + (rng() - 0.5) * 50;
-  const ey = terrainHeight(ex, ez);
-  const vertStart = enemyVertTotal;
-  for (let v = 0; v < VERTS_PER_ENEMY; v++) {
-    const si = v * 6, di = enemyVertTotal * 6;
-    enemyBuf[di]   = enemyTemplate[si]   + ex;
-    enemyBuf[di+1] = enemyTemplate[si+1] + ey;
-    enemyBuf[di+2] = enemyTemplate[si+2] + ez;
-    enemyBuf[di+3] = enemyTemplate[si+3];
-    enemyBuf[di+4] = enemyTemplate[si+4];
-    enemyBuf[di+5] = enemyTemplate[si+5];
-    enemyVertTotal++;
-  }
-  enemies.push({
-    x: ex, y: ey + 0.95, z: ez, groundY: ey, radius: 1.2,
-    vertStart, vertCount: enemyVertTotal - vertStart, alive: true,
-    state: "wander", facing: rng() * Math.PI * 2,
-    wanderAngle: rng() * Math.PI * 2, wanderTimer: 1 + rng() * 3,
-    atkCooldown: 0,
-  });
+function streamEnemies(pcx, pcz) {
+  const inRange = new Set();
+  for (let dz = -STREAM_R; dz <= STREAM_R; dz++)
+    for (let dx = -STREAM_R; dx <= STREAM_R; dx++)
+      inRange.add((pcx + dx) + ',' + (pcz + dz));
+  for (let i = enemies.length - 1; i >= 0; i--)
+    if (!inRange.has(enemies[i].chunkKey)) enemies.splice(i, 1);
+  for (const k of spawnedEnemyChunks)
+    if (!inRange.has(k)) spawnedEnemyChunks.delete(k);
+  for (let dz = -STREAM_R; dz <= STREAM_R; dz++)
+    for (let dx = -STREAM_R; dx <= STREAM_R; dx++) {
+      const cx = pcx + dx, cz = pcz + dz;
+      const key = cx + ',' + cz;
+      if (spawnedEnemyChunks.has(key)) continue;
+      spawnedEnemyChunks.add(key);
+      spawnChunkEnemies(cx, cz, key);
+    }
 }
 
 const enemyVAO = gl.createVertexArray();
 gl.bindVertexArray(enemyVAO);
 const enemyVBO = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
-gl.bufferData(gl.ARRAY_BUFFER, enemyBuf.subarray(0, enemyVertTotal * 6), gl.DYNAMIC_DRAW);
+gl.bufferData(gl.ARRAY_BUFFER, MAX_ENEMIES * enemyTemplate.length * 4, gl.DYNAMIC_DRAW);
 gl.enableVertexAttribArray(0);
 gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
 gl.enableVertexAttribArray(1);
 gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
 
-/* ── Tree generation (forest patches via noise) ────────── */
+/* ── Tree generation (streamed per chunk) ──────────────── */
 const TRUNK_TEMPLATE = new Float32Array(makeBox(-0.12, 0, -0.12, 0.12, 3.5, 0.12));
 const CANOPY_TEMPLATE = new Float32Array([
   ...makeBox(-1.5, 2.5, -1.5, 1.5, 4.0, 1.5),
   ...makeBox(-1.1, 4.0, -1.1, 1.1, 5.2, 1.1),
   ...makeBox(-0.6, 5.2, -0.6, 0.6, 6.2, 0.6),
 ]);
-const TRUNK_V = TRUNK_TEMPLATE.length / 6;   /* 36 */
-const CANOPY_V = CANOPY_TEMPLATE.length / 6; /* 108 */
-const MAX_TREES = 600;
+const TRUNK_V = TRUNK_TEMPLATE.length / 6;
+const CANOPY_V = CANOPY_TEMPLATE.length / 6;
+const MAX_TREES = 800;
 
 const trunkArr  = new Float32Array(MAX_TREES * TRUNK_V * 6);
 const canopyArr = new Float32Array(MAX_TREES * CANOPY_V * 6);
@@ -765,91 +769,80 @@ function placeTreeVerts(template, vCount, buf, vertOffset, wx, wz, gY, scale, co
   }
 }
 
-for (let ti = 0; ti < 4000 && treeCount < MAX_TREES; ti++) {
-  const rng = mkRng(ti * 4931 + 271);
-  const tx = (rng() - 0.5) * SIZE * 0.88;
-  const tz = (rng() - 0.5) * SIZE * 0.88;
-
-  /* forest mask — noise creates organic patches */
-  if (fbm(tx * 0.012 + 200, tz * 0.012 + 200, 3) < 0.44) continue;
-
-  /* skip spawn area and city */
-  if (Math.hypot(tx, tz) < 30) continue;
-  if (Math.hypot(tx - CITY_CX, tz - CITY_CZ) < 40) continue;
-
-  const gY = terrainHeight(tx, tz);
-
-  /* below treeline */
-  if (gY > 28) continue;
-
-  /* reject steep slopes */
-  const hL = terrainHeight(tx - 1, tz), hR = terrainHeight(tx + 1, tz);
-  const hD = terrainHeight(tx, tz - 1), hU = terrainHeight(tx, tz + 1);
-  if (Math.hypot(hR - hL, hU - hD) > 1.2) continue;
-
-  const scale = 0.6 + rng() * 0.7;
-  const rotY = rng() * Math.PI * 2;
-  const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
-
-  placeTreeVerts(TRUNK_TEMPLATE, TRUNK_V, trunkArr, trunkVertCount, tx, tz, gY, scale, cosR, sinR);
-  trunkVertCount += TRUNK_V;
-
-  placeTreeVerts(CANOPY_TEMPLATE, CANOPY_V, canopyArr, canopyVertCount, tx, tz, gY, scale, cosR, sinR);
-  canopyVertCount += CANOPY_V;
-
-  treeCount++;
+function generateChunkTrees(cx, cz) {
+  const rng = mkRng(cx * 49311 + cz * 27109 + 5557);
+  for (let i = 0; i < 25 && treeCount < MAX_TREES; i++) {
+    const tx = cx * CHUNK + rng() * CHUNK;
+    const tz = cz * CHUNK + rng() * CHUNK;
+    if (fbm(tx * 0.012 + 200, tz * 0.012 + 200, 3) < 0.44) continue;
+    if (Math.hypot(tx, tz) < 30) continue;
+    const city = nearestCity(tx, tz);
+    if (city && city.dist2 < 1600) continue;
+    const gY = terrainHeight(tx, tz);
+    if (gY > 28) continue;
+    const hL = terrainHeight(tx - 1, tz), hR = terrainHeight(tx + 1, tz);
+    const hD = terrainHeight(tx, tz - 1), hU = terrainHeight(tx, tz + 1);
+    if (Math.hypot(hR - hL, hU - hD) > 1.2) continue;
+    const scale = 0.6 + rng() * 0.7;
+    const rotY = rng() * Math.PI * 2;
+    const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+    placeTreeVerts(TRUNK_TEMPLATE, TRUNK_V, trunkArr, trunkVertCount, tx, tz, gY, scale, cosR, sinR);
+    trunkVertCount += TRUNK_V;
+    placeTreeVerts(CANOPY_TEMPLATE, CANOPY_V, canopyArr, canopyVertCount, tx, tz, gY, scale, cosR, sinR);
+    canopyVertCount += CANOPY_V;
+    treeCount++;
+  }
 }
 
-/* combine into one buffer: [all trunks | all canopy] */
-const treeBuf = new Float32Array(trunkVertCount * 6 + canopyVertCount * 6);
-treeBuf.set(trunkArr.subarray(0, trunkVertCount * 6));
-treeBuf.set(canopyArr.subarray(0, canopyVertCount * 6), trunkVertCount * 6);
-
+const treeComboArr = new Float32Array(MAX_TREES * (TRUNK_V + CANOPY_V) * 6);
 const treeVAO = gl.createVertexArray();
 gl.bindVertexArray(treeVAO);
 const treeVBO = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, treeVBO);
-gl.bufferData(gl.ARRAY_BUFFER, treeBuf, gl.STATIC_DRAW);
+gl.bufferData(gl.ARRAY_BUFFER, treeComboArr.byteLength, gl.DYNAMIC_DRAW);
 gl.enableVertexAttribArray(0);
 gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
 gl.enableVertexAttribArray(1);
 gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
 
-/* ── City building generation ──────────────────────────── */
-const CITY_EXTENT = 22;
-const BLOCK = 7;
-const bldgVerts = [];
+/* ── City building generation (streamed per chunk) ─────── */
+const MAX_BLDG_VERTS = 15000;
+const bldgBuf = new Float32Array(MAX_BLDG_VERTS * 6);
+let bldgVertTotal = 0;
 
-for (let gx = -CITY_EXTENT; gx <= CITY_EXTENT; gx += BLOCK) {
-  for (let gz = -CITY_EXTENT; gz <= CITY_EXTENT; gz += BLOCK) {
-    /* skip some blocks for plazas / open space */
-    if (hashN(gx + 50, gz + 50) < 0.15) continue;
-
-    /* jitter position within cell */
-    const jx = (hashN(gx + 10, gz) - 0.5) * 1.5;
-    const jz = (hashN(gx, gz + 10) - 0.5) * 1.5;
-    const bx = CITY_CX + gx + jx;
-    const bz = CITY_CZ + gz + jz;
-    const gY = terrainHeight(bx, bz);
-
-    /* random building dimensions */
-    const bw = 1.8 + hashN(gx + 20, gz) * 3.2;
-    const bd = 1.8 + hashN(gx, gz + 20) * 3.2;
-    const tallness = hashN(gx + 30, gz + 30);
-    const bh = 4 + tallness * tallness * 18;
-
-    bldgVerts.push(...makeBox(bx - bw, gY, bz - bd, bx + bw, gY + bh, bz + bd));
+function generateChunkBuildings(cx, cz) {
+  const chunkWX = cx * CHUNK, chunkWZ = cz * CHUNK;
+  const city = nearestCity(chunkWX + CHUNK / 2, chunkWZ + CHUNK / 2);
+  if (!city || city.dist2 > 2500) return;
+  const BLOCK = 7;
+  const startX = Math.floor(chunkWX / BLOCK) * BLOCK;
+  const startZ = Math.floor(chunkWZ / BLOCK) * BLOCK;
+  for (let gx = startX; gx < chunkWX + CHUNK; gx += BLOCK) {
+    for (let gz = startZ; gz < chunkWZ + CHUNK; gz += BLOCK) {
+      const d2 = (gx - city.x) ** 2 + (gz - city.z) ** 2;
+      if (d2 > 2000) continue;
+      if (hashN(gx + 50, gz + 50) < 0.15) continue;
+      const jx = (hashN(gx + 10, gz) - 0.5) * 1.5;
+      const jz = (hashN(gx, gz + 10) - 0.5) * 1.5;
+      const bx = gx + jx, bz = gz + jz;
+      const gY = terrainHeight(bx, bz);
+      const bw = 1.8 + hashN(gx + 20, gz) * 3.2;
+      const bd = 1.8 + hashN(gx, gz + 20) * 3.2;
+      const tallness = hashN(gx + 30, gz + 30);
+      const bh = 4 + tallness * tallness * 18;
+      if (bldgVertTotal + 36 > MAX_BLDG_VERTS) return;
+      const box = makeBox(bx - bw, gY, bz - bd, bx + bw, gY + bh, bz + bd);
+      bldgBuf.set(box, bldgVertTotal * 6);
+      bldgVertTotal += 36;
+    }
   }
 }
-
-const bldgData = new Float32Array(bldgVerts);
-const bldgVertCount = bldgData.length / 6;
 
 const bldgVAO = gl.createVertexArray();
 gl.bindVertexArray(bldgVAO);
 const bldgVBO = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, bldgVBO);
-gl.bufferData(gl.ARRAY_BUFFER, bldgData, gl.STATIC_DRAW);
+gl.bufferData(gl.ARRAY_BUFFER, MAX_BLDG_VERTS * 6 * 4, gl.DYNAMIC_DRAW);
 gl.enableVertexAttribArray(0);
 gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
 gl.enableVertexAttribArray(1);
@@ -952,11 +945,7 @@ function tryHitEnemy() {
     const e = enemies[bestIdx];
     e.alive = false;
     kills++;
-    const start = e.vertStart * 6;
-    const count = e.vertCount * 6;
-    for (let i = start; i < start + count; i++) enemyBuf[i] = 0;
-    gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
-    gl.bufferSubData(gl.ARRAY_BUFFER, start * 4, enemyBuf.subarray(start, start + count));
+    if (e.enemyKey) killedEnemyKeys.add(e.enemyKey);
   }
 }
 
@@ -986,6 +975,7 @@ function tryBreakRock() {
   if (bestIdx >= 0) {
     const r = rocks[bestIdx];
     r.alive = false;
+    if (r.rockKey) brokenRockKeys.add(r.rockKey);
     const start = r.vertStart * 6;
     const count = r.vertCount * 6;
     for (let i = start; i < start + count; i++) rockBuf[i] = 0;
@@ -1008,12 +998,11 @@ const ATTACK_DMG   = 8;
 /* no boundary limit — world is infinite */
 
 function updateEnemies(dt) {
-  let needUpload = false;
+  enemyVertTotal = 0;
   for (const e of enemies) {
     if (!e.alive) continue;
     const dx = cam.x - e.x, dz = cam.z - e.z;
-    const distSq = dx * dx + dz * dz;
-    const dist = Math.sqrt(distSq);
+    const dist = Math.sqrt(dx * dx + dz * dz);
 
     /* state transitions */
     if (e.state === "wander" && dist < DETECT_RANGE) {
@@ -1024,7 +1013,6 @@ function updateEnemies(dt) {
       e.wanderAngle = e.facing;
     }
 
-    /* movement */
     let moveX = 0, moveZ = 0;
     if (e.state === "wander") {
       e.wanderTimer -= dt;
@@ -1036,14 +1024,12 @@ function updateEnemies(dt) {
       moveZ = Math.sin(e.wanderAngle) * WANDER_SPEED * dt;
       e.facing = e.wanderAngle;
     } else {
-      /* chase */
       if (dist > ATTACK_RANGE) {
         const inv = CHASE_SPEED * dt / dist;
         moveX = dx * inv;
         moveZ = dz * inv;
         e.facing = Math.atan2(dz, dx);
       }
-      /* attack */
       e.atkCooldown -= dt;
       if (dist < ATTACK_RANGE && e.atkCooldown <= 0) {
         hp = Math.max(0, hp - ATTACK_DMG);
@@ -1052,33 +1038,71 @@ function updateEnemies(dt) {
       }
     }
 
-    /* apply movement */
     e.x += moveX;
     e.z += moveZ;
     e.groundY = terrainHeight(e.x, e.z);
     e.y = e.groundY + 0.95;
 
-    /* rebuild vertices: rotate template by facing, then translate */
+    /* write vertices at next available slot */
     const cf = Math.cos(e.facing), sf = Math.sin(e.facing);
     for (let v = 0; v < VERTS_PER_ENEMY; v++) {
-      const si = v * 6, di = (e.vertStart + v) * 6;
+      const si = v * 6, di = enemyVertTotal * 6;
       const lx = enemyTemplate[si], lz = enemyTemplate[si + 2];
       enemyBuf[di]     = lx * cf - lz * sf + e.x;
       enemyBuf[di + 1] = enemyTemplate[si + 1] + e.groundY;
       enemyBuf[di + 2] = lx * sf + lz * cf + e.z;
-      /* rotate normals too */
       const nx = enemyTemplate[si + 3], nz = enemyTemplate[si + 5];
       enemyBuf[di + 3] = nx * cf - nz * sf;
       enemyBuf[di + 4] = enemyTemplate[si + 4];
       enemyBuf[di + 5] = nx * sf + nz * cf;
+      enemyVertTotal++;
     }
-    needUpload = true;
   }
-  if (needUpload) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, enemyVBO);
+  if (enemyVertTotal > 0)
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, enemyBuf.subarray(0, enemyVertTotal * 6));
-  }
 }
+
+/* ── World object streaming ────────────────────────────── */
+function rebuildWorldObjects() {
+  const pcx = Math.floor(cam.x / CHUNK);
+  const pcz = Math.floor(cam.z / CHUNK);
+  if (pcx === lastStreamCX && pcz === lastStreamCZ) return;
+  lastStreamCX = pcx; lastStreamCZ = pcz;
+
+  /* reset static objects */
+  treeCount = 0; trunkVertCount = 0; canopyVertCount = 0;
+  rockVertTotal = 0; rocks.length = 0;
+  bldgVertTotal = 0;
+
+  for (let dz = -STREAM_R; dz <= STREAM_R; dz++)
+    for (let dx = -STREAM_R; dx <= STREAM_R; dx++) {
+      const cx = pcx + dx, cz = pcz + dz;
+      generateChunkTrees(cx, cz);
+      generateChunkRocks(cx, cz);
+      generateChunkBuildings(cx, cz);
+    }
+
+  /* upload tree buffer (combined trunk + canopy) */
+  treeComboArr.set(trunkArr.subarray(0, trunkVertCount * 6), 0);
+  treeComboArr.set(canopyArr.subarray(0, canopyVertCount * 6), trunkVertCount * 6);
+  gl.bindBuffer(gl.ARRAY_BUFFER, treeVBO);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, treeComboArr.subarray(0, (trunkVertCount + canopyVertCount) * 6));
+
+  /* upload rock buffer */
+  gl.bindBuffer(gl.ARRAY_BUFFER, rockVBO);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, rockBuf.subarray(0, rockVertTotal * 6));
+
+  /* upload building buffer */
+  gl.bindBuffer(gl.ARRAY_BUFFER, bldgVBO);
+  if (bldgVertTotal > 0)
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, bldgBuf.subarray(0, bldgVertTotal * 6));
+
+  /* stream enemies */
+  streamEnemies(pcx, pcz);
+}
+
+rebuildWorldObjects();
 
 /* ── Render loop ────────────────────────────────────────── */
 let lastT = 0, frameCount = 0, fpsAccum = 0, fps = 0;
@@ -1110,6 +1134,9 @@ function frame(t) {
   /* rebuild terrain mesh when player moves far from center */
   if (Math.hypot(cam.x - meshCX, cam.z - meshCZ) > REBUILD_DIST)
     rebuildTerrain(cam.x, cam.z);
+
+  /* stream world objects (trees, rocks, buildings, enemies) */
+  rebuildWorldObjects();
 
   /* stick to terrain */
   const groundY = terrainHeight(cam.x, cam.z);
@@ -1162,7 +1189,7 @@ function frame(t) {
   gl.uniform3f(bUniEye, cam.x, cam.y, cam.z);
   gl.uniform3fv(bUniSun, sunDir);
   gl.bindVertexArray(bldgVAO);
-  gl.drawArrays(gl.TRIANGLES, 0, bldgVertCount);
+  gl.drawArrays(gl.TRIANGLES, 0, bldgVertTotal);
 
   /* ── draw trees ── */
   gl.useProgram(treeProg);
@@ -1245,7 +1272,7 @@ function frame(t) {
   /* HUD */
   const hpCol = hp > 50 ? "rgba(60,140,255,0.8)" : hp > 25 ? "rgba(255,160,80,0.9)" : "rgba(255,50,50,1)";
   hudEl.innerHTML =
-    `<span style="color:${hpCol}">HP ${hp}</span>  kills ${kills}/${enemies.length}  pos ${cam.x.toFixed(0)}, ${cam.z.toFixed(0)}  fps ${fps}`;
+    `<span style="color:${hpCol}">HP ${hp}</span>  kills ${kills}  pos ${cam.x.toFixed(0)}, ${cam.z.toFixed(0)}  fps ${fps}`;
 }
 requestAnimationFrame(frame);
 </script>

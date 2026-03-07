@@ -35,6 +35,7 @@ You are a changeset review dispatcher. Your job is to identify what changed and 
 | `edmund_game/**` | `nugget-invasion-reviewer` |
 | `beatrix_game/**` | `axolotl-reviewer` |
 | `fps/**` | `travellers-reviewer` |
+| `cat_invasion/**` | `cat-invasion-reviewer` |
 | `css/style.css` | `code-reviewer` (convention check) |
 | `tests.html` | `planet-shader-reviewer` (invariant alignment) |
 

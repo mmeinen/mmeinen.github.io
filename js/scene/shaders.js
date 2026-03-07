@@ -26,7 +26,9 @@ const fsSource = `
   uniform vec4 u_planet3;
   uniform vec4 u_planet4;
   uniform vec4 u_planet5;
+  uniform vec4 u_planet6;
   uniform sampler2D u_bbTex;
+  uniform sampler2D u_noiseTex;
   uniform vec3  u_detPos[6];
   uniform float u_detAge[6];
   uniform int   u_detCount;
@@ -85,13 +87,31 @@ const fsSource = `
     return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
   }
 
+  float noiseLUT(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec3 sf = f * f * (3.0 - 2.0 * f);
+    vec2 offs0 = (i.xy + sf.xy + 0.5 + i.z * vec2(17.0, 59.0)) / 256.0;
+    vec2 offs1 = offs0 + vec2(17.0, 59.0) / 256.0;
+    float s0 = texture2D(u_noiseTex, offs0).r;
+    float s1 = texture2D(u_noiseTex, offs1).r;
+    return mix(s0, s1, sf.z);
+  }
+
+  float noiseLUT2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 sf = f * f * (3.0 - 2.0 * f);
+    return texture2D(u_noiseTex, (i + sf + 0.5) / 256.0).r;
+  }
+
   float fbm(vec3 p) {
     float v = 0.0, a = 0.5;
     mat3 rot = mat3(0.00, 0.80, 0.60,
                     -0.80, 0.36, -0.48,
                     -0.60, -0.48, 0.64);
     for (int i = 0; i < 4; i++) {
-      v += a * vnoise3(p);
+      v += a * noiseLUT(p);
       if (i >= 2 && u_camDist < 50.0) break;
       p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
       a *= 0.5;
@@ -149,8 +169,8 @@ const fsSource = `
     float tAngle = fastAtan2(hitPos.z, hitPos.x) + flow;
     vec3 diskUV = vec3(cos(tAngle) * 3.0, sin(tAngle) * 3.0, logR * 5.0);
 
-    float warpX = vnoise3(diskUV * 0.7);
-    float warpY = (u_camDist < 50.0) ? warpX * 0.7 : vnoise3(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
+    float warpX = noiseLUT(diskUV * 0.7);
+    float warpY = (u_camDist < 50.0) ? warpX * 0.7 : noiseLUT(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
     vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * 1.5;
 
     float density = fbm(warpedUV);
@@ -164,7 +184,7 @@ const fsSource = `
     float cloud;
     if (u_camDist >= 50.0) {
       vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
-      float backDensity = vnoise3((warpedUV + parallax) * 0.6);
+      float backDensity = noiseLUT((warpedUV + parallax) * 0.6);
       float backTau = max(backDensity - 0.1, 0.0) * 6.0;
       float backCloud = 1.0 - exp(-backTau);
       cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
@@ -213,8 +233,8 @@ const fsSource = `
     float noiseAge = min(age, 3.0);
     vec3 nc1 = dir * 4.0 + vec3(noiseAge * 1.5, noiseAge * 0.8, noiseAge * 1.2);
     vec3 nc2 = dir * 10.0 - vec3(noiseAge * 0.7, noiseAge * 1.4, noiseAge * 0.5);
-    float n1 = vnoise3(nc1);
-    float n2 = vnoise3(nc2);
+    float n1 = noiseLUT(nc1);
+    float n2 = noiseLUT(nc2);
     float structure = n1 * 0.6 + n2 * 0.4;
 
     float cloudPhase = smoothstep(1.5, 4.0, age);
@@ -261,7 +281,7 @@ const fsSource = `
     vec3 col;
     if (idx == 0) {
       float rLon = lon - u_time * 0.12;
-      float turb = vnoise(vec2(lat * 12.0, rLon * 2.5)) * 0.06;
+      float turb = noiseLUT2(vec2(lat * 12.0, rLon * 2.5)) * 0.06;
       float latN = lat + turb;
       float seb = smoothstep(0.168, 0.0, abs(latN + 0.25));
       float neb = smoothstep(0.15, 0.0, abs(latN - 0.18));
@@ -284,7 +304,7 @@ const fsSource = `
       col = mix(col, grsCol, grs * 0.85);
     } else if (idx == 1) {
       float rLon = lon - u_time * 0.10;
-      float turb = vnoise(vec2(lat * 8.0, rLon * 2.0)) * 0.03;
+      float turb = noiseLUT2(vec2(lat * 8.0, rLon * 2.0)) * 0.03;
       float latN = lat + turb;
       float bands = sin(latN * 25.0) * 0.04 + sin(latN * 12.0) * 0.06;
       float ez = exp(-latN * latN * 20.0) * 0.1;
@@ -294,14 +314,14 @@ const fsSource = `
       col = mix(col, vec3(0.62, 0.52, 0.38), smoothstep(0.65, 0.90, -lat) * 0.3);
     } else if (idx == 2) {
       float rLon = lon - u_time * 0.07;
-      float turb = vnoise(vec2(lat * 6.0, rLon * 1.5)) * 0.015;
+      float turb = noiseLUT2(vec2(lat * 6.0, rLon * 1.5)) * 0.015;
       float bands = sin((lat + turb) * 15.0) * 0.015;
       col = vec3(0.67, 0.82, 0.86) + vec3(-0.005, 0.008, 0.008) * bands;
       col += vec3(0.08, 0.06, 0.04) * smoothstep(0.50, 0.85, lat);
       col *= 1.0 - smoothstep(0.88, 1.0, abs(lat)) * 0.15;
     } else if (idx == 3) {
       float rLon = lon - u_time * 0.09;
-      float turb = vnoise(vec2(lat * 10.0, rLon * 2.0)) * 0.04;
+      float turb = noiseLUT2(vec2(lat * 10.0, rLon * 2.0)) * 0.04;
       float latN = lat + turb;
       col = vec3(0.28, 0.45, 0.78);
       col += vec3(0.03, 0.05, 0.06) * (sin(latN * 20.0) * 0.06 + sin(latN * 10.0) * 0.04);
@@ -315,13 +335,13 @@ const fsSource = `
       float cLat = lat + 0.49;
       float cLon = mod(rLon + 0.15 + 3.14159, 6.28318) - 3.14159;
       col += vec3(0.18, 0.18, 0.12) * smoothstep(1.5, 0.0, sqrt(cLat * cLat * 50.0 + cLon * cLon * 20.0));
-      float cirrus = vnoise(vec2(rLon * 4.0, lat * 2.0 + 5.0));
+      float cirrus = noiseLUT2(vec2(rLon * 4.0, lat * 2.0 + 5.0));
       cirrus = smoothstep(0.65, 0.80, cirrus) * 0.12 * smoothstep(0.1, 0.3, abs(lat)) * smoothstep(0.8, 0.5, abs(lat));
       col += vec3(0.15, 0.15, 0.10) * cirrus;
       col += vec3(0.04, 0.04, 0.02) * smoothstep(0.60, 0.85, -lat);
     } else if (idx == 4) {
       float rLon = lon - u_time * 0.003;
-      float turb = vnoise(vec2(lat * 8.0, rLon * 3.0)) * 0.04;
+      float turb = noiseLUT2(vec2(lat * 8.0, rLon * 3.0)) * 0.04;
       float latN = lat + turb;
       float bands = sin(latN * 18.0) * 0.05 + sin(latN * 8.0) * 0.08;
       col = vec3(0.92, 0.85, 0.65) + vec3(-0.02, 0.01, 0.03) * bands;
@@ -330,19 +350,29 @@ const fsSource = `
       col += vec3(-0.01, -0.01, 0.01) * yPat * smoothstep(0.5, 0.0, abs(lat));
     } else if (idx == 5) {
       float rLon = lon - u_time * 0.08;
-      float turb = vnoise(vec2(lat * 10.0, rLon * 3.0)) * 0.05;
+      float turb = noiseLUT2(vec2(lat * 10.0, rLon * 3.0)) * 0.05;
       float latN = lat + turb;
-      float land = vnoise(vec2(rLon * 1.5 + 2.0, latN * 2.0));
-      land += vnoise(vec2(rLon * 3.0 + 5.0, latN * 4.0)) * 0.4;
+      float land = noiseLUT2(vec2(rLon * 1.5 + 2.0, latN * 2.0));
+      land += noiseLUT2(vec2(rLon * 3.0 + 5.0, latN * 4.0)) * 0.4;
       land = smoothstep(0.55, 0.75, land);
-      vec3 ocean = mix(vec3(0.05, 0.15, 0.45), vec3(0.10, 0.28, 0.55), vnoise(vec2(rLon * 4.0, latN * 3.0)));
+      vec3 ocean = mix(vec3(0.05, 0.15, 0.45), vec3(0.10, 0.28, 0.55), noiseLUT2(vec2(rLon * 4.0, latN * 3.0)));
       vec3 landCol = mix(vec3(0.18, 0.38, 0.12), vec3(0.42, 0.32, 0.18), smoothstep(0.2, 0.6, abs(latN)));
       col = mix(ocean, landCol, land);
       float polar = smoothstep(0.70, 0.90, abs(lat));
       col = mix(col, vec3(0.90, 0.92, 0.95), polar);
-      float clouds = vnoise(vec2(rLon * 3.0 + u_time * 0.02, latN * 2.5));
+      float clouds = noiseLUT2(vec2(rLon * 3.0 + u_time * 0.02, latN * 2.5));
       clouds = smoothstep(0.50, 0.70, clouds) * 0.45;
       col = mix(col, vec3(0.95, 0.95, 0.97), clouds);
+    } else if (idx == 6) {
+      float rLon = lon - u_time * 0.06;
+      float turb = noiseLUT2(vec2(lat * 8.0, rLon * 2.5)) * 0.04;
+      float latN = lat + turb;
+      float bands = sin(latN * 15.0) * 0.05 + sin(latN * 7.0) * 0.07;
+      col = mix(vec3(0.72, 0.55, 0.40), vec3(0.50, 0.32, 0.20), clamp(bands + 0.5, 0.0, 1.0));
+      float desert = noiseLUT2(vec2(rLon * 2.0, latN * 3.0));
+      col = mix(col, vec3(0.85, 0.70, 0.45), smoothstep(0.4, 0.7, desert) * 0.4);
+      float polar = smoothstep(0.75, 0.95, abs(lat));
+      col = mix(col, vec3(0.80, 0.75, 0.65), polar * 0.5);
     }
     if (abs(float(idx) - u_hoveredPlanet) < 0.5) {
       vec3 viewDir = normalize(u_camPos - hp);
@@ -378,13 +408,13 @@ const fsSource = `
       arm *= smoothstep(0.0, 0.4, gr) * exp(-gr * 0.35);
       arms += arm;
     }
-    float n = vnoise(vec2(g.x * 3.0, g.y * 3.0)) * 0.5
-            + vnoise(vec2(g.x * 7.0, g.y * 7.0)) * 0.3;
+    float n = noiseLUT2(vec2(g.x * 3.0, g.y * 3.0)) * 0.5
+            + noiseLUT2(vec2(g.x * 7.0, g.y * 7.0)) * 0.3;
     arms *= 0.6 + 0.8 * n;
     float disk = exp(-gr * 0.25) * 0.3;
     float total = (core + arms * 0.7 + disk) * smoothstep(0.95, 0.96, cosA);
     vec3 col = mix(tintArm, tintCore, exp(-gr * 0.5)) * total;
-    float sfr = vnoise(vec2(g.x * 5.0 + 10.0, g.y * 5.0)) * arms;
+    float sfr = noiseLUT2(vec2(g.x * 5.0 + 10.0, g.y * 5.0)) * arms;
     col += vec3(0.8, 0.3, 0.5) * sfr * 0.15;
     return col * bright;
   }
@@ -422,10 +452,10 @@ const fsSource = `
     vec2 g = galaxyProject(rd, dir, scl, 0.0, cosA);
     float gr = length(g);
     float base = exp(-gr * gr * 0.3) * 0.5;
-    float blobs = vnoise(vec2(g.x * 2.5, g.y * 2.5)) * 0.6
-                + vnoise(vec2(g.x * 5.0 + 7.0, g.y * 5.0 + 3.0)) * 0.4;
+    float blobs = noiseLUT2(vec2(g.x * 2.5, g.y * 2.5)) * 0.6
+                + noiseLUT2(vec2(g.x * 5.0 + 7.0, g.y * 5.0 + 3.0)) * 0.4;
     blobs *= exp(-gr * 0.5);
-    float knots = vnoise(vec2(g.x * 8.0 + 20.0, g.y * 8.0));
+    float knots = noiseLUT2(vec2(g.x * 8.0 + 20.0, g.y * 8.0));
     knots = smoothstep(0.55, 0.8, knots) * exp(-gr * 0.4);
     float total = (base + blobs * 0.5) * smoothstep(0.95, 0.96, cosA);
     vec3 col = tint * total;
@@ -437,10 +467,10 @@ const fsSource = `
     vec3 col = vec3(0.0);
     float scale = 4.0;
     vec3 p = rd * scale;
-    vec3 fp = floor(p);
-    for (int dx = -1; dx <= 1; dx++)
-    for (int dy = -1; dy <= 1; dy++)
-    for (int dz = -1; dz <= 1; dz++) {
+    vec3 fp = floor(p - 0.5);
+    for (int dx = 0; dx <= 1; dx++)
+    for (int dy = 0; dy <= 1; dy++)
+    for (int dz = 0; dz <= 1; dz++) {
       vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
       vec4 h1 = hash34(cell);
       if (h1.x > 0.22) continue;
@@ -584,8 +614,8 @@ const fsSource = `
         float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
         float segLen = sqrt(segL2);
         vec3 segMid = 0.5 * (prevPos + pos);
-        for (int p = 0; p < 6; p++) {
-          vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : (p == 4) ? u_planet4 : u_planet5;
+        for (int p = 0; p < 7; p++) {
+          vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : (p == 4) ? u_planet4 : (p == 5) ? u_planet5 : u_planet6;
           vec3 pC = pl.xyz;
           float pr = pl.w;
           vec3 dP = segMid - pC;

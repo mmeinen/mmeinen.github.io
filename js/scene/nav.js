@@ -12,9 +12,10 @@ const PLANET_GM_K=50.0;
 // Thrust
 let thrustPower=1.5;
 const THRUST_MIN=0.2, THRUST_MAX=8.0;
-// Bullet time
-let bulletTime=false;
+// Time scale: default is bullet time (0.03x), "b" toggles fast forward (0.5x)
+let fastForward=false;
 const BULLET_TIME_SCALE=0.03;
+const FAST_FORWARD_SCALE=0.5;
 // Trajectory preview
 const TRAJ_STEPS=100;
 const TRAJ_SIM_DT=0.4;
@@ -22,7 +23,7 @@ const trajArray=new Float32Array(TRAJ_STEPS*3);
 const previewArray=new Float32Array(TRAJ_STEPS*3);
 // Nav camera (spherical orbit around ship)
 let navCamAz=0, navCamEl=0.5;
-let navCamDist=60;
+let navCamDist=3;
 const NAV_CAM_DIST_MIN=15, NAV_CAM_DIST_MAX=200;
 // Cached aim direction (updated each frame from mouse)
 let aimDir=null;
@@ -121,8 +122,8 @@ function enterNavMode(){
   if(spd>0.1){flyFwd[0]=flyVel[0]/spd;flyFwd[1]=0;flyFwd[2]=flyVel[2]/spd;}
   else{flyFwd[0]=0;flyFwd[1]=0;flyFwd[2]=-1;}
   flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
-  navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=60;
-  bulletTime=false;thrustPower=5.0;aimDir=null;
+  navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=3;
+  fastForward=false;thrustPower=5.0;aimDir=null;
   const tNow=simTime;
   for(let i=0;i<6;i++){
     const p=planetData[i],b=0x100+i*16;
@@ -150,7 +151,7 @@ function enterNavMode(){
 
 function exitNavMode(){
   flyMode=false;
-  bulletTime=false;thrusting=false;
+  fastForward=false;thrusting=false;
   missileState='idle';missileTargets.length=0;missiles.length=0;
   for(let i=0;i<6;i++){detSlots[i].active=false;}
   for(let i=0;i<6;i++){
