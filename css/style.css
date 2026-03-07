@@ -53,6 +53,13 @@ body {
   pointer-events: none;
 }
 
+/* Hide title, SPIN, RANGE in nav mode */
+.hud-overlay.nav-active .menu-title-wrap,
+.hud-overlay.nav-active .hud-readout-tl,
+.hud-overlay.nav-active .hud-readout-tr {
+  display: none;
+}
+
 /* HUD data readouts */
 .hud-readout {
   position: absolute;
@@ -201,12 +208,21 @@ body {
    FLY MODE HUD
    ============================================ */
 
-.fly-hud-mode {
+/* Nav-mode bottom-left group: mode label, bullet time, nuke button */
+.fly-nav-group {
   display: none;
   position: absolute;
-  top: max(3vh, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: max(3vh, env(safe-area-inset-bottom, 0px));
+  left: calc(max(3vw, env(safe-area-inset-left, 0px)) + 220px);
+  z-index: 25;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+.fly-nav-group.active { display: flex; }
+
+.fly-hud-mode {
+  display: none;
   z-index: 25;
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   font-weight: 600;
@@ -292,10 +308,6 @@ body {
 
 .fly-bullet-time {
   display: none;
-  position: absolute;
-  top: calc(max(3vh, env(safe-area-inset-top, 0px)) + 50px);
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 25;
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   font-weight: 600;
@@ -317,40 +329,39 @@ body {
   display: block;
 }
 
-/* --- Thrust Slider (Nav mode) --- */
+/* --- Thrust Slider (Nav mode) — horizontal, above speed indicator --- */
 .fly-thrust-slider {
   display: none;
   position: absolute;
-  right: max(3vw, env(safe-area-inset-right, 0px));
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: calc(max(3vh, env(safe-area-inset-bottom, 0px)) + 44px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 25;
-  width: 48px;
-  text-align: center;
   font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   pointer-events: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
-.fly-thrust-slider.active { display: block; }
+.fly-thrust-slider.active { display: flex; }
 
 .thrust-label {
   font-size: 0.7em;
   font-weight: 600;
   letter-spacing: 0.15em;
   color: rgba(80, 160, 255, 0.85);
-  margin-bottom: 2px;
 }
 .thrust-val {
   font-size: 0.85em;
   font-weight: 300;
   letter-spacing: 0.1em;
   color: rgba(170, 210, 255, 0.9);
-  margin-bottom: 8px;
+  min-width: 2.5em;
 }
 .thrust-track {
   position: relative;
-  width: 4px;
-  height: 200px;
-  margin: 0 auto;
+  width: 180px;
+  height: 4px;
   background: rgba(60, 140, 255, 0.12);
   border: 1px solid rgba(60, 140, 255, 0.2);
   border-radius: 2px;
@@ -360,17 +371,17 @@ body {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
+  height: 100%;
   background: rgba(60, 140, 255, 0.25);
-  border-radius: 0 0 2px 2px;
+  border-radius: 2px 0 0 2px;
   pointer-events: none;
 }
 .thrust-handle {
   position: absolute;
-  left: 50%;
-  transform: translate(-50%, 50%);
-  width: 24px;
-  height: 10px;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 24px;
   background: rgba(60, 140, 255, 0.6);
   border: 1px solid rgba(100, 180, 255, 0.7);
   border-radius: 3px;
@@ -382,6 +393,71 @@ body {
   background: rgba(80, 170, 255, 0.8);
   box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
   cursor: grabbing;
+}
+
+
+/* ============================================
+   MISSILE FIRE BUTTON
+   ============================================ */
+
+.missile-fire-btn {
+  display: none;
+  z-index: 25;
+  pointer-events: auto;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 0.85em;
+  letter-spacing: 0.2em;
+  color: rgba(255, 160, 80, 0.6);
+  background: rgba(40, 20, 4, 0.7);
+  border: 1px solid rgba(255, 160, 80, 0.25);
+  border-radius: 4px;
+  padding: 10px 24px;
+  cursor: default;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+/* In nav mode, sits in the nav group */
+.fly-nav-group .missile-fire-btn {
+  position: static;
+  transform: none;
+}
+
+.missile-fire-btn.active {
+  display: block;
+  color: rgba(255, 160, 80, 0.9);
+  border-color: rgba(255, 160, 80, 0.4);
+  cursor: pointer;
+}
+
+.missile-fire-btn.active:hover {
+  color: rgba(255, 180, 100, 1);
+  background: rgba(60, 30, 8, 0.85);
+  border-color: rgba(255, 180, 100, 0.6);
+  box-shadow: 0 0 16px rgba(255, 140, 60, 0.3);
+}
+
+.missile-fire-btn.in-flight {
+  display: block;
+  color: rgba(255, 160, 80, 0.9);
+  border-color: rgba(255, 160, 80, 0.5);
+  cursor: default;
+  animation: nuke-pulse 1s ease-in-out infinite;
+}
+
+.missile-fire-btn.cooldown {
+  display: block;
+  color: rgba(255, 160, 80, 0.4);
+  border-color: rgba(255, 160, 80, 0.15);
+  cursor: default;
+}
+
+.missile-fire-btn.idle-hint {
+  display: block;
+  color: rgba(255, 160, 80, 0.4);
+  cursor: default;
 }
 
 /* ============================================
@@ -414,11 +490,13 @@ body {
   }
 
   /* Nav mode is desktop-only */
+  .fly-nav-group,
   .fly-hud-mode,
   .fly-bullet-time,
   .fly-crosshair,
   .fly-hud-speed,
-  .fly-thrust-slider {
+  .fly-thrust-slider,
+  .missile-fire-btn {
     display: none !important;
   }
 

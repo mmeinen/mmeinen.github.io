@@ -43,8 +43,10 @@
        </div>
 
        <!-- Nav mode HUD — hidden until nav mode active -->
-      <div class="fly-hud-mode" id="fly-hud-mode">NAVIGATION MODE</div>
-      <div class="fly-bullet-time" id="fly-bullet-time">BULLET TIME</div>
+      <div class="fly-nav-group" id="fly-nav-group">
+        <div class="fly-hud-mode" id="fly-hud-mode">NAVIGATION MODE</div>
+        <div class="fly-bullet-time" id="fly-bullet-time">BULLET TIME</div>
+      </div>
       <div class="fly-crosshair" id="fly-crosshair"></div>
       <div class="fly-hud-speed" id="fly-hud-speed">
         <span class="readout-label">SPD</span> <span id="fly-spd">0.0</span>
@@ -79,10 +81,16 @@
        <div class="planet-label" id="planet-label-5" data-planet="5">
          <span class="pl-bracket">[</span> FREECELL <span class="pl-bracket">]</span>
        </div>
+       <button class="nuke-btn" id="nuke-btn">
+         <span class="nuke-icon">&#x2622;</span> DETONATE
+       </button>
+       <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
      </div>
    </div>
 
-
+   <!-- External JS: shader sources, math, nav mode, missiles -->
+   <script src="js/scene/shaders.js"></script>
+   <script src="js/scene/math.js"></script>
 
    <script>
     const canvas = document.getElementById('canvas');
@@ -103,619 +111,6 @@
     window.addEventListener('resize', resize);
     resize();
 
-    /* -- Vertex Shader -- */
-    const vsSource = `
-      attribute vec2 a_pos;
-      void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
-    `;
-
-    /* -- Fragment Shader -- */
-    const fsSource = `
-      #extension GL_OES_standard_derivatives : enable
-      precision highp float;
-      uniform vec2  u_resolution;
-      uniform float u_time;
-      uniform float u_camDist;
-      uniform float u_spin;
-      uniform vec3  u_camPos;
-      uniform vec3  u_camFwd;
-      uniform vec3  u_camRight;
-      uniform vec3  u_camUp;
-      uniform float u_rH;
-      uniform float u_rIsco;
-      uniform float u_hoveredPlanet;
-      uniform vec4 u_planet0;
-      uniform vec4 u_planet1;
-      uniform vec4 u_planet2;
-      uniform vec4 u_planet3;
-      uniform vec4 u_planet4;
-      uniform vec4 u_planet5;
-      uniform sampler2D u_bbTex;
-
-      vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
-        float r = length(p);
-        float r2 = r * r;
-        float r3 = r2 * r;
-        float r5 = r2 * r3;
-        vec3 acc = -1.5 * h2 * p / r5;
-        if (abs(a) < 0.001) return acc;
-        vec3 J = vec3(0.0, a, 0.0);
-        vec3 rhat = p / r;
-        vec3 omega_LT = (2.0 * J - 6.0 * dot(J, rhat) * rhat) / r3;
-        acc += 2.0 * cross(omega_LT, v);
-        return acc;
-      }
-
-      float hash(vec2 p) {
-        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-        p3 += dot(p3, p3.yzx + 33.33);
-        return fract((p3.x + p3.y) * p3.z);
-      }
-
-      float hash3(vec3 p) {
-        p = fract(p * 0.1031);
-        p += dot(p, p.zyx + 31.32);
-        return fract((p.x + p.y) * p.z);
-      }
-
-      vec4 hash34(vec3 p) {
-        vec4 p4 = fract(vec4(p.xyzx) * vec4(0.1031, 0.1030, 0.0973, 0.1099));
-        p4 += dot(p4, p4.wzxy + 33.33);
-        return fract((p4.xxyz + p4.yzzw) * p4.zywx);
-      }
-
-      float vnoise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-
-      float vnoise3(vec3 p) {
-        vec3 i = floor(p);
-        vec3 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = mix(hash3(i), hash3(i + vec3(1,0,0)), f.x);
-        float b = mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x);
-        float c = mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x);
-        float d = mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x);
-        return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
-      }
-
-      float fbm(vec3 p) {
-        float v = 0.0, a = 0.5;
-        mat3 rot = mat3(0.00, 0.80, 0.60,
-                        -0.80, 0.36, -0.48,
-                        -0.60, -0.48, 0.64);
-        for (int i = 0; i < 4; i++) {
-          v += a * vnoise3(p);
-          if (i >= 2 && u_camDist < 50.0) break;
-          p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
-          a *= 0.5;
-        }
-        return v;
-      }
-
-      vec3 blackbodyColor(float t) {
-        return texture2D(u_bbTex, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
-      }
-
-      float fastAtan2(float y, float x) {
-        float ax = abs(x), ay = abs(y);
-        float mn = min(ax, ay), mx = max(ax, ay);
-        float a = mn / (mx + 1e-20);
-        float s = a * a;
-        float r = (((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s * a + a);
-        if (ay > ax) r = 1.5707963 - r;
-        if (x < 0.0) r = 3.1415926 - r;
-        if (y < 0.0) r = -r;
-        return r;
-      }
-
-      vec4 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
-        float r = length(hitPos.xz);
-        float outerEdge = 14.0;
-        // Screen-space AA: widen smoothsteps for lensed images where r changes rapidly per pixel
-        float fw = fwidth(r);
-        float innerFade = smoothstep(r_isco - 0.3 - fw, r_isco + 0.8 + fw, r);
-        float outerFade = smoothstep(outerEdge + 1.0 + fw, outerEdge - 2.0 - fw, r);
-        float diskMask = innerFade * outerFade;
-        if (diskMask < 0.001) return vec4(0.0);
-
-        // Physics
-        float rRatio = r_isco / r;
-        float T = inversesqrt(r * sqrt(r)) * sqrt(sqrt(max(1.0 - sqrt(rRatio), 0.0)));
-        float Tpeak = inversesqrt(r_isco * sqrt(r_isco)) * 0.63;
-        float Tnorm = clamp(T / max(Tpeak, 0.001), 0.0, 1.2);
-
-        float vOrb = sqrt(1.0 / r);
-        vec2 diskPos = hitPos.xz;
-        float spinSign = a >= 0.0 ? 1.0 : -1.0;
-        vec2 orbDir = normalize(vec2(-diskPos.y, diskPos.x)) * spinSign;
-        vec2 rayDir2D = normalize(rayDir.xz);
-        float cosAngle = dot(orbDir, rayDir2D);
-        float gamma = 1.0 / sqrt(max(1.0 - vOrb * vOrb, 0.04));
-        float gRaw = 1.0 / (gamma * max(1.0 - vOrb * cosAngle, 0.15));
-        // Fade Doppler toward 1.0 near ISCO where hit-position jitter gets amplified by g^4
-        float dopplerFade = smoothstep(r_isco, r_isco + 2.0, r);
-        float g = mix(1.0, gRaw, dopplerFade);
-        float dopplerFlux = min(g * g * g * g, 6.0);
-
-        float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
-
-        // Disk UV: seamless cylindrical mapping (cos/sin eliminates atan2 seam)
-        float detailFade = smoothstep(0.0, 5.0, r - r_isco);
-        float logR = log(r);
-        float flow = u_time * 0.04 * inversesqrt(r);
-        float tAngle = fastAtan2(hitPos.z, hitPos.x) + flow;
-        vec3 diskUV = vec3(cos(tAngle) * 3.0, sin(tAngle) * 3.0, logR * 5.0);
-
-        // Domain warp: organic turbulent distortion (IQ technique)
-        float warpX = vnoise3(diskUV * 0.7);
-        float warpY = (u_camDist < 50.0) ? warpX * 0.7 : vnoise3(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
-        vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * 1.5;
-
-        // Front layer: detailed cloud density (3D rotated FBM)
-        float density = fbm(warpedUV);
-
-        // Slab geometry: finite disk thickness creates depth
-        float slabH = 6.0;
-        float cosIncidence = abs(rayDir.y) + 0.2;
-        float pathLen = min(slabH / cosIncidence, 12.0);
-
-        // Beer's law front-to-back volume compositing
-        float frontTau = max(density - 0.05, 0.0) * 8.0;
-        float frontCloud = 1.0 - exp(-frontTau);
-        float cloud;
-        if (u_camDist >= 50.0) {
-          // Back layer: diffuse underlayer with large parallax offset for depth
-          vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
-          float backDensity = vnoise3((warpedUV + parallax) * 0.6);
-          float backTau = max(backDensity - 0.1, 0.0) * 6.0;
-          float backCloud = 1.0 - exp(-backTau);
-          cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
-        } else {
-          cloud = frontCloud;
-        }
-
-        // Path length: oblique views traverse more material
-        float pathBoost = 0.4 + 0.6 * min(pathLen, 12.0) / 12.0;
-
-        float structure = mix(1.0, cloud, detailFade);
-
-        // Temperature: original blackbody coloring (radial + Doppler + gravity)
-        float Tshifted = Tnorm * clamp(g, 0.2, 3.0) * gGrav;
-        vec3 col = blackbodyColor(Tshifted);
-
-        // Volumetric emission: path-length-enhanced brightness
-        float brightness = dopplerFlux * gGrav * T * 6.0 * mix(0.3, 1.0, structure) * pathBoost;
-
-        // Volumetric absorption: path-length-enhanced opacity
-        float alpha = diskMask * mix(0.25, 0.95, structure) * pathBoost;
-
-        return vec4(col * brightness, clamp(alpha, 0.0, 1.0));
-      }
-
-
-      vec3 shadePlanet(vec3 hp, vec3 ctr, float rad, int idx) {
-        vec3 n = normalize(hp - ctr);
-        float lat = n.y;
-        float lon = atan(n.z, n.x);
-        vec3 ldir = normalize(-ctr);
-        float diff = max(dot(n, ldir), 0.0) * 0.99 + 0.01;
-        vec3 col;
-        if (idx == 0) {
-          // Jupiter: cream zones, brown belts, blue-gray poles, Great Red Spot
-          float rLon = lon - u_time * 0.12;
-          float turb = vnoise(vec2(lat * 12.0, rLon * 2.5)) * 0.06;
-          float latN = lat + turb;
-          float seb = smoothstep(0.168, 0.0, abs(latN + 0.25));
-          float neb = smoothstep(0.15, 0.0, abs(latN - 0.18));
-          float stb = smoothstep(0.122, 0.0, abs(latN + 0.52));
-          float ntb = smoothstep(0.122, 0.0, abs(latN - 0.45));
-          float sstb = smoothstep(0.106, 0.0, abs(latN + 0.70));
-          float nntb = smoothstep(0.106, 0.0, abs(latN - 0.62));
-          float ez = smoothstep(0.254, 0.0, abs(latN));
-          float fine = sin(latN * 50.0) * 0.04 * smoothstep(0.35, 0.65, abs(latN));
-          float majorBelt = (seb + neb) * 0.4 + (stb + ntb + sstb + nntb) * 0.2 + fine;
-          col = mix(vec3(0.92, 0.87, 0.76), vec3(0.62, 0.38, 0.20), clamp(majorBelt, 0.0, 1.0));
-          col = mix(col, vec3(0.88, 0.82, 0.70), ez * 0.5);
-          col *= clamp(0.78 + ez * 0.22 - majorBelt * 0.15, 0.45, 1.0);
-          col = mix(col, vec3(0.48, 0.50, 0.58), smoothstep(0.68, 0.92, abs(lat)));
-          float dLat = (lat + 0.37) * 2.5;
-          float dLon = mod(rLon - 1.5 + 3.14159, 6.28318) - 3.14159;
-          float grsR2 = dLat * dLat * 12.0 + dLon * dLon * 8.0;
-          float grs = smoothstep(1.5, 0.0, sqrt(grsR2));
-          vec3 grsCol = mix(vec3(0.78, 0.36, 0.22), vec3(0.82, 0.58, 0.38), smoothstep(0.3, 1.5, sqrt(grsR2)));
-          col = mix(col, grsCol, grs * 0.85);
-        } else if (idx == 1) {
-          // Saturn: pale gold, very subtle bands, blue north pole
-          float rLon = lon - u_time * 0.10;
-          float turb = vnoise(vec2(lat * 8.0, rLon * 2.0)) * 0.03;
-          float latN = lat + turb;
-          float bands = sin(latN * 25.0) * 0.04 + sin(latN * 12.0) * 0.06;
-          float ez = exp(-latN * latN * 20.0) * 0.1;
-          col = mix(vec3(0.88, 0.80, 0.62), vec3(0.75, 0.65, 0.48), clamp(0.5 - bands, 0.0, 1.0) * 0.2);
-          col += vec3(0.05, 0.04, 0.02) * ez;
-          col = mix(col, vec3(0.55, 0.62, 0.72), smoothstep(0.65, 0.90, lat) * 0.45);
-          col = mix(col, vec3(0.62, 0.52, 0.38), smoothstep(0.65, 0.90, -lat) * 0.3);
-        } else if (idx == 2) {
-          // Uranus: pale cyan-green, nearly featureless, polar brightening
-          float rLon = lon - u_time * 0.07;
-          float turb = vnoise(vec2(lat * 6.0, rLon * 1.5)) * 0.015;
-          float bands = sin((lat + turb) * 15.0) * 0.015;
-          col = vec3(0.67, 0.82, 0.86) + vec3(-0.005, 0.008, 0.008) * bands;
-          col += vec3(0.08, 0.06, 0.04) * smoothstep(0.50, 0.85, lat);
-          col *= 1.0 - smoothstep(0.88, 1.0, abs(lat)) * 0.15;
-        } else if (idx == 3) {
-          // Neptune: deep blue, dark spot, bright companion clouds, cirrus
-          float rLon = lon - u_time * 0.09;
-          float turb = vnoise(vec2(lat * 10.0, rLon * 2.0)) * 0.04;
-          float latN = lat + turb;
-          col = vec3(0.28, 0.45, 0.78);
-          col += vec3(0.03, 0.05, 0.06) * (sin(latN * 20.0) * 0.06 + sin(latN * 10.0) * 0.04);
-          float b30s = smoothstep(0.194, 0.0, abs(latN + 0.50));
-          float b30n = smoothstep(0.194, 0.0, abs(latN - 0.50));
-          col += vec3(0.12, 0.14, 0.16) * (b30s * 0.12 + b30n * 0.10);
-          float dLat = (lat + 0.34) * 2.0;
-          float dLon = mod(rLon + 3.14159, 6.28318) - 3.14159;
-          float gds = smoothstep(1.5, 0.0, sqrt(dLat * dLat * 10.0 + dLon * dLon * 6.0));
-          col = mix(col, vec3(0.15, 0.22, 0.50), gds * 0.55);
-          float cLat = lat + 0.49;
-          float cLon = mod(rLon + 0.15 + 3.14159, 6.28318) - 3.14159;
-          col += vec3(0.18, 0.18, 0.12) * smoothstep(1.5, 0.0, sqrt(cLat * cLat * 50.0 + cLon * cLon * 20.0));
-          float cirrus = vnoise(vec2(rLon * 4.0, lat * 2.0 + 5.0));
-          cirrus = smoothstep(0.65, 0.80, cirrus) * 0.12 * smoothstep(0.1, 0.3, abs(lat)) * smoothstep(0.8, 0.5, abs(lat));
-          col += vec3(0.15, 0.15, 0.10) * cirrus;
-          col += vec3(0.04, 0.04, 0.02) * smoothstep(0.60, 0.85, -lat);
-        } else if (idx == 4) {
-          // Venus: pale yellow-white, thick cloud bands, no surface features
-          float rLon = lon - u_time * 0.003;
-          float turb = vnoise(vec2(lat * 8.0, rLon * 3.0)) * 0.04;
-          float latN = lat + turb;
-          float bands = sin(latN * 18.0) * 0.05 + sin(latN * 8.0) * 0.08;
-          col = vec3(0.92, 0.85, 0.65) + vec3(-0.02, 0.01, 0.03) * bands;
-          col *= 1.0 - smoothstep(0.6, 0.95, abs(lat)) * 0.15;
-          float yPat = sin(rLon * 2.0 + lat * 3.0) * 0.03;
-          col += vec3(-0.01, -0.01, 0.01) * yPat * smoothstep(0.5, 0.0, abs(lat));
-        } else if (idx == 5) {
-          // Earth: blue oceans, green/brown land, white polar caps, cloud wisps
-          float rLon = lon - u_time * 0.08;
-          float turb = vnoise(vec2(lat * 10.0, rLon * 3.0)) * 0.05;
-          float latN = lat + turb;
-          // Continent mask: large-scale land shapes
-          float land = vnoise(vec2(rLon * 1.5 + 2.0, latN * 2.0));
-          land += vnoise(vec2(rLon * 3.0 + 5.0, latN * 4.0)) * 0.4;
-          land = smoothstep(0.55, 0.75, land);
-          // Ocean base
-          vec3 ocean = mix(vec3(0.05, 0.15, 0.45), vec3(0.10, 0.28, 0.55), vnoise(vec2(rLon * 4.0, latN * 3.0)));
-          // Land: green near equator, brown at mid-latitudes
-          vec3 landCol = mix(vec3(0.18, 0.38, 0.12), vec3(0.42, 0.32, 0.18), smoothstep(0.2, 0.6, abs(latN)));
-          col = mix(ocean, landCol, land);
-          // Polar ice caps
-          float polar = smoothstep(0.70, 0.90, abs(lat));
-          col = mix(col, vec3(0.90, 0.92, 0.95), polar);
-          // Cloud wisps
-          float clouds = vnoise(vec2(rLon * 3.0 + u_time * 0.02, latN * 2.5));
-          clouds = smoothstep(0.50, 0.70, clouds) * 0.45;
-          col = mix(col, vec3(0.95, 0.95, 0.97), clouds);
-        }
-        // Hover highlight: brighten + blue rim glow
-        if (abs(float(idx) - u_hoveredPlanet) < 0.5) {
-          vec3 viewDir = normalize(u_camPos - hp);
-          float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
-          col += vec3(0.15, 0.35, 0.65) * rim * 0.8;
-          col *= 1.3;
-        }
-        return col * diff;
-      }
-
-      vec2 galaxyProject(vec3 rd, vec3 dir, float scl, float tilt, float cosA) {
-        vec3 up0 = normalize(cross(dir, vec3(0.0, 1.0, 0.1)));
-        vec3 right0 = cross(up0, dir);
-        vec2 offset = vec2(dot(rd - dir * cosA, right0), dot(rd - dir * cosA, up0)) * scl;
-        float ct = cos(tilt), st = sin(tilt);
-        return vec2(offset.x * ct - offset.y * st, offset.x * st + offset.y * ct);
-      }
-
-      vec3 renderSpiral(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tintCore, vec3 tintArm) {
-        float cosA = dot(rd, dir);
-        if (cosA < 0.95) return vec3(0.0);
-        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
-        float gr = length(g);
-        float ga = atan(g.y, g.x);
-        float core = exp(-gr * gr * 0.8) * 1.2;
-        float armWidth = 0.45;
-        float arms = 0.0;
-        for (int i = 0; i < 2; i++) {
-          float off = float(i) * 3.14159;
-          float spiralAngle = log(max(gr, 0.1)) * 2.8 + off;
-          float diff = mod(ga - spiralAngle + 3.14159, 6.28318) - 3.14159;
-          float arm = exp(-diff * diff / (armWidth * armWidth));
-          arm *= smoothstep(0.0, 0.4, gr) * exp(-gr * 0.35);
-          arms += arm;
-        }
-        float n = vnoise(vec2(g.x * 3.0, g.y * 3.0)) * 0.5
-                + vnoise(vec2(g.x * 7.0, g.y * 7.0)) * 0.3;
-        arms *= 0.6 + 0.8 * n;
-        float disk = exp(-gr * 0.25) * 0.3;
-        float total = (core + arms * 0.7 + disk) * smoothstep(0.95, 0.96, cosA);
-        vec3 col = mix(tintArm, tintCore, exp(-gr * 0.5)) * total;
-        float sfr = vnoise(vec2(g.x * 5.0 + 10.0, g.y * 5.0)) * arms;
-        col += vec3(0.8, 0.3, 0.5) * sfr * 0.15;
-        return col * bright;
-      }
-
-      vec3 renderElliptical(vec3 rd, vec3 dir, float scl, float tilt, float bright, float axisRatio, vec3 tint) {
-        float cosA = dot(rd, dir);
-        if (cosA < 0.95) return vec3(0.0);
-        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
-        float er = length(vec2(g.x, g.y / axisRatio));
-        float profile = exp(-3.5 * sqrt(sqrt(max(er, 0.01))));
-        profile += exp(-er * 0.5) * 0.08;
-        profile *= smoothstep(0.95, 0.96, cosA);
-        vec3 col = mix(tint * 0.7, tint, exp(-er * 0.3)) * profile;
-        return col * bright;
-      }
-
-      vec3 renderEdgeOn(vec3 rd, vec3 dir, float scl, float tilt, float bright, vec3 tint) {
-        float cosA = dot(rd, dir);
-        if (cosA < 0.95) return vec3(0.0);
-        vec2 g = galaxyProject(rd, dir, scl, tilt, cosA);
-        float dx = abs(g.x);
-        float dy = abs(g.y);
-        float bulge = exp(-(dx * dx * 0.6 + dy * dy * 2.0)) * 1.5;
-        float diskThickness = 0.15 + 0.1 * exp(-dx * 0.3);
-        float disk = exp(-dy * dy / (diskThickness * diskThickness)) * exp(-dx * 0.25);
-        float dust = 1.0 - 0.6 * exp(-dy * dy / 0.01) * smoothstep(0.0, 0.5, dx);
-        float total = (bulge + disk * 0.8) * dust * smoothstep(0.95, 0.96, cosA);
-        vec3 col = mix(vec3(0.5, 0.6, 1.0) * tint, tint, exp(-dx * 0.3)) * total;
-        return col * bright;
-      }
-
-      vec3 renderIrregular(vec3 rd, vec3 dir, float scl, float bright, vec3 tint) {
-        float cosA = dot(rd, dir);
-        if (cosA < 0.95) return vec3(0.0);
-        vec2 g = galaxyProject(rd, dir, scl, 0.0, cosA);
-        float gr = length(g);
-        float base = exp(-gr * gr * 0.3) * 0.5;
-        float blobs = vnoise(vec2(g.x * 2.5, g.y * 2.5)) * 0.6
-                    + vnoise(vec2(g.x * 5.0 + 7.0, g.y * 5.0 + 3.0)) * 0.4;
-        blobs *= exp(-gr * 0.5);
-        float knots = vnoise(vec2(g.x * 8.0 + 20.0, g.y * 8.0));
-        knots = smoothstep(0.55, 0.8, knots) * exp(-gr * 0.4);
-        float total = (base + blobs * 0.5) * smoothstep(0.95, 0.96, cosA);
-        vec3 col = tint * total;
-        col += vec3(0.4, 0.6, 1.0) * knots * 0.3;
-        return col * bright;
-      }
-
-      vec3 galaxies(vec3 rd) {
-        vec3 col = vec3(0.0);
-        float scale = 4.0;
-        vec3 p = rd * scale;
-        vec3 fp = floor(p);
-        for (int dx = -1; dx <= 1; dx++)
-        for (int dy = -1; dy <= 1; dy++)
-        for (int dz = -1; dz <= 1; dz++) {
-          vec3 cell = fp + vec3(float(dx), float(dy), float(dz));
-          vec4 h1 = hash34(cell);
-          if (h1.x > 0.22) continue;
-          vec3 gpos = cell + vec3(0.5);
-          vec3 gdir = normalize(gpos);
-          if (dot(rd, gdir) < 0.94) continue;
-          vec4 h2 = hash34(cell + 10.0);
-          vec4 h3 = hash34(cell + 50.0);
-          float hType  = h2.x;
-          float hScale = h2.y;
-          float hTilt  = h2.z;
-          float hBri   = h2.w;
-          float hCol   = h3.x;
-          float hExtra = h3.y;
-          float scl  = 140.0 + hScale * 320.0;
-          float tilt = hTilt * 6.28318;
-          float bright = 0.06 + hBri * 0.30;
-          vec3 coreCol = mix(vec3(1.0, 0.82, 0.5), vec3(1.0, 0.95, 0.82), hCol);
-          vec3 armCol  = mix(vec3(0.45, 0.55, 1.0), vec3(0.7, 0.8, 0.95), hCol);
-          vec3 tint    = mix(vec3(1.0, 0.78, 0.45), vec3(0.95, 0.88, 0.7), hCol);
-          if (hType < 0.35) {
-            col += renderSpiral(rd, gdir, scl, tilt, bright, coreCol, armCol);
-          } else if (hType < 0.60) {
-            float axisRatio = 0.4 + hExtra * 0.5;
-            col += renderElliptical(rd, gdir, scl, tilt, bright, axisRatio, tint);
-          } else if (hType < 0.80) {
-            col += renderEdgeOn(rd, gdir, scl, tilt, bright, tint);
-          } else {
-            col += renderIrregular(rd, gdir, scl, bright, tint);
-          }
-        }
-        col += vec3(0.005, 0.004, 0.008);
-        return col;
-      }
-
-      vec3 acesToneMap(vec3 x) {
-        return clamp(
-          (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14),
-          0.0, 1.0
-        );
-      }
-
-      void main() {
-        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / min(u_resolution.x, u_resolution.y);
-        float spin = u_spin;
-        float absSpin = abs(spin);
-        float r_h = u_rH;
-        float r_isco = u_rIsco;
-
-        vec3 rd = normalize(u_camFwd * 1.8 + u_camRight * uv.x + u_camUp * uv.y);
-        vec3 pos = u_camPos;
-        vec3 vel = rd;
-        vec3 L = cross(pos, vel);
-        float L2 = dot(L, L);
-
-        vec3 accumulatedColor = vec3(0.0);
-        float accumulatedAlpha = 0.0;
-        bool didEscape = true;
-        float prevY = pos.y;
-        float minR = 1000.0;
-
-        float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
-        vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
-        float escapeR = max(50.0, u_camDist + 20.0);
-        float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
-        float convThresh = pixelAngle * pixelAngle * 0.0625;
-
-        for (int i = 0; i < 250; i++) {
-          float r = length(pos);
-          minR = min(minR, r);
-          if (accumulatedAlpha > 0.98) break;
-          if (r < r_h * 1.05) {
-            didEscape = false;
-            break;
-          }
-          if (r > escapeR) break;
-          if (r > 100.0 && dot(pos, vel) > 0.0) break;
-
-          float dt = max(0.002, min(0.08 * (r - r_h), 5.0));
-          vec3 prevPos = pos;
-          pos += vel_half * dt;
-          vec3 a = acceleration(pos, vel_half, L2, spin);
-          vel = vel_half + 0.5 * dt * a;
-          vel_half += dt * a;
-          float newY = pos.y;
-
-          if (prevY * newY < 0.0 && accumulatedAlpha < 0.98) {
-            float frac = prevY / (prevY - newY);
-            vec3 hitPos = mix(prevPos, pos, frac);
-            float hitR = length(hitPos.xz);
-            vec4 disk = diskShading(hitPos, r_isco, spin, vel);
-            vec3 dCol = disk.rgb;
-            float dAlpha = clamp(disk.a, 0.0, 1.0);
-            accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
-            accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
-            if (accumulatedAlpha < 0.98) {
-              vec3 satC = u_planet1.xyz;
-              float sd = length(hitPos.xz - satC.xz);
-              float ringPxW = length(u_camPos - hitPos) / (min(u_resolution.x, u_resolution.y) * 1.8);
-              float rfPx = ringPxW / 2.5;
-              if (sd > 3.0 - ringPxW * 2.0 && sd < 5.5 + ringPxW * 2.0) {
-                float rf = (sd - 3.0) / 2.5;
-                float w = max(0.02, rfPx * 1.0);
-                // C Ring (0-0.20): dark, semi-transparent
-                float cR = smoothstep(-w, w, rf) * (1.0 - smoothstep(0.20 - w, 0.20 + w, rf));
-                // B Ring (0.20-0.56): brightest, most opaque
-                float bR = smoothstep(0.20 - w, 0.20 + w, rf) * (1.0 - smoothstep(0.56 - w, 0.56 + w, rf));
-                // Cassini Division (0.56-0.64): near-transparent gap
-                float cas = smoothstep(0.56 - w, 0.56 + w, rf) * (1.0 - smoothstep(0.64 - w, 0.64 + w, rf));
-                // A Ring (0.64-0.96): medium bright
-                float aR = smoothstep(0.64 - w, 0.64 + w, rf) * (1.0 - smoothstep(0.96 - w, 0.96 + w, rf));
-                float ringBright = cR * 0.35 + bR * 1.0 + aR * 0.75;
-                float ringAlpha = cR * 0.30 + bR * 0.85 + cas * 0.05 + aR * 0.65;
-                vec3 ringCol = mix(vec3(0.50, 0.45, 0.38), vec3(0.93, 0.89, 0.81), ringBright);
-                float texAtten = 1.0 / (1.0 + ringPxW * ringPxW * 900.0);
-                ringCol *= 0.88 + 0.12 * sin(sd * 30.0) * texAtten;
-                // Saturn shadow: test if line from origin to hitPos passes through Saturn
-                vec2 hp2 = hitPos.xz;
-                vec2 sc2 = satC.xz;
-                float tSh = dot(sc2, hp2) / dot(hp2, hp2);
-                float shDist = length(sc2 - hp2 * tSh);
-                float shadow = smoothstep(1.7, 2.3, shDist);
-                shadow = mix(1.0, shadow, smoothstep(0.0, 0.01, tSh) * smoothstep(1.0, 0.99, tSh));
-                ringCol *= mix(0.01, 1.0, shadow);
-                accumulatedColor += ringCol * ringAlpha * (1.0 - accumulatedAlpha);
-                accumulatedAlpha += ringAlpha * (1.0 - accumulatedAlpha);
-              }
-            }
-            if (accumulatedAlpha > 0.98) break;
-          }
-          if (r > 16.0 && r < 95.0 && accumulatedAlpha < 0.98) {
-            vec3 seg = pos - prevPos;
-            float segL2 = dot(seg, seg);
-            float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
-            float segLen = sqrt(segL2);
-            for (int p = 0; p < 6; p++) {
-              vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : (p == 4) ? u_planet4 : u_planet5;
-              vec3 pC = pl.xyz;
-              float pr = pl.w;
-              vec3 segMid = 0.5 * (prevPos + pos);
-              if (length(segMid - pC) > pr + segLen * 0.5 + edgeW + 5.0) continue;
-              vec3 oc = prevPos - pC;
-              float bH = dot(oc, seg);
-              float oc2 = dot(oc, oc);
-              float tClose = clamp(-bH / segL2, 0.0, 1.0);
-              vec3 cpVec = oc + seg * tClose;
-              float dist2 = dot(cpVec, cpVec);
-              float prE = pr + edgeW;
-              if (dist2 < prE * prE) {
-                float dist = sqrt(dist2);
-                float alpha = smoothstep(prE, pr, dist);
-                vec3 hitP = pC + normalize(cpVec) * pr;
-                float disc = bH * bH - segL2 * (oc2 - pr * pr);
-                if (disc > 0.0) {
-                  float sqD = sqrt(disc);
-                  float t1 = (-bH - sqD) / segL2;
-                  float t2 = (-bH + sqD) / segL2;
-                  float t = (t1 > 0.0) ? t1 : t2;
-                  if (t > 0.0 && t < 1.0) hitP = prevPos + seg * t;
-                }
-                vec3 pCol = shadePlanet(hitP, pC, pr, p);
-                accumulatedColor += pCol * alpha * (1.0 - accumulatedAlpha);
-                accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
-                if (accumulatedAlpha > 0.98) break;
-              }
-            }
-          }
-          // Convergence escape: per-step deflection is sub-pixel, ray is
-          // outbound, past all planet orbits, and moving away from the disk
-          float aDt2 = dot(a, a) * dt * dt;
-          if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 3025.0
-              && dot(pos, vel) > 0.0 && pos.y * vel.y > 0.0) {
-            break;
-          }
-          prevY = newY;
-        }
-
-        vec3 bgCol = vec3(0.0);
-
-        // Smooth capture factor: 1.0 = captured (black), 0.0 = escaped (full color)
-        float captureWidth = r_h * 0.15;
-        float captureFactor = 1.0 - smoothstep(r_h, r_h * 1.05 + captureWidth, minR);
-
-        if (accumulatedAlpha < 1.0) {
-          // Photon ring glow: computed for ALL rays (not gated on escape)
-          float photonR = 3.0 * (1.0 - absSpin * 0.3);
-          float pTmp1 = (minR - photonR) * 2.0;
-          float proximity = exp(-pTmp1 * pTmp1);
-          vec3 ringCol = mix(vec3(1.0, 0.7, 0.3), vec3(1.0, 0.95, 0.9), proximity);
-          bgCol += ringCol * proximity * 0.4;
-          float pTmp2 = (minR - photonR) * 0.8;
-          float haze = exp(-pTmp2 * pTmp2);
-          bgCol += vec3(0.15, 0.06, 0.02) * haze;
-
-          // Galaxy background: only for rays with valid exit direction
-          if (didEscape) {
-            vec3 finalRd = normalize(vel);
-            bgCol += galaxies(finalRd);
-          }
-
-          // Smooth fade to black near horizon
-          bgCol *= (1.0 - captureFactor);
-        }
-
-        vec3 finalColor = accumulatedColor + bgCol * (1.0 - accumulatedAlpha);
-        float lum = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
-        float bloomAmount = max(lum - 0.6, 0.0) * 0.5;
-        finalColor += finalColor * bloomAmount;
-        finalColor = acesToneMap(finalColor * 0.85);
-        finalColor = pow(finalColor, vec3(0.4545));
-        gl_FragColor = vec4(finalColor, 1.0);
-      }
-    `;
-
     const planetData = [
       { oR: 38.0, ph: 0.0,   sp: 0.018, radius: 2.5, name: 'Minesweeper',            href: 'minesweeper.html' },
       { oR: 52.0, ph: 2.094, sp: 0.012, radius: 2.0, name: 'Pong',                    href: 'pong.html' },
@@ -726,43 +121,20 @@
     ];
     let camDist = 120.0;
 
+    const detSlots=[];
+    for(let i=0;i<6;i++) detSlots.push({active:false,pos:[0,0,0],startSimTime:-1});
+    const DET_DURATION=60.0;
+
     const WB="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";
     const pL=planetData.map((_,i)=>document.getElementById('planet-label-'+i));
     let hP=-1,mSX=-1,mSY=-1,camAz=0,camEl=-0.32,sp=0;
     const DF={camAz:0,camEl:-0.32,camDist:120,sp:0};
 
-    /* ---- Nav mode state ---- */
-    let flyMode=false;
-    const flyPos=new Float32Array(3);
-    const flyFwd=new Float32Array(3);
-    const flyUp=new Float32Array(3);
-    const flyVel=new Float32Array(3);
-    const SHIP_HALF=[0.5,0.15,0.25], SHIP_COLOR=[0.25,0.35,0.55];
-    const FLY_SENSITIVITY=0.003;
-    // Gravity constants
-    const BH_GM=200;
-    const PLANET_GM_K=3.0;
-    // Thrust
-    let thrustPower=1.5;
-    const THRUST_MIN=0.2, THRUST_MAX=8.0;
-    // Bullet time
-    let bulletTime=false;
-    const BULLET_TIME_SCALE=0.03;
-    // Trajectory preview
-    const TRAJ_STEPS=400;
-    const TRAJ_SIM_DT=0.4;
-    const trajArray=new Float32Array(TRAJ_STEPS*3);
-    const previewArray=new Float32Array(TRAJ_STEPS*3);
-    // Nav camera (spherical orbit around ship)
-    let navCamAz=0, navCamEl=0.5;
-    let navCamDist=60;
-    const NAV_CAM_DIST_MIN=15, NAV_CAM_DIST_MAX=200;
-    // Cached aim direction (updated each frame from mouse)
-    let aimDir=null;
-    let thrusting=false;
     // HUD refs
     const flyHudMode=document.getElementById('fly-hud-mode');
     const flyBulletTime=document.getElementById('fly-bullet-time');
+    const flyNavGroup=document.getElementById('fly-nav-group');
+    const hudOverlay=document.querySelector('.hud-overlay');
     const flyCrosshair=document.getElementById('fly-crosshair');
     const flyHudSpeed=document.getElementById('fly-hud-speed');
     const flySpdEl=document.getElementById('fly-spd');
@@ -774,226 +146,27 @@
     const thrustFill=document.getElementById('thrust-fill');
     const thrustHandle=document.getElementById('thrust-handle');
     let thrustDragging=false;
+   </script>
 
-    /* ---- Vector math helpers ---- */
-    function v3cross(o,a,b){o[0]=a[1]*b[2]-a[2]*b[1];o[1]=a[2]*b[0]-a[0]*b[2];o[2]=a[0]*b[1]-a[1]*b[0]}
-    function v3dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
-    function v3len(a){return Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2])}
-    function v3norm(o,a){const l=v3len(a)||1;o[0]=a[0]/l;o[1]=a[1]/l;o[2]=a[2]/l}
-    function v3scale(o,a,s){o[0]=a[0]*s;o[1]=a[1]*s;o[2]=a[2]*s}
-    function v3add(o,a,b){o[0]=a[0]+b[0];o[1]=a[1]+b[1];o[2]=a[2]+b[2]}
-    function rotateVecAroundAxis(out,v,axis,angle){
-      const c=Math.cos(angle),s=Math.sin(angle),d=v3dot(axis,v);
-      const cx=[0,0,0];v3cross(cx,axis,v);
-      out[0]=v[0]*c+cx[0]*s+axis[0]*d*(1-c);
-      out[1]=v[1]*c+cx[1]*s+axis[1]*d*(1-c);
-      out[2]=v[2]*c+cx[2]*s+axis[2]*d*(1-c);
-    }
+   <!-- Nav mode + missiles (depend on planetData, DOM refs, math) -->
+   <script src="js/scene/nav.js"></script>
+   <script src="js/scene/missiles.js"></script>
 
-    /* ---- Gravity & trajectory simulation ---- */
-    function planetPosAtTime(p,t){
-      const a=p.sp*t+p.ph;
-      return [p.oR*Math.sin(a), 0, p.oR*Math.cos(a)];
-    }
-    function computeGravAccel(pos,time){
-      // Black hole at origin
-      let dx=-pos[0], dy=-pos[1], dz=-pos[2];
-      let r2=dx*dx+dy*dy+dz*dz;
-      let r=Math.sqrt(r2);
-      let r3=r2*r;
-      let ax=0,ay=0,az=0;
-      if(r3>0.001){ax+=BH_GM*dx/r3;ay+=BH_GM*dy/r3;az+=BH_GM*dz/r3;}
-      // Planets
-      for(let i=0;i<6;i++){
-        const pp=planetPosAtTime(planetData[i],time);
-        const pr=planetData[i].radius;
-        const gm=PLANET_GM_K*pr*pr*pr;
-        dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
-        r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
-        if(r3>0.001){ax+=gm*dx/r3;ay+=gm*dy/r3;az+=gm*dz/r3;}
-      }
-      return [ax,ay,az];
-    }
-    const _simPos=[0,0,0]; // reusable scratch for trajectory sim
-    function simulateTrajectory(startPos,startVel,startTime,steps,simDt,outArray,thrDir,thrPow,thrDur){
-      let px=startPos[0],py=startPos[1],pz=startPos[2];
-      let vx=startVel[0],vy=startVel[1],vz=startVel[2];
-      let t=startTime, elapsed=0;
-      let n=0;
-      for(let i=0;i<steps;i++){
-        outArray[n++]=px;outArray[n++]=py;outArray[n++]=pz;
-        // Velocity Verlet
-        _simPos[0]=px;_simPos[1]=py;_simPos[2]=pz;
-        const a1=computeGravAccel(_simPos,t);
-        let ax1=a1[0],az1=a1[2];
-        if(thrDir&&elapsed<thrDur){ax1+=thrDir[0]*thrPow;az1+=thrDir[2]*thrPow;}
-        vx+=0.5*ax1*simDt;vy+=0.5*a1[1]*simDt;vz+=0.5*az1*simDt;
-        px+=vx*simDt;py+=vy*simDt;pz+=vz*simDt;
-        t+=simDt;elapsed+=simDt;
-        _simPos[0]=px;_simPos[1]=py;_simPos[2]=pz;
-        const a2=computeGravAccel(_simPos,t);
-        let ax2=a2[0],az2=a2[2];
-        if(thrDir&&elapsed<thrDur){ax2+=thrDir[0]*thrPow;az2+=thrDir[2]*thrPow;}
-        vx+=0.5*ax2*simDt;vy+=0.5*a2[1]*simDt;vz+=0.5*az2*simDt;
-        // Terminate if too close to black hole
-        if(px*px+py*py+pz*pz<4){break;}
-      }
-      return n/3;
-    }
-    function computeAimDir(mouseX,mouseY,camP,camF,camR,camU,fovY,aspect){
-      // NDC from mouse screen coords
-      const ndcX=(2*mouseX/baseWidth-1)*aspect*Math.tan(fovY/2);
-      const ndcY=(1-2*mouseY/baseHeight)*Math.tan(fovY/2);
-      // Ray direction in world space
-      const rdx=camR[0]*ndcX+camU[0]*ndcY+camF[0];
-      const rdy=camR[1]*ndcX+camU[1]*ndcY+camF[1];
-      const rdz=camR[2]*ndcX+camU[2]*ndcY+camF[2];
-      // Intersect with y=0 plane: camP.y + t*rdy = 0
-      if(Math.abs(rdy)<0.0001)return null;
-      const t=-camP[1]/rdy;
-      if(t<0)return null;
-      const hitX=camP[0]+rdx*t;
-      const hitZ=camP[2]+rdz*t;
-      // Direction from ship to hit point (on ecliptic)
-      const dx=hitX-flyPos[0], dz=hitZ-flyPos[2];
-      const len=Math.sqrt(dx*dx+dz*dz);
-      if(len<0.001)return null;
-      return [dx/len, 0, dz/len];
-    }
-
-    /* ---- Matrix math for ship rendering ---- */
-    function mat4Perspective(fovY,aspect,near,far){
-      const f=1/Math.tan(fovY/2),nf=1/(near-far);
-      return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
-    }
-    function mat4LookAt(eye,center,up){
-      const zx=eye[0]-center[0],zy=eye[1]-center[1],zz=eye[2]-center[2];
-      const zl=Math.sqrt(zx*zx+zy*zy+zz*zz)||1;
-      const fz=zx/zl,fy=zy/zl,fzz=zz/zl;
-      let sx=up[1]*fzz-up[2]*fy,sy=up[2]*fz-up[0]*fzz,sz=up[0]*fy-up[1]*fz;
-      const sl=Math.sqrt(sx*sx+sy*sy+sz*sz)||1;sx/=sl;sy/=sl;sz/=sl;
-      const ux=fy*sz-fzz*sy,uy=fzz*sx-fz*sz,uz=fz*sy-fy*sx;
-      return new Float32Array([sx,ux,fz,0, sy,uy,fy,0, sz,uz,fzz,0,
-        -(sx*eye[0]+sy*eye[1]+sz*eye[2]),-(ux*eye[0]+uy*eye[1]+uz*eye[2]),-(fz*eye[0]+fy*eye[1]+fzz*eye[2]),1]);
-    }
-    function mat4Model(pos,fwd,up,right){
-      // local X=forward(1.2), Y=up(0.4), Z=right(0.6)
-      return new Float32Array([fwd[0],fwd[1],fwd[2],0, up[0],up[1],up[2],0, right[0],right[1],right[2],0, pos[0],pos[1],pos[2],1]);
-    }
-    function mat4Mul(a,b){
-      const o=new Float32Array(16);
-      for(let c=0;c<4;c++)for(let r=0;r<4;r++){
-        let s=0;for(let k=0;k<4;k++)s+=a[r+k*4]*b[k+c*4];o[r+c*4]=s;
-      }
-      return o;
-    }
-    function mat3NormalFromMat4(m){
-      return new Float32Array([m[0],m[1],m[2], m[4],m[5],m[6], m[8],m[9],m[10]]);
-    }
-
-    /* ---- Box geometry for ship ---- */
-    function createBoxGeometry(hx,hy,hz){
-      const p=[],n=[],idx=[];
-      const faces=[
-        {n:[0,0,1],  v:[[-hx,-hy,hz],[hx,-hy,hz],[hx,hy,hz],[-hx,hy,hz]]},
-        {n:[0,0,-1], v:[[hx,-hy,-hz],[-hx,-hy,-hz],[-hx,hy,-hz],[hx,hy,-hz]]},
-        {n:[1,0,0],  v:[[hx,-hy,hz],[hx,-hy,-hz],[hx,hy,-hz],[hx,hy,hz]]},
-        {n:[-1,0,0], v:[[-hx,-hy,-hz],[-hx,-hy,hz],[-hx,hy,hz],[-hx,hy,-hz]]},
-        {n:[0,1,0],  v:[[-hx,hy,hz],[hx,hy,hz],[hx,hy,-hz],[-hx,hy,-hz]]},
-        {n:[0,-1,0], v:[[-hx,-hy,-hz],[hx,-hy,-hz],[hx,-hy,hz],[-hx,-hy,hz]]}
-      ];
-      for(let i=0;i<6;i++){
-        const f=faces[i],b=i*4;
-        for(let j=0;j<4;j++){p.push(...f.v[j]);n.push(...f.n);}
-        idx.push(b,b+1,b+2, b,b+2,b+3);
-      }
-      return{positions:new Float32Array(p),normals:new Float32Array(n),indices:new Uint16Array(idx)};
-    }
-
-    function enterNavMode(){
-      // Place ship at camera position projected to y=0
-      const cx=dv.getFloat32(0x030,true), cz=dv.getFloat32(0x038,true);
-      flyPos[0]=cx;flyPos[1]=0;flyPos[2]=cz;
-      // Compute circular orbital velocity (tangential)
-      const r=Math.sqrt(cx*cx+cz*cz);
-      const vorb=r>0.1?Math.sqrt(BH_GM/r):0;
-      // Tangential direction: perpendicular to radial on ecliptic
-      const rx=cx/(r||1), rz=cz/(r||1);
-      flyVel[0]=-rz*vorb;flyVel[1]=0;flyVel[2]=rx*vorb;
-      // Ship orientation from velocity
-      const spd=v3len(flyVel);
-      if(spd>0.1){flyFwd[0]=flyVel[0]/spd;flyFwd[1]=0;flyFwd[2]=flyVel[2]/spd;}
-      else{flyFwd[0]=0;flyFwd[1]=0;flyFwd[2]=-1;}
-      flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
-      // Nav camera defaults — face the black hole (camera behind ship, looking inward)
-      navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=60;
-      bulletTime=false;thrustPower=5.0;aimDir=null;
-      flyMode=true;
-      // No pointer lock — mouse cursor visible
-      flyHudMode.classList.add('active');
-      flyCrosshair.classList.add('active');
-      flyHudSpeed.classList.add('active');
-      thrustSlider.classList.add('active');
-      document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">HOLD CLICK &mdash; THRUST<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>SPACE &mdash; BULLET TIME<br>` &mdash; EXIT</div>';
-    }
-
-    function exitNavMode(){
-      flyMode=false;
-      bulletTime=false;
-      // Restore orbit camera from fly position
-      const dx=flyPos[0],dy=flyPos[1],dz=flyPos[2];
-      camDist=Math.sqrt(dx*dx+dy*dy+dz*dz);
-      if(camDist<5)camDist=120;
-      camAz=Math.atan2(dx,dz);
-      camEl=Math.asin(Math.max(-1,Math.min(1,dy/Math.max(camDist,0.001))));
-      flyHudMode.classList.remove('active');
-      flyBulletTime.classList.remove('active');
-      flyCrosshair.classList.remove('active');
-      flyHudSpeed.classList.remove('active');
-      thrustSlider.classList.remove('active');
-      canvas.style.cursor='grab';
-      document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">HELM CONTROLS</span><div class="readout-controls">DRAG &mdash; ORBIT<br>SCROLL &mdash; ZOOM<br>&larr; / &rarr; &mdash; SPIN<br>R &mdash; RESET</div>';
-    }
-
-    function updateNav(dt){
-      if(!flyMode)return;
-      // Apply bullet time scaling
-      const simDt=bulletTime?dt*BULLET_TIME_SCALE:dt;
-      // Velocity Verlet integration with gravity
-      const currentTime=(performance.now()-t0)*0.001;
-      const a1=computeGravAccel(flyPos,currentTime);
-      // Half-step velocity
-      flyVel[0]+=0.5*a1[0]*simDt;
-      flyVel[1]+=0.5*a1[1]*simDt;
-      flyVel[2]+=0.5*a1[2]*simDt;
-      // Full-step position
-      flyPos[0]+=flyVel[0]*simDt;
-      flyPos[1]+=flyVel[1]*simDt;
-      flyPos[2]+=flyVel[2]*simDt;
-      // Recompute accel at new position
-      const a2=computeGravAccel(flyPos,currentTime+simDt);
-      // Half-step velocity again
-      flyVel[0]+=0.5*a2[0]*simDt;
-      flyVel[1]+=0.5*a2[1]*simDt;
-      flyVel[2]+=0.5*a2[2]*simDt;
-      // Apply continuous thrust while held
-      if(thrusting&&aimDir){
-        flyVel[0]+=aimDir[0]*thrustPower*simDt;
-        flyVel[2]+=aimDir[2]*thrustPower*simDt;
-      }
-      // Constrain to ecliptic plane (y=0)
-      flyPos[1]=0; flyVel[1]=0;
-      // Update ship orientation from velocity
-      const spd=v3len(flyVel);
-      if(spd>0.1){
-        flyFwd[0]=flyVel[0]/spd;flyFwd[1]=0;flyFwd[2]=flyVel[2]/spd;
-      } else if(aimDir){
-        flyFwd[0]=aimDir[0];flyFwd[1]=0;flyFwd[2]=aimDir[2];
-      }
-      flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
-    }
-
+   <script>
+    /* ---- GL setup, buffers, input, render loop ---- */
     let W,dv,wf;
+
+    // Pre-allocated scratch arrays (zero per-frame allocation in render loop)
+    const _camP=new Float32Array(3),_camF=new Float32Array(3),_camR=new Float32Array(3),_camU=new Float32Array(3);
+    const _shipR=new Float32Array(3),_worldUp=new Float32Array([0,1,0]);
+    const _toLW=new Float32Array(3),_toLV=new Float32Array(3);
+    const _proj=new Float32Array(16),_view=new Float32Array(16),_vpMat=new Float32Array(16);
+    const _model=new Float32Array(16),_mvp=new Float32Array(16),_t16=new Float32Array(16);
+    const _normM=new Float32Array(9);
+    const _mR=new Float32Array(3),_mMod=new Float32Array(16),_mMvp=new Float32Array(16),_mT16=new Float32Array(16),_mNorm=new Float32Array(9);
+    const _aimLine=new Float32Array(6),_tgtMark=new Float32Array(12),_tgtDot=new Float32Array(3);
+    const _trailBuf=new Float32Array(MISSILE_TRAIL_LEN*3);
+    const _detAgeFlat=new Float32Array(6),_detPosFlat=new Float32Array(18);
 
     function cS(g,s,t){const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);if(!g.getShaderParameter(sh,g.COMPILE_STATUS)){console.error(g.getShaderInfoLog(sh));g.deleteShader(sh);return null}return sh}
     const vs=cS(gl,vsSource,gl.VERTEX_SHADER),fs=cS(gl,fsSource,gl.FRAGMENT_SHADER),pg=gl.createProgram();
@@ -1009,11 +182,15 @@
       uCR=gl.getUniformLocation(pg,'u_camRight'),uCU=gl.getUniformLocation(pg,'u_camUp'),
       uRH=gl.getUniformLocation(pg,'u_rH'),uRI=gl.getUniformLocation(pg,'u_rIsco'),
       uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
+      uOS=gl.getUniformLocation(pg,'u_orbitScale'),
       uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
            gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3'),
            gl.getUniformLocation(pg,'u_planet4'),gl.getUniformLocation(pg,'u_planet5')];
+    const uDetPos=[],uDetAge=[];
+    for(let i=0;i<6;i++){uDetPos.push(gl.getUniformLocation(pg,'u_detPos['+i+']'));uDetAge.push(gl.getUniformLocation(pg,'u_detAge['+i+']'));}
+    const uDetCount=gl.getUniformLocation(pg,'u_detCount');
 
-    // Blackbody 1D lookup texture (replaces 10 smoothstep calls per disk pixel)
+    // Blackbody 1D lookup texture
     const uBB=gl.getUniformLocation(pg,'u_bbTex');
     {
       const N=256,d=new Uint8Array(N*4);
@@ -1040,30 +217,6 @@
     }
 
     /* ---- Ship shader program ---- */
-    const shipVS=`attribute vec3 a_shipPos;
-attribute vec3 a_shipNormal;
-uniform mat4 u_mvp;
-uniform mat3 u_normalMatrix;
-varying vec3 v_normal;
-varying vec3 v_pos;
-void main(){
-  v_normal=normalize(u_normalMatrix*a_shipNormal);
-  v_pos=a_shipPos;
-  gl_Position=u_mvp*vec4(a_shipPos,1.0);
-}`;
-    const shipFS=`precision mediump float;
-uniform vec3 u_shipColor;
-uniform vec3 u_lightDir;
-varying vec3 v_normal;
-varying vec3 v_pos;
-void main(){
-  vec3 n=normalize(v_normal);
-  float diff=max(dot(n,u_lightDir),0.0);
-  float amb=0.15;
-  float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),3.0)*0.3;
-  vec3 col=u_shipColor*(amb+diff*0.85)+vec3(0.3,0.5,0.8)*rim;
-  gl_FragColor=vec4(col,1.0);
-}`;
     const sVS=cS(gl,shipVS,gl.VERTEX_SHADER),sFS=cS(gl,shipFS,gl.FRAGMENT_SHADER),shipPg=gl.createProgram();
     gl.attachShader(shipPg,sVS);gl.attachShader(shipPg,sFS);gl.linkProgram(shipPg);
     if(!gl.getProgramParameter(shipPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(shipPg));
@@ -1082,26 +235,19 @@ void main(){
     gl.bufferData(gl.ARRAY_BUFFER,shipGeo.normals,gl.STATIC_DRAW);
     const shipIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,shipGeo.indices,gl.STATIC_DRAW);
-    // Restore main program state
+    // Missile geometry
+    const missileGeo=createBoxGeometry(MISSILE_HALF[0],MISSILE_HALF[1],MISSILE_HALF[2]);
+    const missilePosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,missileGeo.positions,gl.STATIC_DRAW);
+    const missileNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,missileGeo.normals,gl.STATIC_DRAW);
+    const missileIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,missileGeo.indices,gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER,bf);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
     gl.useProgram(pg);
 
     /* ---- Trajectory shader program ---- */
-    const trajVS=`attribute vec3 a_trajPos;
-uniform mat4 u_trajMVP;
-uniform float u_trajPtSize;
-void main(){
-  gl_Position=u_trajMVP*vec4(a_trajPos,1.0);
-  gl_PointSize=u_trajPtSize;
-}`;
-    const trajFS=`precision mediump float;
-uniform vec4 u_trajColor;
-void main(){
-  vec2 c=gl_PointCoord-0.5;
-  if(dot(c,c)>0.25)discard;
-  gl_FragColor=u_trajColor;
-}`;
     const tVS=cS(gl,trajVS,gl.VERTEX_SHADER),tFS=cS(gl,trajFS,gl.FRAGMENT_SHADER),trajPg=gl.createProgram();
     gl.attachShader(trajPg,tVS);gl.attachShader(trajPg,tFS);gl.linkProgram(trajPg);
     if(!gl.getProgramParameter(trajPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(trajPg));
@@ -1112,8 +258,9 @@ void main(){
       uColor:gl.getUniformLocation(trajPg,'u_trajColor')
     };
     const trajBuf=gl.createBuffer();
-    const previewBuf=gl.createBuffer();
     const aimLineBuf=gl.createBuffer();
+    const targetMarkerBuf=gl.createBuffer();
+    const missileTrailBuf=gl.createBuffer();
 
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
@@ -1129,30 +276,63 @@ void main(){
 
     function wMem(){dv.setFloat32(0x000,camAz,true);dv.setFloat32(0x004,camEl,true);dv.setFloat32(0x008,camDist,true);dv.setFloat32(0x00C,sp,true);dv.setFloat32(0x014,mSX,true);dv.setFloat32(0x018,mSY,true);dv.setFloat32(0x01C,baseWidth,true);dv.setFloat32(0x020,baseHeight,true);dv.setFloat32(0x024,renderScale,true)}
 
+    /* ---- Input handlers ---- */
     let dr=false,lX=0,lY=0,dsX=0,dsY=0,dD=false;
     canvas.addEventListener('mousedown',e=>{
       if(flyMode){
-        if(e.button===0){dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY;thrusting=true;}
+        if(e.button===0){dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY;}
         return;
       }
       dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY;
     });
     window.addEventListener('mouseup',e=>{
-      if(flyMode&&e.button===0)thrusting=false;
       dr=false;
     });
     canvas.addEventListener('contextmenu',e=>{if(flyMode)e.preventDefault();});
+    canvas.addEventListener('mousedown',e=>{
+      if(!flyMode||e.button!==2||!dv)return;
+      e.preventDefault();
+      if(missileState==='cooldown'||missileState==='fired')return;
+      if(missileTargets.length>=MAX_MISSILES&&missileState==='targeting')return;
+      const cpx=dv.getFloat32(0x030,true),cpy=dv.getFloat32(0x034,true),cpz=dv.getFloat32(0x038,true);
+      const fX=dv.getFloat32(0x03C,true),fY=dv.getFloat32(0x040,true),fZ=dv.getFloat32(0x044,true);
+      const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
+      const uX=dv.getFloat32(0x054,true),uY=dv.getFloat32(0x058,true),uZ=dv.getFloat32(0x05C,true);
+      const minDim=Math.min(canvas.width,canvas.height);
+      const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
+      const aspect=canvas.width/canvas.height;
+      const ndcX=(2*e.clientX/baseWidth-1)*aspect*Math.tan(fovY/2);
+      const ndcY=(1-2*e.clientY/baseHeight)*Math.tan(fovY/2);
+      const rdx=rX*ndcX+uX*ndcY+fX;
+      const rdy=rY*ndcX+uY*ndcY+fY;
+      const rdz=rZ*ndcX+uZ*ndcY+fZ;
+      if(Math.abs(rdy)<0.0001)return;
+      const t=-cpy/rdy;
+      if(t<0)return;
+      const hitX=cpx+rdx*t, hitZ=cpz+rdz*t;
+      for(let i=0;i<missileTargets.length;i++){
+        const dx=missileTargets[i].x-hitX, dz=missileTargets[i].z-hitZ;
+        if(dx*dx+dz*dz<4.0){
+          missileTargets.splice(i,1);
+          missileState=missileTargets.length>0?'targeting':'idle';
+          updateMissileUI();return;
+        }
+      }
+      if(missileTargets.length>=MAX_MISSILES)return;
+      missileTargets.push({x:hitX,z:hitZ});
+      missileState='targeting';
+      updateMissileUI();
+    });
     window.addEventListener('mousemove',e=>{
       mSX=e.clientX;mSY=e.clientY;
       if(flyMode){
         if(dr){
-          // Drag: orbit camera
           const dx=e.clientX-lX,dy=e.clientY-lY;
           navCamAz+=dx*FLY_SENSITIVITY;
           navCamEl=Math.max(0.05,Math.min(1.4,navCamEl-dy*FLY_SENSITIVITY));
           lX=e.clientX;lY=e.clientY;
           const tx=e.clientX-dsX,ty=e.clientY-dsY;
-          if(tx*tx+ty*ty>9){dD=true;thrusting=false;}
+          if(tx*tx+ty*ty>9){dD=true;}
           canvas.style.cursor='grabbing';
         }else{
           canvas.style.cursor='crosshair';
@@ -1165,7 +345,6 @@ void main(){
     canvas.addEventListener('wheel',e=>{
       e.preventDefault();
       if(flyMode){
-        // Adjust thrust power
         thrustPower=Math.max(THRUST_MIN,Math.min(THRUST_MAX,thrustPower-e.deltaY*0.01));
         return;
       }
@@ -1178,15 +357,15 @@ void main(){
     canvas.addEventListener('touchend',e=>{for(let i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].identifier===tId){if(!dDT){mSX=e.changedTouches[i].clientX;mSY=e.changedTouches[i].clientY;wMem();wf();hP=dv.getInt32(0x068,true);if(hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href}tId=null}}});
 
     // Thrust slider drag handlers
-    function thrustFromY(clientY){
+    function thrustFromX(clientX){
       const rect=thrustTrack.getBoundingClientRect();
-      const frac=1-(Math.max(0,Math.min(rect.height,clientY-rect.top))/rect.height);
+      const frac=Math.max(0,Math.min(rect.width,clientX-rect.left))/rect.width;
       thrustPower=THRUST_MIN+(THRUST_MAX-THRUST_MIN)*frac;
     }
     thrustTrack.addEventListener('mousedown',e=>{
       e.stopPropagation();e.preventDefault();
       thrustDragging=true;thrustHandle.classList.add('dragging');
-      thrustFromY(e.clientY);
+      thrustFromX(e.clientX);
     });
     thrustHandle.addEventListener('mousedown',e=>{
       e.stopPropagation();e.preventDefault();
@@ -1194,16 +373,15 @@ void main(){
     });
     window.addEventListener('mousemove',e=>{
       if(!thrustDragging)return;
-      e.preventDefault();thrustFromY(e.clientY);
+      e.preventDefault();thrustFromX(e.clientX);
     });
     window.addEventListener('mouseup',()=>{
       if(thrustDragging){thrustDragging=false;thrustHandle.classList.remove('dragging');}
     });
-    // Touch support for slider
     thrustTrack.addEventListener('touchstart',e=>{
       e.stopPropagation();e.preventDefault();
       thrustDragging=true;thrustHandle.classList.add('dragging');
-      thrustFromY(e.touches[0].clientY);
+      thrustFromX(e.touches[0].clientX);
     },{passive:false});
     thrustHandle.addEventListener('touchstart',e=>{
       e.stopPropagation();e.preventDefault();
@@ -1211,7 +389,7 @@ void main(){
     },{passive:false});
     window.addEventListener('touchmove',e=>{
       if(!thrustDragging)return;
-      e.preventDefault();thrustFromY(e.touches[0].clientY);
+      e.preventDefault();thrustFromX(e.touches[0].clientX);
     },{passive:false});
     window.addEventListener('touchend',()=>{
       if(thrustDragging){thrustDragging=false;thrustHandle.classList.remove('dragging');}
@@ -1224,57 +402,175 @@ void main(){
         return;
       }
       if(flyMode){
-        if(e.key===' '){bulletTime=!bulletTime;e.preventDefault();}
+        if(e.key===' '){thrusting=true;e.preventDefault();}
+        if(e.key==='b'||e.key==='B'){bulletTime=!bulletTime;}
+        if(e.key==='1')navCamDist=3;
+        if(e.key==='2')navCamDist=120;
+        if(e.key==='c'||e.key==='C'){missileTargets.length=0;missileState='idle';updateMissileUI();}
         return;
       }
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
       else if(e.key==='['||e.key==='ArrowLeft')sp=Math.max(-2,sp-0.02);
       else if(e.key==='r'||e.key==='R'){camAz=DF.camAz;camEl=DF.camEl;camDist=DF.camDist;sp=DF.sp}
     });
+    window.addEventListener('keyup',e=>{
+      if(flyMode&&e.key===' ')thrusting=false;
+    });
 
+
+    const nukeBtn=document.getElementById('nuke-btn');
+    nukeBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const slot=detSlots.find(s=>!s.active);
+      if(!slot)return;
+      const saturn=planetData[1];
+      const oScale=flyMode?2.0:1.0;
+      const angle=saturn.sp*simTime+saturn.ph;
+      const detOrbR=(saturn.oR+3.0)*oScale;
+      slot.pos[0]=detOrbR*Math.sin(angle);
+      slot.pos[1]=0;
+      slot.pos[2]=detOrbR*Math.cos(angle);
+      slot.startSimTime=simTime;
+      slot.active=true;
+      nukeBtn.classList.add('detonated');
+      nukeBtn.innerHTML='DETONATING...';
+      setTimeout(()=>{if(slot.active)nukeBtn.innerHTML='EXPANDING...'},3000);
+    });
+
+    missileFireBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(missileState!=='targeting'||missileTargets.length===0)return;
+      for(let i=0;i<missileTargets.length;i++){
+        const tgt=missileTargets[i];
+        missiles.push({
+          pos:[flyPos[0],0,flyPos[2]],
+          vel:[flyVel[0],0,flyVel[2]],
+          targetPos:[tgt.x,0,tgt.z],
+          fwd:[flyFwd[0],0,flyFwd[2]],
+          trail:new Float32Array(MISSILE_TRAIL_LEN*3),
+          trailHead:0,trailCount:0,trailTimer:0,
+          alive:true,detonated:false,detSlot:null
+        });
+      }
+      missileTargets.length=0;
+      missileState='fired';
+      updateMissileUI();
+    });
+
+    /* ---- Render loop ---- */
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
       hF=document.getElementById('hud-fps'),hSc=document.getElementById('hud-scale');
     let fC=0,lFT=performance.now(),lFrT=performance.now();
-    const t0=performance.now();
+    let simTime=0;
 
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
       const dtSec=Math.min(ft*0.001,0.1);
-      updateNav(dtSec);
+      const simDtSec=(flyMode&&bulletTime)?dtSec*BULLET_TIME_SCALE:dtSec;
+      simTime+=simDtSec;
       dv.setFloat32(0x028,ft,true);
-      dv.setFloat32(0x010,(now-t0)*0.001,true);
+      dv.setFloat32(0x010,simTime,true);
       wMem();
       wf();
+      updateNav(simDtSec);
+      updateMissiles(simDtSec);
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
       if(flyMode){
-        // Spherical orbit camera around flyPos
         const cx=flyPos[0]+navCamDist*Math.cos(navCamEl)*Math.sin(navCamAz);
         const cy=flyPos[1]+navCamDist*Math.sin(navCamEl);
         const cz=flyPos[2]+navCamDist*Math.cos(navCamEl)*Math.cos(navCamAz);
-        const camP=[cx,cy,cz];
-        const camF=[flyPos[0]-cx,flyPos[1]-cy,flyPos[2]-cz];
-        v3norm(camF,camF);
-        const worldUp=[0,1,0];
-        const camR=[0,0,0];v3cross(camR,camF,worldUp);v3norm(camR,camR);
-        const camU=[0,0,0];v3cross(camU,camR,camF);v3norm(camU,camU);
-        dv.setFloat32(0x030,camP[0],true);dv.setFloat32(0x034,camP[1],true);dv.setFloat32(0x038,camP[2],true);
-        dv.setFloat32(0x03C,camF[0],true);dv.setFloat32(0x040,camF[1],true);dv.setFloat32(0x044,camF[2],true);
-        dv.setFloat32(0x048,camR[0],true);dv.setFloat32(0x04C,camR[1],true);dv.setFloat32(0x050,camR[2],true);
-        dv.setFloat32(0x054,camU[0],true);dv.setFloat32(0x058,camU[1],true);dv.setFloat32(0x05C,camU[2],true);
+        _camP[0]=cx;_camP[1]=cy;_camP[2]=cz;
+        _camF[0]=flyPos[0]-cx;_camF[1]=flyPos[1]-cy;_camF[2]=flyPos[2]-cz;
+        v3norm(_camF,_camF);
+        v3cross(_camR,_camF,_worldUp);v3norm(_camR,_camR);
+        v3cross(_camU,_camR,_camF);v3norm(_camU,_camU);
+        dv.setFloat32(0x030,cx,true);dv.setFloat32(0x034,cy,true);dv.setFloat32(0x038,cz,true);
+        dv.setFloat32(0x03C,_camF[0],true);dv.setFloat32(0x040,_camF[1],true);dv.setFloat32(0x044,_camF[2],true);
+        dv.setFloat32(0x048,_camR[0],true);dv.setFloat32(0x04C,_camR[1],true);dv.setFloat32(0x050,_camR[2],true);
+        dv.setFloat32(0x054,_camU[0],true);dv.setFloat32(0x058,_camU[1],true);dv.setFloat32(0x05C,_camU[2],true);
         hP=-1;
         if(!dr)canvas.style.cursor='crosshair';
       }else{
-        hP=dv.getInt32(0x068,true);
+        hP=-1;
+        if(mSX>=0){
+          const cpx=dv.getFloat32(0x030,true),cpy=dv.getFloat32(0x034,true),cpz=dv.getFloat32(0x038,true);
+          const fX=dv.getFloat32(0x03C,true),fY=dv.getFloat32(0x040,true),fZ=dv.getFloat32(0x044,true);
+          const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
+          const uX=dv.getFloat32(0x054,true),uY=dv.getFloat32(0x058,true),uZ=dv.getFloat32(0x05C,true);
+          const rH=dv.getFloat32(0x060,true);
+          const oS=flyMode?2.0:1.0;
+          const mD=Math.min(baseWidth,baseHeight);
+          const nX=(mSX-baseWidth*0.5)/(1.8*mD),nY=(baseHeight*0.5-mSY)/(1.8*mD);
+          let rdx=fX+rX*nX+uX*nY,rdy=fY+rY*nX+uY*nY,rdz=fZ+rZ*nX+uZ*nY;
+          const rl=Math.sqrt(rdx*rdx+rdy*rdy+rdz*rdz);
+          rdx/=rl;rdy/=rl;rdz/=rl;
+          const pp=[];
+          for(let i=0;i<6;i++){
+            const b=0x070+i*12;
+            const px=dv.getFloat32(b,true),py=dv.getFloat32(b+4,true),pz=dv.getFloat32(b+8,true);
+            const d=Math.sqrt((cpx-px)**2+(cpy-py)**2+(cpz-pz)**2);
+            const hr=Math.max(planetData[i].radius*1.5,25*d/(1.8*mD));
+            pp.push({x:px,y:py,z:pz,hr:hr});
+          }
+          let px=cpx,py=cpy,pz=cpz,vx=rdx,vy=rdy,vz=rdz;
+          const Lx=py*vz-pz*vy,Ly=pz*vx-px*vz,Lz=px*vy-py*vx;
+          const L2=Lx*Lx+Ly*Ly+Lz*Lz;
+          function accel(px,py,pz,vx,vy,vz){
+            const r2=px*px+py*py+pz*pz,r=Math.sqrt(r2),r3=r2*r,r5=r2*r3;
+            const f=-1.5*L2/r5;
+            let ax=f*px,ay=f*py,az=f*pz;
+            if(Math.abs(sp)>=0.001){
+              const Jy=sp,rdot=(Jy*py)/r;
+              const ox=(2*(-6*rdot*(px/r)))/r3;
+              const oy=(2*(Jy-6*rdot*(py/r)))/r3;
+              const oz=(2*(-6*rdot*(pz/r)))/r3;
+              ax+=2*(oy*vz-oz*vy);ay+=2*(oz*vx-ox*vz);az+=2*(ox*vy-oy*vx);
+            }
+            return [ax,ay,az];
+          }
+          let r0=Math.sqrt(px*px+py*py+pz*pz);
+          let dt0=Math.max(0.002,Math.min(0.08*(r0-rH),3.0));
+          let [ax0,ay0,az0]=accel(px,py,pz,vx,vy,vz);
+          let vhx=vx+0.5*dt0*ax0,vhy=vy+0.5*dt0*ay0,vhz=vz+0.5*dt0*az0;
+          const escR=Math.max(100*oS,Math.sqrt(cpx*cpx+cpy*cpy+cpz*cpz)+20);
+          let bestI=-1;
+          for(let step=0;step<250;step++){
+            const r=Math.sqrt(px*px+py*py+pz*pz);
+            if(r<rH*1.05)break;
+            if(r>escR)break;
+            if(r>100*oS&&(px*vx+py*vy+pz*vz)>0)break;
+            const dt=Math.max(0.002,Math.min(0.08*(r-rH),3.0));
+            const ppx=px,ppy=py,ppz=pz;
+            px+=vhx*dt;py+=vhy*dt;pz+=vhz*dt;
+            const [ax,ay,az]=accel(px,py,pz,vhx,vhy,vhz);
+            vx=vhx+0.5*dt*ax;vy=vhy+0.5*dt*ay;vz=vhz+0.5*dt*az;
+            vhx+=dt*ax;vhy+=dt*ay;vhz+=dt*az;
+            if(r>16&&r<100*oS){
+              const sx=px-ppx,sy=py-ppy,sz=pz-ppz;
+              const sL2=sx*sx+sy*sy+sz*sz;
+              for(let i=0;i<6;i++){
+                const p=pp[i];
+                const ocx=ppx-p.x,ocy=ppy-p.y,ocz=ppz-p.z;
+                const bH=ocx*sx+ocy*sy+ocz*sz;
+                const tC=Math.max(0,Math.min(-bH/sL2,1));
+                const cx=ocx+sx*tC,cy=ocy+sy*tC,cz=ocz+sz*tC;
+                const d2=cx*cx+cy*cy+cz*cz;
+                if(d2<p.hr*p.hr){bestI=i;break;}
+              }
+              if(bestI>=0)break;
+            }
+          }
+          hP=bestI;
+        }
         if(!dr)canvas.style.cursor=hP>=0?'pointer':'grab';
         else canvas.style.cursor='grabbing';
       }
-      // u_camDist controls shader escape radius — must be camera-to-origin distance
       const flyDist=flyMode?Math.sqrt(
         dv.getFloat32(0x030,true)**2+dv.getFloat32(0x034,true)**2+dv.getFloat32(0x038,true)**2
       ):camDist;
       gl.uniform2f(uR,canvas.width,canvas.height);
-      gl.uniform1f(uT,(now-t0)*0.001);
+      gl.uniform1f(uT,simTime);
       gl.uniform1f(uCD,flyDist);
       gl.uniform1f(uSp,sp);
       gl.uniform3f(uCP,dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true));
@@ -1284,38 +580,53 @@ void main(){
       gl.uniform1f(uRH,dv.getFloat32(0x060,true));
       gl.uniform1f(uRI,dv.getFloat32(0x064,true));
       gl.uniform1f(uHP,hP);
+      gl.uniform1f(uOS,flyMode?2.0:1.0);
       for(let i=0;i<6;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
+      let detCount=0;
+      for(let i=0;i<6;i++){
+        const s=detSlots[i];
+        if(s.active){
+          const detAge=simTime-s.startSimTime;
+          if(detAge>DET_DURATION){s.active=false;_detAgeFlat[i]=-1.0;}
+          else{_detPosFlat[i*3]=s.pos[0];_detPosFlat[i*3+1]=s.pos[1];_detPosFlat[i*3+2]=s.pos[2];_detAgeFlat[i]=detAge;detCount++;}
+        }else{_detAgeFlat[i]=-1.0;}
+      }
+      gl.uniform1fv(uDetAge[0],_detAgeFlat);
+      if(detCount>0)gl.uniform3fv(uDetPos[0],_detPosFlat);
+      gl.uniform1i(uDetCount,detCount);
+      if(detCount===0&&nukeBtn.classList.contains('detonated')){
+        nukeBtn.classList.remove('detonated');
+        nukeBtn.innerHTML='<span class="nuke-icon">\u2622</span> DETONATE';
+      }
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-      // Draw ship + trajectories in nav mode
       if(flyMode){
-        const shipRight=[0,0,0];v3cross(shipRight,flyFwd,flyUp);v3norm(shipRight,shipRight);
-        const camP=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
-        const camF=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
-        const camR=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
-        const camU=[dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true)];
+        v3cross(_shipR,flyFwd,flyUp);v3norm(_shipR,_shipR);
+        _camP[0]=dv.getFloat32(0x030,true);_camP[1]=dv.getFloat32(0x034,true);_camP[2]=dv.getFloat32(0x038,true);
+        _camF[0]=dv.getFloat32(0x03C,true);_camF[1]=dv.getFloat32(0x040,true);_camF[2]=dv.getFloat32(0x044,true);
+        _camR[0]=dv.getFloat32(0x048,true);_camR[1]=dv.getFloat32(0x04C,true);_camR[2]=dv.getFloat32(0x050,true);
+        _camU[0]=dv.getFloat32(0x054,true);_camU[1]=dv.getFloat32(0x058,true);_camU[2]=dv.getFloat32(0x05C,true);
         const minDim=Math.min(canvas.width,canvas.height);
         const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
         const aspect=canvas.width/canvas.height;
-        const proj=mat4Perspective(fovY,aspect,0.1,500);
-        const view=mat4LookAt(camP,flyPos,camU);
-        const model=mat4Model(flyPos,flyFwd,flyUp,shipRight);
-        const mvp=mat4Mul(proj,mat4Mul(view,model));
-        const normMat=mat3NormalFromMat4(mat4Mul(view,model));
-        // Light direction: toward black hole (origin) from ship
-        const toLightW=[0,0,0];v3scale(toLightW,flyPos,-1);v3norm(toLightW,toLightW);
-        const toLightV=[
-          view[0]*toLightW[0]+view[4]*toLightW[1]+view[8]*toLightW[2],
-          view[1]*toLightW[0]+view[5]*toLightW[1]+view[9]*toLightW[2],
-          view[2]*toLightW[0]+view[6]*toLightW[1]+view[10]*toLightW[2]
-        ];
+        mat4Perspective(fovY,aspect,0.1,500,_proj);
+        mat4LookAt(_camP,flyPos,_camU,_view);
+        mat4Mul(_proj,_view,_vpMat);
+        mat4Model(flyPos,flyFwd,flyUp,_shipR,_model);
+        mat4Mul(_view,_model,_t16);
+        mat4Mul(_proj,_t16,_mvp);
+        mat3NormalFromMat4(_t16,_normM);
+        v3scale(_toLW,flyPos,-1);v3norm(_toLW,_toLW);
+        _toLV[0]=_view[0]*_toLW[0]+_view[4]*_toLW[1]+_view[8]*_toLW[2];
+        _toLV[1]=_view[1]*_toLW[0]+_view[5]*_toLW[1]+_view[9]*_toLW[2];
+        _toLV[2]=_view[2]*_toLW[0]+_view[6]*_toLW[1]+_view[10]*_toLW[2];
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
-        // Draw ship
+
         gl.useProgram(shipPg);
-        gl.uniformMatrix4fv(shipLocs.uMvp,false,mvp);
-        gl.uniformMatrix3fv(shipLocs.uNorm,false,normMat);
+        gl.uniformMatrix4fv(shipLocs.uMvp,false,_mvp);
+        gl.uniformMatrix3fv(shipLocs.uNorm,false,_normM);
         gl.uniform3f(shipLocs.uColor,SHIP_COLOR[0],SHIP_COLOR[1],SHIP_COLOR[2]);
-        gl.uniform3f(shipLocs.uLight,toLightV[0],toLightV[1],toLightV[2]);
+        gl.uniform3f(shipLocs.uLight,_toLV[0],_toLV[1],_toLV[2]);
         gl.disableVertexAttribArray(aP);
         gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
         gl.enableVertexAttribArray(shipLocs.aPos);
@@ -1329,20 +640,39 @@ void main(){
         gl.disableVertexAttribArray(shipLocs.aNorm);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
 
-        // Draw trajectory lines
-        const vpMat=mat4Mul(proj,view);
-        const currentTime=(now-t0)*0.001;
-        // Compute aim direction from mouse
-        aimDir=computeAimDir(mSX,mSY,camP,camF,camR,camU,fovY,aspect);
+        for(let mi=0;mi<missiles.length;mi++){
+          const m=missiles[mi];
+          if(!m.alive)continue;
+          v3cross(_mR,m.fwd,_worldUp);v3norm(_mR,_mR);
+          mat4Model(m.pos,m.fwd,_worldUp,_mR,_mMod);
+          mat4Mul(_view,_mMod,_mT16);
+          mat4Mul(_proj,_mT16,_mMvp);
+          mat3NormalFromMat4(_mT16,_mNorm);
+          gl.uniformMatrix4fv(shipLocs.uMvp,false,_mMvp);
+          gl.uniformMatrix3fv(shipLocs.uNorm,false,_mNorm);
+          gl.uniform3f(shipLocs.uColor,MISSILE_COLOR[0],MISSILE_COLOR[1],MISSILE_COLOR[2]);
+          gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
+          gl.enableVertexAttribArray(shipLocs.aPos);
+          gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
+          gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
+          gl.enableVertexAttribArray(shipLocs.aNorm);
+          gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
+          gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
+          gl.disableVertexAttribArray(shipLocs.aPos);
+          gl.disableVertexAttribArray(shipLocs.aNorm);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+        }
+
+        aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
 
         gl.useProgram(trajPg);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-        gl.uniformMatrix4fv(trajLocs.uMvp,false,vpMat);
+        gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
         gl.uniform1f(trajLocs.uPtSize,2.0);
 
-        // Trajectory 1: current path (no thrust) — dim blue
-        const n1=simulateTrajectory(flyPos,flyVel,currentTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
+        const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
         gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
         gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
         gl.enableVertexAttribArray(trajLocs.aPos);
@@ -1350,52 +680,72 @@ void main(){
         gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.3);
         gl.drawArrays(gl.POINTS,0,n1);
 
-        // Trajectory 2: preview path (continuous thrust for 3s) — bright cyan
         if(aimDir){
-          const n2=simulateTrajectory(flyPos,flyVel,currentTime,TRAJ_STEPS,TRAJ_SIM_DT,previewArray,aimDir,thrustPower,3.0);
-          gl.bindBuffer(gl.ARRAY_BUFFER,previewBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,previewArray.subarray(0,n2*3),gl.DYNAMIC_DRAW);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.549,0.863,1.0,0.85);
-          gl.drawArrays(gl.POINTS,0,n2);
-
-          // Thrust direction indicator line
           const lineLen=thrustPower*0.5;
-          const lineData=new Float32Array([
-            flyPos[0],flyPos[1],flyPos[2],
-            flyPos[0]+aimDir[0]*lineLen, flyPos[1], flyPos[2]+aimDir[2]*lineLen
-          ]);
+          _aimLine[0]=flyPos[0];_aimLine[1]=flyPos[1];_aimLine[2]=flyPos[2];
+          _aimLine[3]=flyPos[0]+aimDir[0]*lineLen;_aimLine[4]=flyPos[1];_aimLine[5]=flyPos[2]+aimDir[2]*lineLen;
           gl.bindBuffer(gl.ARRAY_BUFFER,aimLineBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,lineData,gl.DYNAMIC_DRAW);
+          gl.bufferData(gl.ARRAY_BUFFER,_aimLine,gl.DYNAMIC_DRAW);
           gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
           gl.uniform4f(trajLocs.uColor,0.549,0.863,1.0,0.7);
           gl.uniform1f(trajLocs.uPtSize,1.0);
           gl.drawArrays(gl.LINES,0,2);
         }
 
+        for(let mi=0;mi<missiles.length;mi++){
+          const m=missiles[mi];
+          if(m.trailCount<2)continue;
+          let tc=0;
+          for(let j=0;j<m.trailCount;j+=2){
+            const idx=((m.trailHead-m.trailCount+j+MISSILE_TRAIL_LEN)%MISSILE_TRAIL_LEN)*3;
+            _trailBuf[tc++]=m.trail[idx];_trailBuf[tc++]=m.trail[idx+1];_trailBuf[tc++]=m.trail[idx+2];
+          }
+          if(tc>=3){
+            gl.bindBuffer(gl.ARRAY_BUFFER,missileTrailBuf);
+            gl.bufferData(gl.ARRAY_BUFFER,_trailBuf.subarray(0,tc),gl.DYNAMIC_DRAW);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.uniform4f(trajLocs.uColor,0.85,0.5,0.2,0.5);
+            gl.uniform1f(trajLocs.uPtSize,2.0);
+            gl.drawArrays(gl.POINTS,0,tc/3);
+          }
+        }
+
+        for(let ti=0;ti<missileTargets.length;ti++){
+          const tgt=missileTargets[ti];
+          _tgtMark[0]=tgt.x-1.5;_tgtMark[1]=0;_tgtMark[2]=tgt.z-1.5;
+          _tgtMark[3]=tgt.x+1.5;_tgtMark[4]=0;_tgtMark[5]=tgt.z+1.5;
+          _tgtMark[6]=tgt.x-1.5;_tgtMark[7]=0;_tgtMark[8]=tgt.z+1.5;
+          _tgtMark[9]=tgt.x+1.5;_tgtMark[10]=0;_tgtMark[11]=tgt.z-1.5;
+          gl.bindBuffer(gl.ARRAY_BUFFER,targetMarkerBuf);
+          gl.bufferData(gl.ARRAY_BUFFER,_tgtMark,gl.DYNAMIC_DRAW);
+          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+          gl.uniform4f(trajLocs.uColor,0.85,0.35,0.15,0.8);
+          gl.uniform1f(trajLocs.uPtSize,6.0);
+          gl.drawArrays(gl.LINES,0,4);
+          _tgtDot[0]=tgt.x;_tgtDot[1]=0;_tgtDot[2]=tgt.z;
+          gl.bufferData(gl.ARRAY_BUFFER,_tgtDot,gl.DYNAMIC_DRAW);
+          gl.drawArrays(gl.POINTS,0,1);
+        }
+
         gl.disableVertexAttribArray(trajLocs.aPos);
         gl.disable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
-        // Restore main program state
         gl.useProgram(pg);
         gl.bindBuffer(gl.ARRAY_BUFFER,bf);
         gl.enableVertexAttribArray(aP);
         gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
       }
-      // HUD updates
       if(flyMode){
         for(let i=0;i<6;i++)pL[i].classList.remove('visible','hovered');
-        // Update nav HUD readouts
         flySpdEl.textContent=v3len(flyVel).toFixed(1);
         flyPosEl.textContent=flyPos[0].toFixed(0)+', '+flyPos[1].toFixed(0)+', '+flyPos[2].toFixed(0);
-        // Update thrust slider
         const tFrac=(thrustPower-THRUST_MIN)/(THRUST_MAX-THRUST_MIN);
         thrustValEl.textContent=thrustPower.toFixed(1);
-        thrustHandle.style.bottom=(tFrac*200)+'px';
-        thrustFill.style.height=(tFrac*100)+'%';
-        // Bullet time indicator
+        thrustHandle.style.left=(tFrac*180)+'px';
+        thrustFill.style.width=(tFrac*100)+'%';
         if(bulletTime)flyBulletTime.classList.add('active');
         else flyBulletTime.classList.remove('active');
+        updateMissileUI();
       }else{
         for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
           if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}

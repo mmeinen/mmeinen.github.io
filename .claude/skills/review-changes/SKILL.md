@@ -1,5 +1,5 @@
 ---
-description: "Review the current git changeset against project conventions and shader invariants"
+description: "Review the current git changeset — dispatches to specialized agents based on which files changed"
 context: fork
 user-invocable: true
 allowed-tools:
@@ -9,48 +9,50 @@ allowed-tools:
   - Bash
 ---
 
-# Review Changes
+# Review Changes (Dispatcher)
 
-Review the current changeset for this static GitHub Pages site. Focus on correctness, shader invariant safety, and convention consistency.
+You are a changeset review dispatcher. Your job is to identify what changed and recommend (or run) the appropriate specialized agents.
 
 ## Steps
 
-1. Run `git diff` and `git diff --cached` to see all changes.
-2. Read each modified file in full for context.
-3. Check against the criteria below.
-4. Report findings organized by severity.
+1. Run `git diff --name-only` and `git diff --cached --name-only` to list changed files.
+2. Categorize each changed file into a domain.
+3. Run the `code-reviewer` agent for convention checks on all changes.
+4. Based on the file categories, list which specialized agents should be run.
 
-## Criteria
+## File-to-Agent Routing
 
-### Shader Invariants (if index.html changed)
-Extract current values and verify:
-- Early escape threshold > max(planet oR + radius) for all planets
-- Planet check range LOW < min(planet oR - radius) and HIGH > max(planet oR + radius)
-- Step cap < min(planet radius) × 4
-- Iteration budget > 2 × default camDist
-- If `planetData` changed, verify shader uniforms and HTML labels match
+| Changed File Pattern | Agent(s) to Run |
+|---------------------|-----------------|
+| `index.html` (shader code) | `planet-shader-reviewer`, `blackhole-shader-reviewer` |
+| `index.html` (JS/navigation) | `navigation-reviewer` |
+| `index.html` (performance) | `webgl-optimizer` |
+| `index.html` (volumetric/cloud/particle fx) | `volumetric-fx` |
+| `js/scene.wat`, `js/pong.wat` | `wat-reviewer` |
+| `minesweeper.html`, `js/game.js`, `js/board.js`, `js/tile.js`, `js/bomb.js`, `js/Renderer.js` | `minesweeper-reviewer` |
+| `pong.html`, `js/pong.js` | `pong-reviewer` |
+| `freecell/**` | `freecell-reviewer` |
+| `edmund_game/**` | `nugget-invasion-reviewer` |
+| `beatrix_game/**` | `axolotl-reviewer` |
+| `fps/**` | `travellers-reviewer` |
+| `css/style.css` | `code-reviewer` (convention check) |
+| `tests.html` | `planet-shader-reviewer` (invariant alignment) |
 
-### Convention Checks
-- Blue HUD color: `rgba(60,140,255,*)`
-- Z-index layers: canvas=1, HUD=10, labels=25
-- Game pages are self-contained with back links to `index.html`
-- No external dependencies or CDN imports added
-- No build tools or npm introduced
+## Quick Convention Check
 
-### General Quality
-- No obvious bugs or regressions
-- Error handling for any async code
-- No hardcoded secrets or credentials
+Before dispatching, do a fast scan for:
+- Any external dependencies or CDN imports added
+- Any build tools or npm introduced
+- Any missing back links on game pages
+- Any z-index layer violations
 
-## Output Format
+## Output
 
-### Critical (must fix before committing)
-Issues that will cause visual bugs, broken navigation, or shader rendering failures.
+### Changed Files
+List all changed files.
 
-### Warning (should fix)
-Convention violations, maintainability concerns.
+### Convention Issues
+Any project-wide issues found in the quick scan.
 
-### Suggestion (consider)
-Improvements to clarity or simplicity.
-
-If no issues found, confirm the changeset looks clean.
+### Recommended Agents
+List each specialized agent that should be run, with the specific files it should review.
