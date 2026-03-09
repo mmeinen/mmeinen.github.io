@@ -34,12 +34,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Enemy ships display procedural shader geometry (not sprites or flat quads) via the instanced enemy shader program
   4. A radial bin spatial structure accepts entity positions and returns candidate collision pairs in O(n) time
   5. The existing black hole scene (normal non-nav mode) renders identically -- no shader parameter regressions
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md -- Combat data layer: entity store, radial bins, Grunt geometry, enemy shaders
+- [ ] 01-02-PLAN.md -- Rendering integration: wire enemyPg into index.html, spawn 50 test enemies, Wave 0 regression tests
 
 ### Phase 2: Player Ship & Orbital Movement
 **Goal**: Player commands a visible ship that transfers between any orbital body using physically-grounded trajectories, with full control over thrust and orbit altitude
@@ -176,7 +175,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Combat Rendering Foundation | 0/3 | Not started | - |
+| 1. Combat Rendering Foundation | 0/2 | Planned | - |
 | 2. Player Ship & Orbital Movement | 0/3 | Not started | - |
 | 3. Direct-Fire Weapons | 0/2 | Not started | - |
 | 4. Missile Systems & Explosions | 0/3 | Not started | - |
