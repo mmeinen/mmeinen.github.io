@@ -74,7 +74,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **PRF-01**: Maintains 30fps+ on GTX 1060 / RX 580 tier hardware with 30-50 enemies on screen
 - [ ] **PRF-02**: All combat elements (enemies, projectiles, explosions) rendered as separate GL geometry passes — never inside the ray march shader
 - [ ] **PRF-03**: Instanced rendering used for enemies and projectiles (ANGLE_instanced_arrays)
-- [ ] **PRF-04**: Radial bin collision detection (O(n), not O(n²))
+- [ ] **PRF-04**: Radial bin collision detection (O(n), not O(n^2))
 
 ## v2 Requirements
 
@@ -119,13 +119,60 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| MOV-01 | Phase 2 | Pending |
+| MOV-02 | Phase 2 | Pending |
+| MOV-03 | Phase 2 | Pending |
+| MOV-04 | Phase 2 | Pending |
+| MOV-05 | Phase 2 | Pending |
+| MOV-06 | Phase 2 | Pending |
+| WPN-01 | Phase 3 | Pending |
+| WPN-02 | Phase 3 | Pending |
+| WPN-03 | Phase 3 | Pending |
+| WPN-04 | Phase 3 | Pending |
+| WPN-05 | Phase 4 | Pending |
+| WPN-06 | Phase 4 | Pending |
+| WPN-07 | Phase 4 | Pending |
+| WPN-08 | Phase 4 | Pending |
+| WPN-09 | Phase 4 | Pending |
+| WPN-10 | Phase 4 | Pending |
+| WPN-11 | Phase 3 | Pending |
+| ENM-01 | Phase 5 | Pending |
+| ENM-02 | Phase 7 | Pending |
+| ENM-03 | Phase 7 | Pending |
+| ENM-04 | Phase 7 | Pending |
+| ENM-05 | Phase 7 | Pending |
+| ENM-06 | Phase 5 | Pending |
+| ENM-07 | Phase 7 | Pending |
+| ENM-08 | Phase 7 | Pending |
+| ENM-09 | Phase 7 | Pending |
+| ENM-10 | Phase 5 | Pending |
+| ENM-11 | Phase 1 | Pending |
+| DEF-01 | Phase 6 | Pending |
+| DEF-02 | Phase 6 | Pending |
+| DEF-03 | Phase 6 | Pending |
+| DEF-04 | Phase 6 | Pending |
+| DEF-05 | Phase 6 | Pending |
+| DEF-06 | Phase 6 | Pending |
+| HUD-01 | Phase 8 | Pending |
+| HUD-02 | Phase 8 | Pending |
+| HUD-03 | Phase 8 | Pending |
+| HUD-04 | Phase 9 | Pending |
+| HUD-05 | Phase 9 | Pending |
+| HUD-06 | Phase 9 | Pending |
+| HUD-07 | Phase 8 | Pending |
+| VFX-01 | Phase 5 | Pending |
+| VFX-02 | Phase 5 | Pending |
+| VFX-03 | Phase 4 | Pending |
+| PRF-01 | Phase 1 | Pending |
+| PRF-02 | Phase 1 | Pending |
+| PRF-03 | Phase 1 | Pending |
+| PRF-04 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 42 total
-- Mapped to phases: 0
-- Unmapped: 42 ⚠️
+- v1 requirements: 48 total
+- Mapped to phases: 48
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-09*
-*Last updated: 2026-03-09 after initial definition*
+*Last updated: 2026-03-09 after roadmap creation*
