@@ -31,8 +31,8 @@ let thrusting=false;
 
 /* ---- Gravity & trajectory simulation ---- */
 // Precomputed planet GMs (radius-cubed * constant)
-const _planetGM=new Float32Array(6);
-for(let i=0;i<6;i++){const pr=planetData[i].radius;_planetGM[i]=PLANET_GM_K*pr*pr*pr;}
+const _planetGM=new Float32Array(7);
+for(let i=0;i<7;i++){const pr=planetData[i].radius;_planetGM[i]=PLANET_GM_K*pr*pr*pr;}
 
 function planetPosAtTime(p,t){
   const a=p.sp*t+p.ph;
@@ -52,6 +52,10 @@ function computeGravAccel(pos){
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
     if(r3>0.001){ax+=_planetGM[i]*dx/r3;ay+=_planetGM[i]*dy/r3;az+=_planetGM[i]*dz/r3;}
   }
+  {const pp=planetPosAtTime(planetData[6],simTime);
+   dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
+   r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
+   if(r3>0.001){ax+=_planetGM[6]*dx/r3;ay+=_planetGM[6]*dy/r3;az+=_planetGM[6]*dz/r3;}}
   return [ax,ay,az];
 }
 // Gravity at arbitrary time (for trajectory prediction)
@@ -62,7 +66,7 @@ function computeGravAccelAtTime(pos,time){
   let r3=r2*r;
   let ax=0,ay=0,az=0;
   if(r3>0.001){ax+=BH_GM*dx/r3;ay+=BH_GM*dy/r3;az+=BH_GM*dz/r3;}
-  for(let i=0;i<6;i++){
+  for(let i=0;i<7;i++){
     const pp=planetPosAtTime(planetData[i],time);
     dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
@@ -136,6 +140,12 @@ function enterNavMode(){
     dv.setFloat32(b+4,p.ph,true);
     dv.setFloat32(b+8,p.sp,true);
   }
+  {const p=planetData[6];
+   p._origSp=p.sp;p._origPh=p.ph;
+   p.oR*=2;
+   const spKep=Math.sqrt(BH_GM)/Math.pow(p.oR,1.5);
+   p.ph+=(p.sp-spKep)*tNow;
+   p.sp=spKep;}
   flyMode=true;
   missileState='idle';missileTargets.length=0;missiles.length=0;
   hudOverlay.classList.add('nav-active');
@@ -161,6 +171,7 @@ function exitNavMode(){
     dv.setFloat32(b+4,p.ph,true);
     dv.setFloat32(b+8,p.sp,true);
   }
+  {const p=planetData[6];p.oR/=2;p.sp=p._origSp;p.ph=p._origPh;}
   const dx=flyPos[0],dy=flyPos[1],dz=flyPos[2];
   camDist=Math.sqrt(dx*dx+dy*dy+dz*dz);
   if(camDist<5)camDist=120;
