@@ -100,6 +100,7 @@
        </button>
        <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
      </div>
+     <div id="lock-reticles" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25;"></div>
    </div>
 
    <!-- External JS: shader sources, math, nav mode, missiles -->
@@ -170,12 +171,13 @@
     for(let i=0;i<12;i++)lPointLabels.push(document.getElementById('lpoint-label-'+i));
    </script>
 
-   <!-- Nav mode + missiles + combat (depend on planetData, DOM refs, math) -->
+   <!-- Nav mode + combat + weapons + explosions + missiles (depend on planetData, DOM refs, math) -->
    <script src="js/scene/orbital.js"></script>
    <script src="js/scene/nav.js"></script>
-   <script src="js/scene/missiles.js"></script>
    <script src="js/scene/combat.js"></script>
    <script src="js/scene/weapons.js"></script>
+   <script src="js/scene/explosions.js"></script>
+   <script src="js/scene/missiles.js"></script>
 
    <script>
     /* ---- GL setup, buffers, input, render loop ---- */
@@ -190,8 +192,19 @@
     const _normM=new Float32Array(9);
     const _mR=new Float32Array(3),_mMod=new Float32Array(16),_mMvp=new Float32Array(16),_mT16=new Float32Array(16),_mNorm=new Float32Array(9);
     const _aimLine=new Float32Array(6),_tgtMark=new Float32Array(12),_tgtDot=new Float32Array(3);
-    const _trailBuf=new Float32Array(MISSILE_TRAIL_LEN*3);
     const _detAgeFlat=new Float32Array(6),_detPosFlat=new Float32Array(18);
+    // Missile trail ring buffer
+    const missileTrailMaxPts=1024;
+    const missileTrailPos=new Float32Array(missileTrailMaxPts*3);
+    const missileTrailAlpha=new Float32Array(missileTrailMaxPts);
+    const missileTrailType=new Uint8Array(missileTrailMaxPts);
+    let missileTrailHead=0,missileTrailCount=0;
+    // Lock reticle DOM pool
+    const lockReticlesContainer=document.getElementById('lock-reticles');
+    const lockReticleDivs=[];
+    for(let lr=0;lr<6;lr++){const d=document.createElement('div');d.className='lock-reticle';d.innerHTML='<span class="lock-count"></span>';d.style.display='none';lockReticlesContainer.appendChild(d);lockReticleDivs.push(d);}
+    // Missile trail render buffer for GPU upload
+    const _mtRenderBuf=new Float32Array(missileTrailMaxPts*3);
 
     function cS(g,s,t){const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);if(!g.getShaderParameter(sh,g.COMPILE_STATUS)){console.error(g.getShaderInfoLog(sh));g.deleteShader(sh);return null}return sh}
     const vs=cS(gl,vsSource,gl.VERTEX_SHADER),fs=cS(gl,fsSource,gl.FRAGMENT_SHADER),pg=gl.createProgram();
@@ -360,36 +373,11 @@
     canvas.addEventListener('mousedown',e=>{
       if(!flyMode||e.button!==2||!dv)return;
       e.preventDefault();
-      if(missileState==='cooldown'||missileState==='fired')return;
-      if(missileTargets.length>=MAX_MISSILES&&missileState==='targeting')return;
-      const cpx=dv.getFloat32(0x030,true),cpy=dv.getFloat32(0x034,true),cpz=dv.getFloat32(0x038,true);
-      const fX=dv.getFloat32(0x03C,true),fY=dv.getFloat32(0x040,true),fZ=dv.getFloat32(0x044,true);
-      const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
-      const uX=dv.getFloat32(0x054,true),uY=dv.getFloat32(0x058,true),uZ=dv.getFloat32(0x05C,true);
-      const minDim=Math.min(canvas.width,canvas.height);
-      const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
-      const aspect=canvas.width/canvas.height;
-      const ndcX=(2*e.clientX/baseWidth-1)*aspect*Math.tan(fovY/2);
-      const ndcY=(1-2*e.clientY/baseHeight)*Math.tan(fovY/2);
-      const rdx=rX*ndcX+uX*ndcY+fX;
-      const rdy=rY*ndcX+uY*ndcY+fY;
-      const rdz=rZ*ndcX+uZ*ndcY+fZ;
-      if(Math.abs(rdy)<0.0001)return;
-      const t=-cpy/rdy;
-      if(t<0)return;
-      const hitX=cpx+rdx*t, hitZ=cpz+rdz*t;
-      for(let i=0;i<missileTargets.length;i++){
-        const dx=missileTargets[i].x-hitX, dz=missileTargets[i].z-hitZ;
-        if(dx*dx+dz*dz<4.0){
-          missileTargets.splice(i,1);
-          missileState=missileTargets.length>0?'targeting':'idle';
-          updateMissileUI();return;
-        }
+      // Right-click in missile mode: fire salvo if locks exist
+      if(combatMode&&selectedWeapon>=2&&getLockCount()>0){
+        fireMissileSalvo(simTime);
+        updateMissileUI();
       }
-      if(missileTargets.length>=MAX_MISSILES)return;
-      missileTargets.push({x:hitX,z:hitZ});
-      missileState='targeting';
-      updateMissileUI();
     });
     window.addEventListener('mousemove',e=>{
       mSX=e.clientX;mSY=e.clientY;
@@ -411,8 +399,23 @@
     });
     canvas.addEventListener('click',()=>{
       if(flyMode){
-        // Combat mode: fire weapon instead of orbit transfer (Pitfall 3)
-        if(!dD&&combatMode){fireSelectedWeapon(simTime);return;}
+        // Combat mode: fire weapon or add missile lock (Pitfall 3)
+        if(!dD&&combatMode){
+          if(selectedWeapon>=2){
+            // Missile mode: left-click adds lock target
+            if(aimDir&&dv){
+              const _cpLk=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
+              const _cfLk=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
+              const _crLk=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
+              const _cuLk=[dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true)];
+              const mDLk=Math.min(baseWidth,baseHeight);
+              const lockIdx=findLockTarget(mSX,mSY,_cpLk,_cfLk,_crLk,_cuLk,mDLk);
+              if(lockIdx>=0){addLockTarget(lockIdx);updateMissileUI();}
+            }
+            return;
+          }
+          fireSelectedWeapon(simTime);return;
+        }
         // In nav mode: click-to-target orbit transfer
         if(!dD){
           if(hP>=0){
@@ -522,11 +525,13 @@
         if(combatMode){
           if(e.key==='1'){selectedWeapon=0;}
           if(e.key==='2'){selectedWeapon=1;}
+          if(e.key==='3'){selectedWeapon=2;updateLockLimits();}
+          if(e.key==='4'){selectedWeapon=3;updateLockLimits();}
         }else{
           if(e.key==='1')navCamDist=3;
           if(e.key==='2')navCamDist=120;
         }
-        if(e.key==='c'||e.key==='C'){missileTargets.length=0;missileState='idle';updateMissileUI();}
+        if(e.key==='c'||e.key==='C'){clearLocks();updateMissileUI();}
         if(e.key==='ArrowUp'){altUpHeld=true;e.preventDefault();}
         if(e.key==='ArrowDown'){altDownHeld=true;e.preventDefault();}
         if(e.key==='l'||e.key==='L'){
@@ -568,22 +573,11 @@
 
     missileFireBtn.addEventListener('click',e=>{
       e.stopPropagation();
-      if(missileState!=='targeting'||missileTargets.length===0)return;
-      for(let i=0;i<missileTargets.length;i++){
-        const tgt=missileTargets[i];
-        missiles.push({
-          pos:[flyPos[0],0,flyPos[2]],
-          vel:[flyVel[0],0,flyVel[2]],
-          targetPos:[tgt.x,0,tgt.z],
-          fwd:[flyFwd[0],0,flyFwd[2]],
-          trail:new Float32Array(MISSILE_TRAIL_LEN*3),
-          trailHead:0,trailCount:0,trailTimer:0,
-          alive:true,detonated:false,detSlot:null
-        });
+      // Fire salvo when button clicked (alternative to right-click)
+      if(selectedWeapon>=2&&getLockCount()>0){
+        fireMissileSalvo(simTime);
+        updateMissileUI();
       }
-      missileTargets.length=0;
-      missileState='fired';
-      updateMissileUI();
     });
 
     /* ---- Enemy spawning (Phase 1 test) ---- */
@@ -597,6 +591,9 @@
         spawnEnemy(x,0,z,ETYPE.GRUNT);
       }
     }
+
+    /* ---- Init explosion system ---- */
+    initExplosionSystem(gl, iExt);
 
     /* ---- Render loop ---- */
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
@@ -615,6 +612,10 @@
       wf();
       updateNav(simDtSec);
       updateMissiles(simDtSec);
+      if(flyMode)updateExplosions(simDtSec);
+      // Missile trail ring buffer: push positions, decay alphas
+      if(flyMode&&missileCount>0){for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){if(!missile.alive[mi])continue;const mta=missile.fuel[mi]>0?1.0:0.3;const mth=missileTrailHead;missileTrailPos[mth*3]=missile.posX[mi];missileTrailPos[mth*3+1]=0;missileTrailPos[mth*3+2]=missile.posZ[mi];if(missileTrailAlpha[mth]<=0)missileTrailCount++;missileTrailAlpha[mth]=mta;missileTrailType[mth]=missile.type[mi];missileTrailHead=(missileTrailHead+1)%missileTrailMaxPts;}}
+      for(let mt=0;mt<missileTrailMaxPts;mt++){if(missileTrailAlpha[mt]>0){missileTrailAlpha[mt]-=simDtSec*3.0;if(missileTrailAlpha[mt]<=0){missileTrailAlpha[mt]=0;missileTrailCount=Math.max(0,missileTrailCount-1);}}}
       // Update enemy positions (simple circular orbit for Phase 1 test)
       if(enemyCount>0){
         for(let i=0;i<MAX_ENEMIES;i++){
@@ -881,28 +882,42 @@
         gl.disableVertexAttribArray(shipLocs.aNorm);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
 
-        for(let mi=0;mi<missiles.length;mi++){
-          const m=missiles[mi];
-          if(!m.alive)continue;
-          v3cross(_mR,m.fwd,_worldUp);v3norm(_mR,_mR);
-          mat4Model(m.pos,m.fwd,_worldUp,_mR,_mMod);
-          mat4Mul(_view,_mMod,_mT16);
-          mat4Mul(_proj,_mT16,_mMvp);
-          mat3NormalFromMat4(_mT16,_mNorm);
-          gl.uniformMatrix4fv(shipLocs.uMvp,false,_mMvp);
-          gl.uniformMatrix3fv(shipLocs.uNorm,false,_mNorm);
-          gl.uniform3f(shipLocs.uColor,MISSILE_COLOR[0],MISSILE_COLOR[1],MISSILE_COLOR[2]);
-          gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
-          gl.enableVertexAttribArray(shipLocs.aPos);
-          gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
-          gl.enableVertexAttribArray(shipLocs.aNorm);
-          gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
-          gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
-          gl.disableVertexAttribArray(shipLocs.aPos);
-          gl.disableVertexAttribArray(shipLocs.aNorm);
-          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+        // SoA missile body rendering (individual draw calls -- max 24 missiles, tiny geometry)
+        if(missileCount>0){
+          const _mpArr=[0,0,0],_mfArr=[0,0,0];
+          for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){
+            if(!missile.alive[mi])continue;
+            _mpArr[0]=missile.posX[mi];_mpArr[1]=0;_mpArr[2]=missile.posZ[mi];
+            _mfArr[0]=missile.fwdX[mi];_mfArr[1]=0;_mfArr[2]=missile.fwdZ[mi];
+            v3cross(_mR,_mfArr,_worldUp);v3norm(_mR,_mR);
+            // Scale nuclear missiles by 1.8x
+            if(missile.type[mi]===1){
+              _mfArr[0]*=1.8;_mfArr[2]*=1.8;_mR[0]*=1.8;_mR[2]*=1.8;
+              const _nukeUp=[0,1.8,0];
+              mat4Model(_mpArr,_mfArr,_nukeUp,_mR,_mMod);
+            }else{
+              mat4Model(_mpArr,_mfArr,_worldUp,_mR,_mMod);
+            }
+            mat4Mul(_view,_mMod,_mT16);
+            mat4Mul(_proj,_mT16,_mMvp);
+            mat3NormalFromMat4(_mT16,_mNorm);
+            gl.uniformMatrix4fv(shipLocs.uMvp,false,_mMvp);
+            gl.uniformMatrix3fv(shipLocs.uNorm,false,_mNorm);
+            const mc=missile.type[mi]===1?NUKE_MISSILE_COLOR:MISSILE_COLOR;
+            gl.uniform3f(shipLocs.uColor,mc[0],mc[1],mc[2]);
+            gl.uniform1f(shipLocs.uThrust,missile.fuel[mi]>0?1.0:0.0);
+            gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
+            gl.enableVertexAttribArray(shipLocs.aPos);
+            gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
+            gl.enableVertexAttribArray(shipLocs.aNorm);
+            gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
+            gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
+            gl.disableVertexAttribArray(shipLocs.aPos);
+            gl.disableVertexAttribArray(shipLocs.aNorm);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+          }
         }
 
         aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
@@ -911,6 +926,9 @@
         computeWeaponPreview(simTime);
         renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf);
         renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf);
+
+        // Billboard explosions (uses _view and _vpMat)
+        renderExplosions(gl,iExt,_view,_vpMat);
 
         gl.useProgram(trajPg);
         gl.enable(gl.BLEND);
@@ -1053,37 +1071,60 @@
           gl.drawArrays(gl.LINES,0,2);
         }
 
-        for(let mi=0;mi<missiles.length;mi++){
-          const m=missiles[mi];
-          if(m.trailCount<2)continue;
-          let tc=0;
-          for(let j=0;j<m.trailCount;j+=2){
-            const idx=((m.trailHead-m.trailCount+j+MISSILE_TRAIL_LEN)%MISSILE_TRAIL_LEN)*3;
-            _trailBuf[tc++]=m.trail[idx];_trailBuf[tc++]=m.trail[idx+1];_trailBuf[tc++]=m.trail[idx+2];
+        // SoA missile trail rendering (two passes: regular + nuclear)
+        if(missileTrailCount>0){
+          // Pass 1: Regular missile trails (orange)
+          let regCount=0;
+          for(let mt=0;mt<missileTrailMaxPts;mt++){
+            if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==0)continue;
+            _mtRenderBuf[regCount*3]=missileTrailPos[mt*3];
+            _mtRenderBuf[regCount*3+1]=missileTrailPos[mt*3+1];
+            _mtRenderBuf[regCount*3+2]=missileTrailPos[mt*3+2];
+            regCount++;
           }
-          if(tc>=3){
+          if(regCount>0){
             gl.bindBuffer(gl.ARRAY_BUFFER,missileTrailBuf);
-            gl.bufferData(gl.ARRAY_BUFFER,_trailBuf.subarray(0,tc),gl.DYNAMIC_DRAW);
+            gl.bufferData(gl.ARRAY_BUFFER,_mtRenderBuf.subarray(0,regCount*3),gl.DYNAMIC_DRAW);
             gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,0.85,0.5,0.2,0.5);
-            gl.uniform1f(trajLocs.uPtSize,2.0);
-            gl.drawArrays(gl.POINTS,0,tc/3);
+            gl.uniform4f(trajLocs.uColor,1.0,0.5,0.15,0.6);
+            gl.uniform1f(trajLocs.uPtSize,2.5);
+            gl.drawArrays(gl.POINTS,0,regCount);
+          }
+          // Pass 2: Nuclear missile trails (white-hot)
+          let nukeCount=0;
+          for(let mt=0;mt<missileTrailMaxPts;mt++){
+            if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==1)continue;
+            _mtRenderBuf[nukeCount*3]=missileTrailPos[mt*3];
+            _mtRenderBuf[nukeCount*3+1]=missileTrailPos[mt*3+1];
+            _mtRenderBuf[nukeCount*3+2]=missileTrailPos[mt*3+2];
+            nukeCount++;
+          }
+          if(nukeCount>0){
+            gl.bindBuffer(gl.ARRAY_BUFFER,missileTrailBuf);
+            gl.bufferData(gl.ARRAY_BUFFER,_mtRenderBuf.subarray(0,nukeCount*3),gl.DYNAMIC_DRAW);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.uniform4f(trajLocs.uColor,1.0,0.9,0.8,0.8);
+            gl.uniform1f(trajLocs.uPtSize,3.5);
+            gl.drawArrays(gl.POINTS,0,nukeCount);
           }
         }
 
-        for(let ti=0;ti<missileTargets.length;ti++){
-          const tgt=missileTargets[ti];
-          _tgtMark[0]=tgt.x-1.5;_tgtMark[1]=0;_tgtMark[2]=tgt.z-1.5;
-          _tgtMark[3]=tgt.x+1.5;_tgtMark[4]=0;_tgtMark[5]=tgt.z+1.5;
-          _tgtMark[6]=tgt.x-1.5;_tgtMark[7]=0;_tgtMark[8]=tgt.z+1.5;
-          _tgtMark[9]=tgt.x+1.5;_tgtMark[10]=0;_tgtMark[11]=tgt.z-1.5;
+        // Render lock target markers in world-space (X crosses on locked enemies)
+        for(let ti=0;ti<lockState.targets.length;ti++){
+          const lk=lockState.targets[ti];
+          if(!enemies.alive[lk.enemyIdx])continue;
+          const ex=enemies.posX[lk.enemyIdx],ez=enemies.posZ[lk.enemyIdx];
+          _tgtMark[0]=ex-1.5;_tgtMark[1]=0;_tgtMark[2]=ez-1.5;
+          _tgtMark[3]=ex+1.5;_tgtMark[4]=0;_tgtMark[5]=ez+1.5;
+          _tgtMark[6]=ex-1.5;_tgtMark[7]=0;_tgtMark[8]=ez+1.5;
+          _tgtMark[9]=ex+1.5;_tgtMark[10]=0;_tgtMark[11]=ez-1.5;
           gl.bindBuffer(gl.ARRAY_BUFFER,targetMarkerBuf);
           gl.bufferData(gl.ARRAY_BUFFER,_tgtMark,gl.DYNAMIC_DRAW);
           gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.85,0.35,0.15,0.8);
+          gl.uniform4f(trajLocs.uColor,1.0,0.3,0.2,0.9);
           gl.uniform1f(trajLocs.uPtSize,6.0);
           gl.drawArrays(gl.LINES,0,4);
-          _tgtDot[0]=tgt.x;_tgtDot[1]=0;_tgtDot[2]=tgt.z;
+          _tgtDot[0]=ex;_tgtDot[1]=0;_tgtDot[2]=ez;
           gl.bufferData(gl.ARRAY_BUFFER,_tgtDot,gl.DYNAMIC_DRAW);
           gl.drawArrays(gl.POINTS,0,1);
         }
@@ -1117,11 +1158,15 @@
         if(combatMode){
           combatIndicatorEl.style.display='block';
           weaponIndicatorEl.style.display='block';
-          const wName=selectedWeapon===0?'1 KINETIC':'2 PLASMA';
+          const wNames=['1 KINETIC','2 PLASMA','3 MISSILE','4 NUCLEAR'];
+          const wName=wNames[selectedWeapon]||'?';
           const cdEnd=weaponCooldownEnd[selectedWeapon];
           const cdRemain=cdEnd-simTime;
           if(cdRemain>0){
             weaponIndicatorEl.textContent=wName+' ['+cdRemain.toFixed(1)+'s]';
+          }else if(selectedWeapon>=2){
+            const lc=getLockCount();
+            weaponIndicatorEl.textContent=wName+(lc>0?' LOCKS:'+lc:' READY');
           }else{
             weaponIndicatorEl.textContent=wName+' READY';
           }

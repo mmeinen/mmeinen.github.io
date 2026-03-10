@@ -16,10 +16,10 @@ const HIT_RADIUS_PLASMA = 2.0;      // slightly larger for plasma bolt
 
 /* Combat mode state */
 let combatMode = false;
-let selectedWeapon = 0;   // 0=kinetic, 1=plasma
+let selectedWeapon = 0;   // 0=kinetic, 1=plasma, 2=regular missile, 3=nuclear missile
 
 /* Weapon cooldown state (simTime-based) */
-const weaponCooldownEnd = [0, 0];   // simTime when each weapon's cooldown expires
+const weaponCooldownEnd = [0, 0, 0, 0];   // simTime when each weapon's cooldown expires
 let kineticBurstRemaining = 0;      // rounds left in current burst
 let kineticBurstTimer = 0;          // sim time accumulator for burst stagger
 
@@ -117,8 +117,10 @@ function firePlasma(st) {
 function fireSelectedWeapon(st) {
   if (selectedWeapon === 0) {
     fireKineticBurst(st);
-  } else {
+  } else if (selectedWeapon === 1) {
     firePlasma(st);
+  } else if (selectedWeapon === 2 || selectedWeapon === 3) {
+    fireMissileSalvo(st);
   }
 }
 
@@ -149,6 +151,12 @@ function computeWeaponPreview(simTime) {
   hitPredictionIdx = -1;
 
   if (!combatMode || !aimDir) {
+    previewCount = 0;
+    return;
+  }
+
+  // Missiles are guided -- no trajectory preview (lock reticles serve this purpose)
+  if (selectedWeapon >= 2) {
     previewCount = 0;
     return;
   }

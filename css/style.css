@@ -476,6 +476,34 @@ body {
 }
 
 /* ============================================
+   LOCK RETICLE OVERLAY (positioned by JS in Plan 03)
+   ============================================ */
+
+.lock-reticle {
+  position: fixed;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 25;
+  border: 2px solid rgba(255, 80, 60, 0.9);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(255, 80, 60, 0.4);
+}
+
+.missile-lock-count {
+  position: absolute;
+  top: -14px;
+  right: -20px;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: rgba(255, 80, 60, 0.9);
+  pointer-events: none;
+  z-index: 25;
+  text-shadow: 0 0 4px rgba(255, 80, 60, 0.4);
+}
+
+/* ============================================
    MOBILE RESPONSIVE — phones
    ============================================ */
 
