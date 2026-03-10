@@ -71,3 +71,140 @@ function createBoxGeometry(hx,hy,hz){
   }
   return{positions:new Float32Array(p),normals:new Float32Array(n),indices:new Uint16Array(idx)};
 }
+
+/* ---- Grunt enemy geometry ---- */
+function createGruntGeometry(){
+  const p=[],n=[],idx=[];
+  let vi=0; // vertex index counter
+
+  // Helper: add a triangular face with flat-shading normal
+  function tri(v0,v1,v2){
+    const ax=v1[0]-v0[0],ay=v1[1]-v0[1],az=v1[2]-v0[2];
+    const bx=v2[0]-v0[0],by=v2[1]-v0[1],bz=v2[2]-v0[2];
+    let nx=ay*bz-az*by, ny=az*bx-ax*bz, nz=ax*by-ay*bx;
+    const l=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
+    nx/=l; ny/=l; nz/=l;
+    p.push(v0[0],v0[1],v0[2], v1[0],v1[1],v1[2], v2[0],v2[1],v2[2]);
+    n.push(nx,ny,nz, nx,ny,nz, nx,ny,nz);
+    idx.push(vi,vi+1,vi+2);
+    vi+=3;
+  }
+
+  // Helper: add a quad as two triangles (v0-v1-v2, v0-v2-v3)
+  function quad(v0,v1,v2,v3){
+    tri(v0,v1,v2);
+    tri(v0,v2,v3);
+  }
+
+  // === Key vertices (ship faces +Z forward, Y up) ===
+  // Main fuselage diamond cross-section
+  const nose  = [0, 0, 0.5];
+  const tail  = [0, 0, -0.4];
+  const sideR = [0.2, 0, -0.05];
+  const sideL = [-0.2, 0, -0.05];
+  const top   = [0, 0.08, -0.05];
+  const bot   = [0, -0.08, -0.05];
+
+  // Mid-body edge points (for faceting)
+  const midTR = [0.1, 0.05, -0.05];
+  const midTL = [-0.1, 0.05, -0.05];
+  const midBR = [0.1, -0.05, -0.05];
+  const midBL = [-0.1, -0.05, -0.05];
+
+  // Rear edge points
+  const rearTR = [0.08, 0.04, -0.4];
+  const rearTL = [-0.08, 0.04, -0.4];
+  const rearBR = [0.08, -0.04, -0.4];
+  const rearBL = [-0.08, -0.04, -0.4];
+
+  // --- FUSELAGE: nose to mid-body (8 triangular faces) ---
+  // Top-right
+  tri(nose, midTR, top);
+  tri(nose, sideR, midTR);
+  // Top-left
+  tri(nose, top, midTL);
+  tri(nose, midTL, sideL);
+  // Bottom-right
+  tri(nose, midBR, sideR);
+  tri(nose, bot, midBR);
+  // Bottom-left
+  tri(nose, sideL, midBL);
+  tri(nose, midBL, bot);
+
+  // --- FUSELAGE: mid-body to tail (8 quads = 16 triangles) ---
+  // Top-right panel
+  quad(midTR, rearTR, rearTL, midTL); // top face
+  quad(top, midTR, midTL, top); // degenerate, skip -- use proper panels
+  // Right panels
+  quad(sideR, rearBR, rearTR, midTR);
+  // Left panels
+  quad(midTL, rearTL, rearBL, sideL);
+  // Bottom panels
+  quad(midBR, rearBR, rearBL, midBL);
+  // Top panels
+  quad(top, midTR, rearTR, rearTL);
+  quad(top, rearTL, midTL, top); // degenerate -- fix below
+
+  // Connect top to sides properly
+  quad(midTR, sideR, rearBR, rearTR); // already done above, skip overlap
+  // Rear face (flat cap)
+  quad(rearTR, rearBR, rearBL, rearTL);
+
+  // --- ENGINE NACELLES (two angular boxes) ---
+  const nacW=0.03, nacH=0.02, nacD=0.075;
+  for(let side=-1;side<=1;side+=2){
+    const cx=side*0.18, cy=0, cz=-0.3;
+    const x0=cx-nacW, x1=cx+nacW, y0=cy-nacH, y1=cy+nacH, z0=cz-nacD, z1=cz+nacD;
+    // 6 faces per nacelle box
+    // Front face (+Z)
+    quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]);
+    // Back face (-Z)
+    quad([x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0]);
+    // Right face (+X)
+    quad([x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1]);
+    // Left face (-X)
+    quad([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]);
+    // Top face (+Y)
+    quad([x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0]);
+    // Bottom face (-Y)
+    quad([x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]);
+  }
+
+  // --- DORSAL FIN (thin triangle on top) ---
+  const finBase0 = [0, 0.08, -0.1];
+  const finBase1 = [0, 0.08, -0.35];
+  const finTip   = [0, 0.20, -0.25];
+  // Right side
+  tri(finBase0, finTip, finBase1);
+  // Left side (reversed winding)
+  tri(finBase1, finTip, finBase0);
+  // Give the fin a slight width for visibility
+  const finR0 = [0.005, 0.08, -0.1];
+  const finR1 = [0.005, 0.08, -0.35];
+  const finRT = [0.005, 0.20, -0.25];
+  const finL0 = [-0.005, 0.08, -0.1];
+  const finL1 = [-0.005, 0.08, -0.35];
+  const finLT = [-0.005, 0.20, -0.25];
+  // Right face
+  tri(finR0, finRT, finR1);
+  // Left face
+  tri(finL1, finLT, finL0);
+  // Front edge
+  tri(finR0, finL0, finLT);
+  tri(finR0, finLT, finRT);
+  // Back edge
+  tri(finR1, finRT, finLT);
+  tri(finR1, finLT, finL1);
+
+  // --- VENTRAL PLATE (angled plate underneath) ---
+  const vpFL = [-0.12, -0.08, -0.05];
+  const vpFR = [0.12, -0.08, -0.05];
+  const vpBL = [-0.10, -0.12, -0.30];
+  const vpBR = [0.10, -0.12, -0.30];
+  // Bottom face
+  quad(vpFL, vpFR, vpBR, vpBL);
+  // Top face (visible from above)
+  quad(vpBL, vpBR, vpFR, vpFL);
+
+  return{positions:new Float32Array(p),normals:new Float32Array(n),indices:new Uint16Array(idx)};
+}

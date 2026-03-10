@@ -760,3 +760,65 @@ void main(){
   if(dot(c,c)>0.25)discard;
   gl_FragColor=u_trajColor;
 }`;
+
+/* -- Enemy Shader (instanced rendering) -- */
+const enemyVS=`attribute vec3 a_position;
+attribute vec3 a_normal;
+attribute vec3 a_instPos;
+attribute float a_instHeading;
+attribute vec4 a_instColor;
+attribute float a_instScale;
+uniform mat4 u_viewProj;
+uniform vec3 u_lightDir;
+uniform vec3 u_bhPos;
+uniform float u_time;
+varying vec3 v_normal;
+varying vec3 v_worldPos;
+varying vec4 v_color;
+varying float v_rimFactor;
+void main(){
+  float c=cos(a_instHeading);
+  float s=sin(a_instHeading);
+  vec3 rotated=vec3(
+    (a_position.x*c+a_position.z*s)*a_instScale,
+    a_position.y*a_instScale,
+    (-a_position.x*s+a_position.z*c)*a_instScale
+  );
+  vec3 worldPos=rotated+a_instPos;
+  vec3 toBH=u_bhPos-worldPos;
+  float bhDist=length(toBH);
+  float warpFactor=smoothstep(8.0,2.0,bhDist)*0.3;
+  worldPos+=normalize(toBH)*warpFactor;
+  float diskProximity=exp(-worldPos.y*worldPos.y*0.5)*smoothstep(14.0,4.0,length(worldPos.xz));
+  vec3 rotNormal=vec3(
+    a_normal.x*c+a_normal.z*s,
+    a_normal.y,
+    -a_normal.x*s+a_normal.z*c
+  );
+  v_normal=rotNormal;
+  v_worldPos=worldPos;
+  v_color=a_instColor;
+  v_rimFactor=diskProximity;
+  gl_Position=u_viewProj*vec4(worldPos,1.0);
+}`;
+const enemyFS=`precision mediump float;
+uniform vec3 u_lightDir;
+uniform float u_time;
+varying vec3 v_normal;
+varying vec3 v_worldPos;
+varying vec4 v_color;
+varying float v_rimFactor;
+void main(){
+  vec3 n=normalize(v_normal);
+  float diff=max(dot(n,u_lightDir),0.0);
+  float amb=0.12;
+  float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),2.5);
+  vec3 rimColor=v_color.rgb*rim*0.6;
+  float pulse=0.8+0.2*sin(u_time*3.0);
+  vec3 col=v_color.rgb*(amb+diff*0.85)*pulse;
+  col+=rimColor;
+  col+=vec3(1.0,0.6,0.2)*v_rimFactor*0.3;
+  float engineGlow=max(-dot(n,vec3(0.0,0.0,1.0)),0.0)*0.4;
+  col+=v_color.rgb*engineGlow;
+  gl_FragColor=vec4(col,1.0);
+}`;
