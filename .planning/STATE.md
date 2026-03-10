@@ -2,15 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-09T19:40:46.704Z"
-last_activity: 2026-03-09 -- Roadmap created (9 phases, 48 requirements mapped)
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-10T00:23:47.933Z"
+last_activity: 2026-03-10 -- Plan 01-01 complete (combat data layer)
 progress:
   total_phases: 9
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-10T00:22:10Z"
+last_activity: 2026-03-10 -- Plan 01-01 complete (combat data layer)
+progress:
+  total_phases: 9
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -26,28 +41,28 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 1 of 9 (Combat Rendering Foundation)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-09 -- Roadmap created (9 phases, 48 requirements mapped)
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-10 -- Plan 01-01 complete (combat data layer)
 
-Progress: [..........] 0%
+Progress: [#####.....] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 3 min
+- Total execution time: 0.05 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 3min
+- Trend: baseline
 
 *Updated after each plan completion*
 
@@ -61,6 +76,9 @@ Recent decisions affecting current work:
 - [Roadmap]: All combat rendering as separate GL passes after ray march (never inside it)
 - [Roadmap]: Instanced rendering from day one (ANGLE_instanced_arrays) -- no per-entity draw calls
 - [Roadmap]: BH-only gravity for enemies/projectiles (full N-body only for player)
+- [01-01]: Instance buffer stride is 9 floats (pos.xyz + heading + color.rgba + scale)
+- [01-01]: Grunt geometry 62 triangles with flat-shaded face normals
+- [01-01]: SoA entity store pattern with free-list for O(1) slot allocation
 
 ### Pending Todos
 
@@ -72,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T19:40:46.702Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-combat-rendering-foundation/01-CONTEXT.md
+Last session: 2026-03-10T00:23:47.930Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

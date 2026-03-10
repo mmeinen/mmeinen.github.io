@@ -42,7 +42,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **ENM-08**: Boss waves appear every N waves as special encounters
 - [ ] **ENM-09**: Difficulty scales with wave number — increasing enemy count, aggression, accuracy, and archetype variety
 - [ ] **ENM-10**: Enemies fire projectiles at the player with accuracy that increases per wave
-- [ ] **ENM-11**: Enemy ships have procedural shader geometry visuals (not sprites)
+- [x] **ENM-11**: Enemy ships have procedural shader geometry visuals (not sprites)
 
 ### Defense
 
@@ -74,7 +74,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **PRF-01**: Maintains 30fps+ on GTX 1060 / RX 580 tier hardware with 30-50 enemies on screen
 - [ ] **PRF-02**: All combat elements (enemies, projectiles, explosions) rendered as separate GL geometry passes — never inside the ray march shader
 - [ ] **PRF-03**: Instanced rendering used for enemies and projectiles (ANGLE_instanced_arrays)
-- [ ] **PRF-04**: Radial bin collision detection (O(n), not O(n^2))
+- [x] **PRF-04**: Radial bin collision detection (O(n), not O(n^2))
 
 ## v2 Requirements
 
@@ -146,7 +146,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENM-08 | Phase 7 | Pending |
 | ENM-09 | Phase 7 | Pending |
 | ENM-10 | Phase 5 | Pending |
-| ENM-11 | Phase 1 | Pending |
+| ENM-11 | Phase 1 | Complete |
 | DEF-01 | Phase 6 | Pending |
 | DEF-02 | Phase 6 | Pending |
 | DEF-03 | Phase 6 | Pending |
@@ -166,7 +166,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRF-01 | Phase 1 | Pending |
 | PRF-02 | Phase 1 | Pending |
 | PRF-03 | Phase 1 | Pending |
-| PRF-04 | Phase 1 | Pending |
+| PRF-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 48 total
