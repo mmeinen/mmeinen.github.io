@@ -3,29 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-10T18:43:32.810Z"
-last_activity: 2026-03-10 -- Phase 3 Plan 02 human-verify checkpoint approved
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-10T19:14:23.977Z"
+last_activity: 2026-03-10 -- Phase 4 Plan 02 billboard explosion system complete
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 03-02-PLAN.md (Phase 3 complete)
-last_updated: "2026-03-10T18:21:15.799Z"
-last_activity: 2026-03-10 -- Phase 3 Plan 02 human-verify checkpoint approved
-progress:
-  total_phases: 9
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
 ---
 
 # Project State
@@ -35,23 +20,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 3: Direct-Fire Weapons (complete). Next: Phase 4: Missile Systems & Explosions
+**Current focus:** Phase 4: Missile Systems & Explosions (in progress)
 
 ## Current Position
 
-Phase: 3 of 9 (Direct-Fire Weapons) -- COMPLETE
-Plan: 2 of 2 in current phase (complete, human-verify approved)
-Status: Phase 3 fully complete. Ready for Phase 4.
-Last activity: 2026-03-10 -- Phase 3 Plan 02 human-verify checkpoint approved
+Phase: 4 of 9 (Missile Systems & Explosions)
+Plan: 2 of 3 in current phase (complete)
+Status: Plan 04-02 (billboard explosion system) complete. Ready for Plan 04-03.
+Last activity: 2026-03-10 -- Phase 4 Plan 02 billboard explosion system complete
 
-Progress: [██████████] 100% (7/7 plans)
+Progress: [████████░░] 80% (8/10 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: ~6 min
-- Total execution time: ~0.85 hours
+- Total execution time: ~0.9 hours
 
 **By Phase:**
 
@@ -60,9 +45,10 @@ Progress: [██████████] 100% (7/7 plans)
 | 1 | 2 | 15 min | 7.5 min |
 | 2 | 3 | 55 min | 18 min |
 | 3 | 2 | 7 min | 3.5 min |
+| 4 | 1* | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 5min, ~45min (02-03 with debugging), 4min (03-01), 3min (03-02)
+- Last 5 plans: ~45min (02-03 with debugging), 4min (03-01), 3min (03-02), 3min (04-02)
 - Trend: fast execution when plan is well-researched
 
 *Updated after each plan completion*
@@ -103,6 +89,10 @@ Recent decisions affecting current work:
 - [03-02]: Plasma bolts rendered per-bolt (individual draw calls) since max 2-3 active simultaneously
 - [03-02]: Trajectory preview uses simulateTrajectory for kinetic, linear projection for plasma
 - [03-02]: Orbit trajectory preview hidden during combat mode to avoid visual overlap
+- [04-02]: Billboard shaders compiled at runtime by initExplosionSystem using global cS helper
+- [04-02]: Sprite sheet on texture unit 1 to avoid conflicting with blackbody/noise on unit 0
+- [04-02]: Additive blending (SRC_ALPHA, ONE) for bright fireball effect
+- [04-02]: depthMask(false) during billboard draw to prevent transparent occlusion
 
 ### Pending Todos
 
@@ -114,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T18:43:32.807Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-missile-systems-explosions/04-CONTEXT.md
+Last session: 2026-03-10T19:12:00.000Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: .planning/phases/04-missile-systems-explosions/04-02-SUMMARY.md

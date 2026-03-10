@@ -26,7 +26,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **WPN-06**: Regular missiles detonate when within blast radius of their target (proximity detonation)
 - [ ] **WPN-07**: Regular missiles have a fuel supply that depletes during flight
 - [ ] **WPN-08**: Missiles self-destruct without detonation when fuel is exhausted and trajectory will not intersect target
-- [ ] **WPN-09**: Regular missile explosions are sprite-based (billboard), not volumetric
+- [x] **WPN-09**: Regular missile explosions are sprite-based (billboard), not volumetric
 - [ ] **WPN-10**: Player can fire nuclear missiles with existing volumetric detonation shader
 - [x] **WPN-11**: Player can preview the predicted trajectory of a weapon before firing (gravity-affected path)
 
@@ -67,7 +67,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **VFX-01**: Hit flash on enemies when projectiles connect
 - [ ] **VFX-02**: Projectile impact particles at hit location
-- [ ] **VFX-03**: Sprite-based billboard explosions for regular combat (not volumetric)
+- [x] **VFX-03**: Sprite-based billboard explosions for regular combat (not volumetric)
 
 ### Performance
 
@@ -133,7 +133,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WPN-06 | Phase 4 | Pending |
 | WPN-07 | Phase 4 | Pending |
 | WPN-08 | Phase 4 | Pending |
-| WPN-09 | Phase 4 | Pending |
+| WPN-09 | Phase 4 | Complete |
 | WPN-10 | Phase 4 | Pending |
 | WPN-11 | Phase 3 | Complete |
 | ENM-01 | Phase 5 | Pending |
@@ -162,7 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HUD-07 | Phase 8 | Pending |
 | VFX-01 | Phase 5 | Pending |
 | VFX-02 | Phase 5 | Pending |
-| VFX-03 | Phase 4 | Pending |
+| VFX-03 | Phase 4 | Complete |
 | PRF-01 | Phase 1 | Complete |
 | PRF-02 | Phase 1 | Complete |
 | PRF-03 | Phase 1 | Complete |

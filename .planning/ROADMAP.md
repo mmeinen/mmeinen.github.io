@@ -86,7 +86,7 @@ Plans:
 
 Plans:
 - [ ] 04-01-PLAN.md -- Missile SoA store, lock-on targeting with multi-lock salvo, fuel depletion, PN guidance with enemy tracking, weapon slots 3/4
-- [ ] 04-02-PLAN.md -- Billboard explosion system: procedural sprite sheet, billboard shaders, explosion SoA store with instanced rendering
+- [x] 04-02-PLAN.md -- Billboard explosion system: procedural sprite sheet, billboard shaders, explosion SoA store with instanced rendering
 - [ ] 04-03-PLAN.md -- Rendering integration: missile bodies/trails, proximity detonation wiring (sprite + volumetric), lock reticle overlays, visual verification
 
 ### Phase 5: Enemy Behavior & Combat Feedback
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 1. Combat Rendering Foundation | 2/2 | Complete | 2026-03-10 |
 | 2. Player Ship & Orbital Movement | 3/3 | Complete | 2026-03-10 |
 | 3. Direct-Fire Weapons | 2/2 | Complete   | 2026-03-10 |
-| 4. Missile Systems & Explosions | 0/3 | Not started | - |
+| 4. Missile Systems & Explosions | 1/3 | In Progress | - |
 | 5. Enemy Behavior & Combat Feedback | 0/2 | Not started | - |
 | 6. Player Defense & Survival | 0/3 | Not started | - |
 | 7. Wave Progression & Enemy Variety | 0/3 | Not started | - |
