@@ -53,6 +53,10 @@
         &nbsp;&nbsp;
         <span class="readout-label">POS</span> <span id="fly-pos">0, 0, 0</span>
       </div>
+      <div class="fly-hud-altitude" id="fly-hud-altitude">
+        <span class="readout-label">ALT</span>
+        <span id="altitude-val">--</span>
+      </div>
       <div class="fly-thrust-slider" id="fly-thrust-slider">
         <div class="thrust-label">THR</div>
         <div class="thrust-val" id="thrust-val">1.5</div>
@@ -145,6 +149,8 @@
     const flyHudSpeed=document.getElementById('fly-hud-speed');
     const flySpdEl=document.getElementById('fly-spd');
     const flyPosEl=document.getElementById('fly-pos');
+    const flyHudAltEl=document.getElementById('fly-hud-altitude');
+    const altValEl=document.getElementById('altitude-val');
     // Thrust slider refs
     const thrustSlider=document.getElementById('fly-thrust-slider');
     const thrustValEl=document.getElementById('thrust-val');
@@ -155,6 +161,7 @@
    </script>
 
    <!-- Nav mode + missiles + combat (depend on planetData, DOM refs, math) -->
+   <script src="js/scene/orbital.js"></script>
    <script src="js/scene/nav.js"></script>
    <script src="js/scene/missiles.js"></script>
    <script src="js/scene/combat.js"></script>
@@ -234,7 +241,8 @@
       uMvp:gl.getUniformLocation(shipPg,'u_mvp'),
       uNorm:gl.getUniformLocation(shipPg,'u_normalMatrix'),
       uColor:gl.getUniformLocation(shipPg,'u_shipColor'),
-      uLight:gl.getUniformLocation(shipPg,'u_lightDir')
+      uLight:gl.getUniformLocation(shipPg,'u_lightDir'),
+      uThrust:gl.getUniformLocation(shipPg,'u_thrustIntensity')
     };
     /* ---- Enemy shader program (instanced) ---- */
     const eVS=cS(gl,enemyVS,gl.VERTEX_SHADER),eFS=cS(gl,enemyFS,gl.FRAGMENT_SHADER),enemyPg=gl.createProgram();
@@ -253,7 +261,8 @@
       uTime:gl.getUniformLocation(enemyPg,'u_time')
     };
 
-    const shipGeo=createBoxGeometry(SHIP_HALF[0],SHIP_HALF[1],SHIP_HALF[2]);
+    const shipGeo=createCapitalShipGeometry();
+    const shipIdxCount=shipGeo.indices.length;
     const shipPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
     gl.bufferData(gl.ARRAY_BUFFER,shipGeo.positions,gl.STATIC_DRAW);
     const shipNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shipNrmBuf);
@@ -298,6 +307,10 @@
     const aimLineBuf=gl.createBuffer();
     const targetMarkerBuf=gl.createBuffer();
     const missileTrailBuf=gl.createBuffer();
+    // Orbit ring buffer (64 segments for orbit visualization)
+    const ringBuf=gl.createBuffer();
+    const RING_SEGMENTS=64;
+    const ringArray=new Float32Array(RING_SEGMENTS*3);
 
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
@@ -378,7 +391,38 @@
       }
       if(dr){camAz+=(e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>9)dD=true}
     });
-    canvas.addEventListener('click',()=>{if(flyMode)return;if(!dD&&hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href});
+    canvas.addEventListener('click',()=>{
+      if(flyMode){
+        // In nav mode: click-to-target orbit transfer
+        if(!dD){
+          if(hP>=0){
+            // Planet clicked -- initiate transfer
+            initiateTransfer(hP);
+          }else{
+            // Check if click is near BH (center of screen)
+            // Use screen-space check: BH is always at origin in world space
+            const cpx=dv.getFloat32(0x030,true),cpy=dv.getFloat32(0x034,true),cpz=dv.getFloat32(0x038,true);
+            const fX=dv.getFloat32(0x03C,true),fY=dv.getFloat32(0x040,true),fZ=dv.getFloat32(0x044,true);
+            const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
+            const uXc=dv.getFloat32(0x054,true),uYc=dv.getFloat32(0x058,true),uZc=dv.getFloat32(0x05C,true);
+            // BH at [0,0,0] relative to camera
+            const dxBH=-cpx,dyBH=-cpy,dzBH=-cpz;
+            const dpBH=dxBH*fX+dyBH*fY+dzBH*fZ;
+            if(dpBH>0){
+              const mD=Math.min(baseWidth,baseHeight);
+              const sxBH=baseWidth*0.5+(dxBH*rX+dyBH*rY+dzBH*rZ)/dpBH*1.8*mD;
+              const syBH=baseHeight*0.5-(dxBH*uXc+dyBH*uYc+dzBH*uZc)/dpBH*1.8*mD;
+              const clickDx=mSX-sxBH,clickDy=mSY-syBH;
+              if(clickDx*clickDx+clickDy*clickDy<50*50){
+                initiateTransfer(-1); // BH clicked
+              }
+            }
+          }
+        }
+        return;
+      }
+      if(!dD&&hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href;
+    });
     canvas.addEventListener('wheel',e=>{
       e.preventDefault();
       if(flyMode){
@@ -456,6 +500,8 @@
         if(e.key==='1')navCamDist=3;
         if(e.key==='2')navCamDist=120;
         if(e.key==='c'||e.key==='C'){missileTargets.length=0;missileState='idle';updateMissileUI();}
+        if(e.key==='ArrowUp'){altUpHeld=true;e.preventDefault();}
+        if(e.key==='ArrowDown'){altDownHeld=true;e.preventDefault();}
         return;
       }
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
@@ -463,7 +509,11 @@
       else if(e.key==='r'||e.key==='R'){camAz=DF.camAz;camEl=DF.camEl;camDist=DF.camDist;sp=DF.sp}
     });
     window.addEventListener('keyup',e=>{
-      if(flyMode&&e.key===' ')thrusting=false;
+      if(flyMode){
+        if(e.key===' ')thrusting=false;
+        if(e.key==='ArrowUp')altUpHeld=false;
+        if(e.key==='ArrowDown')altDownHeld=false;
+      }
     });
 
 
@@ -563,8 +613,30 @@
         dv.setFloat32(0x03C,_camF[0],true);dv.setFloat32(0x040,_camF[1],true);dv.setFloat32(0x044,_camF[2],true);
         dv.setFloat32(0x048,_camR[0],true);dv.setFloat32(0x04C,_camR[1],true);dv.setFloat32(0x050,_camR[2],true);
         dv.setFloat32(0x054,_camU[0],true);dv.setFloat32(0x058,_camU[1],true);dv.setFloat32(0x05C,_camU[2],true);
+        // Nav mode hover detection: check if mouse is near a planet on screen
         hP=-1;
-        if(!dr)canvas.style.cursor='crosshair';
+        if(mSX>=0){
+          const mD=Math.min(baseWidth,baseHeight);
+          for(let i=0;i<7;i++){
+            let px,py,pz;
+            if(i<6){
+              const b=0x070+i*12;
+              px=dv.getFloat32(b,true);py=dv.getFloat32(b+4,true);pz=dv.getFloat32(b+8,true);
+            }else{
+              const p=planetData[6],a=p.sp*simTime+p.ph;
+              px=p.oR*Math.sin(a);py=0;pz=p.oR*Math.cos(a);
+            }
+            const dx=px-_camP[0],dy=py-_camP[1],dz=pz-_camP[2];
+            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
+            if(dp<=0)continue;
+            const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mD;
+            const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mD;
+            const ar=Math.max((planetData[i].radius/dp)*mD*1.8, 20); // min 20px hit area
+            const tdx=mSX-sx,tdy=mSY-sy;
+            if(tdx*tdx+tdy*tdy<ar*ar){hP=i;break;}
+          }
+        }
+        if(!dr)canvas.style.cursor=hP>=0?'pointer':'crosshair';
       }else{
         hP=-1;
         if(mSX>=0){
@@ -758,6 +830,11 @@
         gl.uniformMatrix3fv(shipLocs.uNorm,false,_normM);
         gl.uniform3f(shipLocs.uColor,SHIP_COLOR[0],SHIP_COLOR[1],SHIP_COLOR[2]);
         gl.uniform3f(shipLocs.uLight,_toLV[0],_toLV[1],_toLV[2]);
+        { // Engine glow: full during transfer, half during altitude adjust, off otherwise
+          const thrustIntensity=(orbitState===ORBIT_STATE.TRANSFER)?1.0
+                                :(altUpHeld||altDownHeld)?0.5:0.0;
+          gl.uniform1f(shipLocs.uThrust,thrustIntensity);
+        }
         gl.disableVertexAttribArray(aP);
         gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
         gl.enableVertexAttribArray(shipLocs.aPos);
@@ -766,7 +843,7 @@
         gl.enableVertexAttribArray(shipLocs.aNorm);
         gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
-        gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
+        gl.drawElements(gl.TRIANGLES,shipIdxCount,gl.UNSIGNED_SHORT,0);
         gl.disableVertexAttribArray(shipLocs.aPos);
         gl.disableVertexAttribArray(shipLocs.aNorm);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
@@ -803,15 +880,57 @@
         gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
         gl.uniform1f(trajLocs.uPtSize,2.0);
 
-        const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
-        gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
-        gl.enableVertexAttribArray(trajLocs.aPos);
-        gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-        gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.3);
-        gl.drawArrays(gl.POINTS,0,n1);
+        // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
+        if(orbitState===ORBIT_STATE.TRANSFER){
+          // During transfer: simulate with continuous thrust in burn direction
+          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,transferBurnDir,thrustPower,999);
+          gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
+          gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
+          gl.enableVertexAttribArray(trajLocs.aPos);
+          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+          gl.uniform4f(trajLocs.uColor,0.4,0.7,1.0,0.6); // brighter blue for transfer
+          gl.drawArrays(gl.POINTS,0,n1);
+        }else{
+          // ORBITING or FREE: show current velocity trajectory
+          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
+          gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
+          gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
+          gl.enableVertexAttribArray(trajLocs.aPos);
+          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+          gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.3);
+          gl.drawArrays(gl.POINTS,0,n1);
+        }
 
-        if(aimDir){
+        // Orbit ring rendering: around target body or current orbited body
+        {
+          let ringBodyIdx=-2, ringRadius=0;
+          if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=-1){
+            // Show ring at current orbit altitude
+            ringBodyIdx=orbitBody;
+            ringRadius=orbitAltitude+getBodyRadius(orbitBody);
+          }else if(transferTarget>=-1){
+            // Show ring at default orbit altitude around target
+            ringBodyIdx=transferTarget;
+            ringRadius=getBodyRadius(transferTarget)+getDefaultOrbitAlt(transferTarget);
+          }
+          if(ringBodyIdx>=-1){
+            const bodyPos=(ringBodyIdx===-1)?[0,0,0]:planetPosAtTime(planetData[ringBodyIdx],simTime);
+            for(let ri=0;ri<RING_SEGMENTS;ri++){
+              const angle=(ri/RING_SEGMENTS)*Math.PI*2;
+              ringArray[ri*3]=bodyPos[0]+ringRadius*Math.cos(angle);
+              ringArray[ri*3+1]=0;
+              ringArray[ri*3+2]=bodyPos[2]+ringRadius*Math.sin(angle);
+            }
+            gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
+            gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.4); // blue HUD with transparency
+            gl.uniform1f(trajLocs.uPtSize,1.5);
+            gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
+          }
+        }
+
+        if(aimDir&&orbitState===ORBIT_STATE.FREE){
           const lineLen=thrustPower*0.5;
           _aimLine[0]=flyPos[0];_aimLine[1]=flyPos[1];_aimLine[2]=flyPos[2];
           _aimLine[3]=flyPos[0]+aimDir[0]*lineLen;_aimLine[4]=flyPos[1];_aimLine[5]=flyPos[2]+aimDir[2]*lineLen;
@@ -876,6 +995,14 @@
         thrustFill.style.width=(tFrac*100)+'%';
         if(!fastForward)flyBulletTime.classList.add('active');
         else flyBulletTime.classList.remove('active');
+        // Altitude HUD readout
+        if(orbitState===ORBIT_STATE.ORBITING){
+          altValEl.textContent=orbitAltitude.toFixed(1);
+        }else if(orbitState===ORBIT_STATE.TRANSFER){
+          altValEl.textContent='TRANSFER';
+        }else{
+          altValEl.textContent='FREE';
+        }
         updateMissileUI();
       }else{
         for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];

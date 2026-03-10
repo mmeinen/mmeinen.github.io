@@ -302,6 +302,7 @@ function enterNavMode(){
   flyHudMode.classList.add('active');
   flyCrosshair.classList.add('active');
   flyHudSpeed.classList.add('active');
+  flyHudAltEl.classList.add('active');
   thrustSlider.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
@@ -336,6 +337,7 @@ function exitNavMode(){
   flyBulletTime.classList.remove('active');
   flyCrosshair.classList.remove('active');
   flyHudSpeed.classList.remove('active');
+  flyHudAltEl.classList.remove('active');
   thrustSlider.classList.remove('active');
   hudOverlay.appendChild(missileFireBtn);
   missileFireBtn.className='missile-fire-btn';

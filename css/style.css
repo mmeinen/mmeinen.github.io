@@ -298,6 +298,35 @@ body {
   display: block;
 }
 
+.fly-hud-altitude {
+  display: none;
+  position: absolute;
+  bottom: calc(max(3vh, env(safe-area-inset-bottom, 0px)) + 36px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 300;
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  color: rgba(170, 210, 255, 0.9);
+  background: rgba(0, 4, 16, 0.78);
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(60, 140, 255, 0.15);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.fly-hud-altitude.active {
+  display: block;
+}
+
+.fly-hud-altitude.warning {
+  color: rgba(255, 160, 80, 1.0);
+  border-color: rgba(255, 160, 80, 0.5);
+}
+
 .fly-bullet-time {
   display: none;
   z-index: 25;
@@ -483,6 +512,7 @@ body {
   .fly-bullet-time,
   .fly-crosshair,
   .fly-hud-speed,
+  .fly-hud-altitude,
   .fly-thrust-slider,
   .missile-fire-btn {
     display: none !important;
