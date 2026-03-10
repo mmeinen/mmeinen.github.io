@@ -452,7 +452,7 @@
       }
       if(flyMode){
         if(e.key===' '){thrusting=true;e.preventDefault();}
-        if(e.key==='b'||e.key==='B'){bulletTime=!bulletTime;}
+        if(e.key==='b'||e.key==='B'){fastForward=!fastForward;}
         if(e.key==='1')navCamDist=3;
         if(e.key==='2')navCamDist=120;
         if(e.key==='c'||e.key==='C'){missileTargets.length=0;missileState='idle';updateMissileUI();}
@@ -527,7 +527,7 @@
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
       const dtSec=Math.min(ft*0.001,0.1);
-      const simDtSec=(flyMode&&bulletTime)?dtSec*BULLET_TIME_SCALE:dtSec;
+      const simDtSec=flyMode?(fastForward?dtSec*FAST_FORWARD_SCALE:dtSec*BULLET_TIME_SCALE):dtSec;
       simTime+=simDtSec;
       dv.setFloat32(0x028,ft,true);
       dv.setFloat32(0x010,simTime,true);
@@ -874,7 +874,7 @@
         thrustValEl.textContent=thrustPower.toFixed(1);
         thrustHandle.style.left=(tFrac*180)+'px';
         thrustFill.style.width=(tFrac*100)+'%';
-        if(bulletTime)flyBulletTime.classList.add('active');
+        if(!fastForward)flyBulletTime.classList.add('active');
         else flyBulletTime.classList.remove('active');
         updateMissileUI();
       }else{
