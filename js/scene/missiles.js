@@ -1,97 +1,317 @@
-/* ---- Missile state ---- */
-const MAX_MISSILES=6;
-const missileTargets=[]; // Array of {x, z} on ecliptic
-let missileState='idle'; // 'idle'|'targeting'|'fired'|'cooldown'
-let missileCooldownEnd=0;
-const MISSILE_COOLDOWN=5.0;
-const missiles=[]; // Active in-flight missiles
-const MISSILE_TRAIL_LEN=60;
-const MISSILE_TRAIL_INTERVAL=0.05;
-const MISSILE_HALF=[0.03,0.008,0.008];
-const MISSILE_COLOR=[0.85,0.35,0.15];
-const MISSILE_THRUST=12.0;
-const MISSILE_NAV_GAIN=3.0;
-const MISSILE_DET_RADIUS=0.5;
-const missileFireBtn=document.getElementById('missile-fire-btn');
+/* ---- Missile System (SoA Store) ---- */
 
-function detonateMissile(m){
-  const slot=detSlots.find(s=>!s.active);
-  if(!slot)return;
-  slot.pos[0]=m.pos[0];slot.pos[1]=m.pos[1];slot.pos[2]=m.pos[2];
-  slot.startSimTime=simTime;
-  slot.active=true;
-  m.detonated=true;m.detSlot=slot;
-}
+/* Constants */
+const MAX_MISSILES_ACTIVE = 24;
+const MISSILE_THRUST = 12.0;
+const MISSILE_NAV_GAIN = 3.0;
+const MISSILE_DET_RADIUS = 1.5;
+const MISSILE_FUEL_REGULAR = 7.0;
+const MISSILE_FUEL_NUKE = 10.0;
+const MISSILE_COAST_DURATION = 1.5;
+const MISSILE_SPEED = 15.0;
+const NUKE_MISSILE_SPEED = 12.0;
+const MISSILE_COOLDOWN_REGULAR = 3.0;
+const MISSILE_COOLDOWN_NUKE = 8.0;
+const MISSILE_HALF = [0.03, 0.008, 0.008];
+const MISSILE_COLOR = [0.85, 0.35, 0.15];
+const NUKE_MISSILE_COLOR = [0.95, 0.85, 0.75];
 
-function updateMissiles(simDt){
-  if(!flyMode)return;
-  if(missileState==='cooldown'&&simTime>=missileCooldownEnd){
-    missileState='idle';
+/* SoA missile store */
+const missile = {
+  alive:     new Uint8Array(MAX_MISSILES_ACTIVE),
+  posX:      new Float32Array(MAX_MISSILES_ACTIVE),
+  posZ:      new Float32Array(MAX_MISSILES_ACTIVE),
+  velX:      new Float32Array(MAX_MISSILES_ACTIVE),
+  velZ:      new Float32Array(MAX_MISSILES_ACTIVE),
+  fwdX:      new Float32Array(MAX_MISSILES_ACTIVE),
+  fwdZ:      new Float32Array(MAX_MISSILES_ACTIVE),
+  fuel:      new Float32Array(MAX_MISSILES_ACTIVE),
+  age:       new Float32Array(MAX_MISSILES_ACTIVE),
+  initFuel:  new Float32Array(MAX_MISSILES_ACTIVE),
+  targetIdx: new Int16Array(MAX_MISSILES_ACTIVE),
+  type:      new Uint8Array(MAX_MISSILES_ACTIVE)
+};
+
+const missileFreeSlots = [];
+for (let i = MAX_MISSILES_ACTIVE - 1; i >= 0; i--) missileFreeSlots.push(i);
+let missileCount = 0;
+
+/* UI element reference */
+const missileFireBtn = document.getElementById('missile-fire-btn');
+
+/* Lock-on targeting state */
+const lockState = {
+  targets: [],       // [{enemyIdx, count}]
+  maxTargets: 6,
+  maxPerTarget: 3
+};
+
+/**
+ * Update lock limits based on current weapon type.
+ * Call when switching between regular (selectedWeapon=2) and nuclear (selectedWeapon=3).
+ */
+function updateLockLimits() {
+  if (typeof selectedWeapon !== 'undefined' && selectedWeapon === 3) {
+    lockState.maxTargets = 3;
+    lockState.maxPerTarget = 1;
+  } else {
+    lockState.maxTargets = 6;
+    lockState.maxPerTarget = 3;
   }
-  for(let i=missiles.length-1;i>=0;i--){
-    const m=missiles[i];
-    if(!m.alive)continue;
-    const g=computeGravAccel(m.pos);
-    let dx=m.targetPos[0]-m.pos[0], dz=m.targetPos[2]-m.pos[2];
-    let dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist<MISSILE_DET_RADIUS){detonateMissile(m);m.alive=false;continue;}
-    if(m.pos[0]*m.pos[0]+m.pos[2]*m.pos[2]<4){m.alive=false;continue;}
-    let losX=dx/(dist||1), losZ=dz/(dist||1);
-    let vDotLos=m.vel[0]*losX+m.vel[2]*losZ;
-    let crossX=m.vel[0]-vDotLos*losX, crossZ=m.vel[2]-vDotLos*losZ;
-    let crossSpeed=Math.sqrt(crossX*crossX+crossZ*crossZ);
-    let losRate=crossSpeed/(dist||1);
-    let closingSpeed=Math.max(-vDotLos,1.0);
-    let perpX=-losZ, perpZ=losX;
-    let pnSign=(crossX*perpX+crossZ*perpZ)>0?-1:1;
-    let pnMag=MISSILE_NAV_GAIN*closingSpeed*losRate;
-    let ax=g[0]+MISSILE_THRUST*losX+pnSign*pnMag*perpX;
-    let az=g[2]+MISSILE_THRUST*losZ+pnSign*pnMag*perpZ;
-    m.vel[0]+=ax*simDt;m.vel[2]+=az*simDt;
-    m.pos[0]+=m.vel[0]*simDt;m.pos[2]+=m.vel[2]*simDt;
-    m.pos[1]=0;m.vel[1]=0;
-    let spd=Math.sqrt(m.vel[0]*m.vel[0]+m.vel[2]*m.vel[2]);
-    if(spd>0.01){m.fwd[0]=m.vel[0]/spd;m.fwd[1]=0;m.fwd[2]=m.vel[2]/spd;}
-    m.trailTimer+=simDt;
-    if(m.trailTimer>=MISSILE_TRAIL_INTERVAL){
-      m.trailTimer=0;
-      const idx=m.trailHead*3;
-      m.trail[idx]=m.pos[0];m.trail[idx+1]=m.pos[1];m.trail[idx+2]=m.pos[2];
-      m.trailHead=(m.trailHead+1)%MISSILE_TRAIL_LEN;
-      if(m.trailCount<MISSILE_TRAIL_LEN)m.trailCount++;
+  // Trim existing locks if they exceed new limits
+  while (lockState.targets.length > lockState.maxTargets) {
+    lockState.targets.pop();
+  }
+  for (let i = 0; i < lockState.targets.length; i++) {
+    if (lockState.targets[i].count > lockState.maxPerTarget) {
+      lockState.targets[i].count = lockState.maxPerTarget;
     }
   }
-  if(missileState==='fired'){
-    const allDead=missiles.every(m=>!m.alive);
-    if(allDead){
-      const allExpired=missiles.every(m=>{
-        if(!m.detonated)return true;
-        return !m.detSlot||!m.detSlot.active;
-      });
-      if(allExpired){
-        missileState='cooldown';
-        missileCooldownEnd=simTime+MISSILE_COOLDOWN;
-        missiles.length=0;
+}
+
+function addLockTarget(enemyIdx) {
+  const maxT = lockState.maxTargets;
+  const maxPer = lockState.maxPerTarget;
+  for (let i = 0; i < lockState.targets.length; i++) {
+    if (lockState.targets[i].enemyIdx === enemyIdx) {
+      if (lockState.targets[i].count < maxPer) {
+        lockState.targets[i].count++;
+        return true;
+      }
+      return false;
+    }
+  }
+  if (lockState.targets.length < maxT) {
+    lockState.targets.push({ enemyIdx: enemyIdx, count: 1 });
+    return true;
+  }
+  return false;
+}
+
+function removeLockTarget(enemyIdx) {
+  for (let i = 0; i < lockState.targets.length; i++) {
+    if (lockState.targets[i].enemyIdx === enemyIdx) {
+      lockState.targets[i].count--;
+      if (lockState.targets[i].count <= 0) lockState.targets.splice(i, 1);
+      return;
+    }
+  }
+}
+
+function clearLocks() {
+  lockState.targets.length = 0;
+}
+
+function getLockCount() {
+  let total = 0;
+  for (let i = 0; i < lockState.targets.length; i++) total += lockState.targets[i].count;
+  return total;
+}
+
+/* Lock-on detection: find enemy under crosshair */
+function findLockTarget(mouseX, mouseY, camP, camF, camR, camU, mD) {
+  let bestIdx = -1, bestDist = Infinity;
+  for (let i = 0; i < MAX_ENEMIES; i++) {
+    if (!enemies.alive[i]) continue;
+    const dx = enemies.posX[i] - camP[0];
+    const dy = enemies.posY[i] - camP[1];
+    const dz = enemies.posZ[i] - camP[2];
+    const dp = dx * camF[0] + dy * camF[1] + dz * camF[2];
+    if (dp <= 0) continue;
+    const sx = baseWidth * 0.5 + (dx * camR[0] + dy * camR[1] + dz * camR[2]) / dp * 1.8 * mD;
+    const sy = baseHeight * 0.5 - (dx * camU[0] + dy * camU[1] + dz * camU[2]) / dp * 1.8 * mD;
+    const projSize = Math.max((enemies.scale[i] / dp) * mD * 1.8, 25);
+    const tdx = mouseX - sx, tdy = mouseY - sy;
+    const d2 = tdx * tdx + tdy * tdy;
+    if (d2 < projSize * projSize && d2 < bestDist) {
+      bestDist = d2;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+/* Spawn a missile */
+function spawnMissile(type, targetIdx) {
+  if (missileFreeSlots.length === 0) return -1;
+  const idx = missileFreeSlots.pop();
+  const speed = type === 0 ? MISSILE_SPEED : NUKE_MISSILE_SPEED;
+  const initFuel = type === 0 ? MISSILE_FUEL_REGULAR : MISSILE_FUEL_NUKE;
+  missile.alive[idx] = 1;
+  missile.posX[idx] = flyPos[0];
+  missile.posZ[idx] = flyPos[2];
+  missile.velX[idx] = flyVel[0] + (aimDir ? aimDir[0] * speed : 0);
+  missile.velZ[idx] = flyVel[2] + (aimDir ? aimDir[2] * speed : 0);
+  const spd = Math.sqrt(missile.velX[idx] ** 2 + missile.velZ[idx] ** 2);
+  missile.fwdX[idx] = spd > 0.01 ? missile.velX[idx] / spd : 0;
+  missile.fwdZ[idx] = spd > 0.01 ? missile.velZ[idx] / spd : 1;
+  missile.fuel[idx] = initFuel;
+  missile.initFuel[idx] = initFuel;
+  missile.age[idx] = 0;
+  missile.targetIdx[idx] = targetIdx;
+  missile.type[idx] = type;
+  missileCount++;
+  return idx;
+}
+
+/* Remove a missile */
+function removeMissile(idx) {
+  if (!missile.alive[idx]) return;
+  missile.alive[idx] = 0;
+  missileFreeSlots.push(idx);
+  missileCount--;
+}
+
+/* Fire a salvo of all locked targets */
+function fireMissileSalvo(st) {
+  const wIdx = selectedWeapon; // 2 = regular, 3 = nuke
+  if (st < weaponCooldownEnd[wIdx]) return;
+  if (lockState.targets.length === 0) return;
+  const missileType = wIdx === 3 ? 1 : 0;
+  for (let t = 0; t < lockState.targets.length; t++) {
+    const lock = lockState.targets[t];
+    for (let c = 0; c < lock.count; c++) {
+      const spawned = spawnMissile(missileType, lock.enemyIdx);
+      if (spawned >= 0 && c > 0) {
+        // Fan-out: add perpendicular velocity offset for spread
+        const perpX = -missile.fwdZ[spawned];
+        const perpZ = missile.fwdX[spawned];
+        const offset = (c - 0.5) * 2.0;
+        missile.velX[spawned] += perpX * offset;
+        missile.velZ[spawned] += perpZ * offset;
       }
     }
   }
+  weaponCooldownEnd[wIdx] = st + (missileType === 0 ? MISSILE_COOLDOWN_REGULAR : MISSILE_COOLDOWN_NUKE);
+  clearLocks();
 }
 
-function updateMissileUI(){
-  if(!flyMode){missileFireBtn.className='missile-fire-btn';return;}
-  if(missileState==='idle'){
-    missileFireBtn.className='missile-fire-btn idle-hint';
-    missileFireBtn.textContent='RIGHT-CLICK TO TARGET';
-  }else if(missileState==='targeting'){
-    missileFireBtn.className='missile-fire-btn active';
-    missileFireBtn.textContent='FIRE SALVO ['+missileTargets.length+'/6]';
-  }else if(missileState==='fired'){
-    const alive=missiles.filter(m=>m.alive).length;
-    missileFireBtn.className='missile-fire-btn in-flight';
-    missileFireBtn.textContent='SALVO IN FLIGHT ['+alive+']';
-  }else if(missileState==='cooldown'){
-    const rem=Math.max(0,missileCooldownEnd-simTime);
-    missileFireBtn.className='missile-fire-btn cooldown';
-    missileFireBtn.textContent='COOLDOWN '+rem.toFixed(1)+'s';
+/* Detonate nuclear missile into volumetric shader slot */
+function detonateMissileNuke(idx) {
+  const slot = detSlots.find(s => !s.active);
+  if (!slot) { removeMissile(idx); return; }
+  slot.pos[0] = missile.posX[idx];
+  slot.pos[1] = 0;
+  slot.pos[2] = missile.posZ[idx];
+  slot.startSimTime = simTime;
+  slot.active = true;
+  removeMissile(idx);
+}
+
+/**
+ * Called when a regular missile detonates on proximity hit.
+ * Spawns a billboard sprite explosion at the missile position.
+ */
+function onMissileDetonate(idx) {
+  spawnExplosion(missile.posX[idx], 0, missile.posZ[idx], EXPLOSION_BASE_SIZE);
+  removeMissile(idx);
+}
+
+/* Update all alive missiles */
+function updateMissiles(simDt) {
+  if (!flyMode) return;
+  for (let i = 0; i < MAX_MISSILES_ACTIVE; i++) {
+    if (!missile.alive[i]) continue;
+    missile.age[i] += simDt;
+
+    // Validate target
+    const ti = missile.targetIdx[i];
+    if (ti < 0 || !enemies.alive[ti]) {
+      // Target dead/invalid: remove silently (fizzle)
+      removeMissile(i);
+      continue;
+    }
+
+    // Read live target position
+    const tX = enemies.posX[ti], tZ = enemies.posZ[ti];
+    let dx = tX - missile.posX[i], dz = tZ - missile.posZ[i];
+    let dist = Math.sqrt(dx * dx + dz * dz);
+
+    // Proximity check
+    if (dist < MISSILE_DET_RADIUS) {
+      if (missile.type[i] === 1) {
+        detonateMissileNuke(i);
+      } else {
+        onMissileDetonate(i);
+      }
+      continue;
+    }
+
+    // BH despawn
+    const r2 = missile.posX[i] * missile.posX[i] + missile.posZ[i] * missile.posZ[i];
+    if (r2 < 4.0) { removeMissile(i); continue; }
+
+    // Gravity (always active)
+    const g = computeGravAccel([missile.posX[i], 0, missile.posZ[i]]);
+
+    if (missile.fuel[i] > 0) {
+      // Powered flight: PN guidance + thrust
+      missile.fuel[i] -= simDt;
+      const losX = dx / (dist || 1), losZ = dz / (dist || 1);
+      const vDotLos = missile.velX[i] * losX + missile.velZ[i] * losZ;
+      const crossX = missile.velX[i] - vDotLos * losX;
+      const crossZ = missile.velZ[i] - vDotLos * losZ;
+      const crossSpeed = Math.sqrt(crossX * crossX + crossZ * crossZ);
+      const losRate = crossSpeed / (dist || 1);
+      const closingSpeed = Math.max(-vDotLos, 1.0);
+      const perpX = -losZ, perpZ = losX;
+      const pnSign = (crossX * perpX + crossZ * perpZ) > 0 ? -1 : 1;
+      const pnMag = MISSILE_NAV_GAIN * closingSpeed * losRate;
+      const ax = g[0] + MISSILE_THRUST * losX + pnSign * pnMag * perpX;
+      const az = g[2] + MISSILE_THRUST * losZ + pnSign * pnMag * perpZ;
+      missile.velX[i] += ax * simDt;
+      missile.velZ[i] += az * simDt;
+    } else {
+      // Coast phase: gravity only
+      missile.velX[i] += g[0] * simDt;
+      missile.velZ[i] += g[2] * simDt;
+
+      // Self-destruct check: fuel depleted + coast duration exceeded + moving away
+      if (missile.age[i] > missile.initFuel[i] + MISSILE_COAST_DURATION) {
+        const vToward = missile.velX[i] * dx + missile.velZ[i] * dz;
+        if (vToward < 0 && dist > MISSILE_DET_RADIUS * 3) {
+          removeMissile(i); continue;
+        }
+      }
+    }
+
+    // Position update
+    missile.posX[i] += missile.velX[i] * simDt;
+    missile.posZ[i] += missile.velZ[i] * simDt;
+
+    // Update forward direction
+    const spd = Math.sqrt(missile.velX[i] * missile.velX[i] + missile.velZ[i] * missile.velZ[i]);
+    if (spd > 0.01) {
+      missile.fwdX[i] = missile.velX[i] / spd;
+      missile.fwdZ[i] = missile.velZ[i] / spd;
+    }
+  }
+}
+
+/* Missile UI update */
+function updateMissileUI() {
+  if (!flyMode) { missileFireBtn.className = 'missile-fire-btn'; return; }
+  // Only show missile UI when in missile weapon mode (selectedWeapon 2 or 3)
+  if (typeof selectedWeapon === 'undefined' || selectedWeapon < 2) {
+    missileFireBtn.className = 'missile-fire-btn';
+    return;
+  }
+  const lockCount = getLockCount();
+  const inFlight = missileCount;
+  const wIdx = selectedWeapon;
+  const cdRemain = (typeof weaponCooldownEnd !== 'undefined' ? weaponCooldownEnd[wIdx] : 0) - simTime;
+  const typeName = wIdx === 3 ? 'NUKE' : 'MISSILE';
+  if (cdRemain > 0) {
+    missileFireBtn.className = 'missile-fire-btn cooldown';
+    missileFireBtn.textContent = typeName + ' COOLDOWN ' + cdRemain.toFixed(1) + 's';
+  } else if (inFlight > 0) {
+    missileFireBtn.className = 'missile-fire-btn in-flight';
+    missileFireBtn.textContent = typeName + ' IN FLIGHT [' + inFlight + ']';
+  } else if (lockCount > 0) {
+    missileFireBtn.className = 'missile-fire-btn active';
+    missileFireBtn.textContent = typeName + ' FIRE SALVO [' + lockCount + '] [RMB]';
+  } else {
+    missileFireBtn.className = 'missile-fire-btn idle-hint';
+    missileFireBtn.textContent = typeName + ' MODE: CLICK TO LOCK';
   }
 }
