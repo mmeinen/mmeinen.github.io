@@ -28,6 +28,15 @@ const NAV_CAM_DIST_MIN=15, NAV_CAM_DIST_MAX=200;
 // Cached aim direction (updated each frame from mouse)
 let aimDir=null;
 let thrusting=false;
+// Orbit state machine (uses ORBIT_STATE from orbital.js)
+let orbitState=2; // ORBIT_STATE.FREE (2), set after orbital.js loads
+let orbitBody=-2;           // -1=BH, 0-6=planet index, -2=no body
+let orbitAltitude=0;        // distance from body surface
+let transferTarget=-2;      // target body index (-1=BH, 0-6=planet, -2=none)
+let transferBurnDir=[0,0,0];
+let transferBurnMag=0;
+let altUpHeld=false;        // up arrow key held
+let altDownHeld=false;      // down arrow key held
 
 /* ---- Gravity & trajectory simulation ---- */
 // Precomputed planet GMs (radius-cubed * constant)
@@ -115,6 +124,139 @@ function computeAimDir(mouseX,mouseY,camP,camF,camR,camU,fovY,aspect){
   return [dx/len, 0, dz/len];
 }
 
+/* ---- Orbit transfer and capture ---- */
+function getBodyPosition(bodyIndex) {
+  // Returns current position of body. BH is at origin; planets use analytical position.
+  if (bodyIndex === -1) return [0, 0, 0];
+  return planetPosAtTime(planetData[bodyIndex], simTime);
+}
+
+function initiateTransfer(targetIndex) {
+  transferTarget = targetIndex;
+  orbitState = ORBIT_STATE.TRANSFER;
+
+  // Get target orbit radius (distance from BH center)
+  let targetR;
+  if (targetIndex === -1) {
+    targetR = 8.0; // BH capture radius
+  } else {
+    targetR = planetData[targetIndex].oR; // already doubled in nav mode
+  }
+
+  // Current ship orbit radius
+  const shipR = Math.sqrt(flyPos[0] ** 2 + flyPos[2] ** 2);
+
+  // State-aware delta-v computation
+  let dv_burn;
+  if (orbitBody >= -1 && orbitBody !== -2) {
+    // From ORBITING state: standard Hohmann delta-v (ship velocity is circular)
+    const hoh = computeHohmannDV(shipR, targetR, BH_GM);
+    dv_burn = hoh.dv;
+  } else {
+    // From TRANSFER or FREE state: compute from actual velocity
+    const a_transfer = (shipR + targetR) / 2;
+    const v_transfer = Math.sqrt(BH_GM * (2 / shipR - 1 / a_transfer));
+    const v_current = Math.sqrt(flyVel[0] ** 2 + flyVel[2] ** 2);
+    dv_burn = v_transfer - v_current;
+  }
+
+  // Compute prograde burn direction from current velocity (XZ plane)
+  const spd = Math.sqrt(flyVel[0] ** 2 + flyVel[2] ** 2);
+  if (spd > 0.01) {
+    transferBurnDir[0] = flyVel[0] / spd;
+    transferBurnDir[1] = 0;
+    transferBurnDir[2] = flyVel[2] / spd;
+  } else {
+    // Fallback: tangent direction from position
+    const pr = Math.sqrt(flyPos[0] ** 2 + flyPos[2] ** 2) || 1;
+    transferBurnDir[0] = -flyPos[2] / pr;
+    transferBurnDir[1] = 0;
+    transferBurnDir[2] = flyPos[0] / pr;
+  }
+
+  // Apply delta-v as instant velocity change
+  flyVel[0] += transferBurnDir[0] * dv_burn;
+  flyVel[2] += transferBurnDir[2] * dv_burn;
+
+  // Store burn magnitude for trajectory preview and continuous thrust direction
+  transferBurnMag = Math.abs(dv_burn);
+
+  // Clear orbit body (no longer orbiting)
+  orbitBody = -2;
+}
+
+function checkSOICapture() {
+  if (orbitState !== ORBIT_STATE.TRANSFER || transferTarget === -2) return;
+
+  const targetPos = getBodyPosition(transferTarget);
+  const dx = flyPos[0] - targetPos[0];
+  const dz = flyPos[2] - targetPos[2];
+  const dist = Math.sqrt(dx * dx + dz * dz);
+
+  const soi = getBodySOI(transferTarget);
+
+  if (dist < soi) {
+    // Captured! Auto-circularize
+    circularizeOrbit(flyPos, flyVel, targetPos, getBodyGM(transferTarget));
+    orbitState = ORBIT_STATE.ORBITING;
+    orbitBody = transferTarget;
+    orbitAltitude = dist - getBodyRadius(transferTarget);
+    transferTarget = -2;
+    transferBurnMag = 0;
+  }
+}
+
+function updateAltitude(simDt) {
+  if (orbitState !== ORBIT_STATE.ORBITING || orbitBody === -2) return;
+
+  const ALT_RATE = 2.0; // delta-v units per second
+  let dvMag = 0;
+
+  if (altUpHeld) dvMag = ALT_RATE * simDt;    // Prograde = raise orbit
+  if (altDownHeld) dvMag = -ALT_RATE * simDt;  // Retrograde = lower orbit
+
+  if (dvMag !== 0) {
+    const spd = Math.sqrt(flyVel[0] ** 2 + flyVel[2] ** 2);
+    if (spd > 0.01) {
+      flyVel[0] += (flyVel[0] / spd) * dvMag;
+      flyVel[2] += (flyVel[2] / spd) * dvMag;
+    }
+  }
+
+  // Recompute altitude from current distance to body
+  const bodyPos = getBodyPosition(orbitBody);
+  const dx = flyPos[0] - bodyPos[0];
+  const dz = flyPos[2] - bodyPos[2];
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  const bodyRadius = getBodyRadius(orbitBody);
+
+  orbitAltitude = dist - bodyRadius;
+
+  // Crash detection: altitude below zero
+  if (orbitAltitude < 0) {
+    // Reset ship to default orbit altitude around same body
+    const defaultAlt = getDefaultOrbitAlt(orbitBody);
+    const safeR = bodyRadius + defaultAlt;
+    // Reposition ship at safe radius from body
+    const angle = Math.atan2(dx, dz);
+    flyPos[0] = bodyPos[0] + safeR * Math.sin(angle);
+    flyPos[2] = bodyPos[2] + safeR * Math.cos(angle);
+    circularizeOrbit(flyPos, flyVel, bodyPos, getBodyGM(orbitBody));
+    orbitAltitude = defaultAlt;
+    // Flash warning (handled by HUD -- set a flag)
+    if (typeof flyHudAltEl !== 'undefined' && flyHudAltEl) {
+      flyHudAltEl.classList.add('warning');
+      setTimeout(() => flyHudAltEl.classList.remove('warning'), 1000);
+    }
+  }
+
+  // Escape detection: if distance exceeds SOI
+  if (dist > getBodySOI(orbitBody)) {
+    orbitState = ORBIT_STATE.FREE;
+    orbitBody = -2;
+  }
+}
+
 function enterNavMode(){
   const cx=dv.getFloat32(0x030,true), cz=dv.getFloat32(0x038,true);
   flyPos[0]=cx;flyPos[1]=0;flyPos[2]=cz;
@@ -147,6 +289,12 @@ function enterNavMode(){
    p.ph+=(p.sp-spKep)*tNow;
    p.sp=spKep;}
   flyMode=true;
+  // Initialize orbital data tables (SOI, default orbit altitudes) after oR doubling
+  initOrbitalData();
+  // Set initial orbit state
+  orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
+  orbitAltitude=0; altUpHeld=false; altDownHeld=false;
+  transferBurnMag=0; transferBurnDir[0]=0; transferBurnDir[1]=0; transferBurnDir[2]=0;
   if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;}
   missileState='idle';missileTargets.length=0;missiles.length=0;
   hudOverlay.classList.add('nav-active');
@@ -157,12 +305,16 @@ function enterNavMode(){
   thrustSlider.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
-  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">SPACE &mdash; THRUST<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; BULLET TIME<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
+  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; BULLET TIME<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
 }
 
 function exitNavMode(){
   flyMode=false;
   fastForward=false;thrusting=false;
+  // Reset orbit state
+  orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
+  orbitAltitude=0; altUpHeld=false; altDownHeld=false;
+  transferBurnMag=0;
   missileState='idle';missileTargets.length=0;missiles.length=0;
   for(let i=0;i<6;i++){detSlots[i].active=false;}
   for(let i=0;i<6;i++){
@@ -193,22 +345,38 @@ function exitNavMode(){
 
 function updateNav(simDt){
   if(!flyMode)return;
+  // Leapfrog integration: half-step velocity
   const a1=computeGravAccel(flyPos);
   flyVel[0]+=0.5*a1[0]*simDt;
   flyVel[1]+=0.5*a1[1]*simDt;
   flyVel[2]+=0.5*a1[2]*simDt;
+  // Position step
   flyPos[0]+=flyVel[0]*simDt;
   flyPos[1]+=flyVel[1]*simDt;
   flyPos[2]+=flyVel[2]*simDt;
+  // Second half-step velocity
   const a2=computeGravAccel(flyPos);
   flyVel[0]+=0.5*a2[0]*simDt;
   flyVel[1]+=0.5*a2[1]*simDt;
   flyVel[2]+=0.5*a2[2]*simDt;
-  if(thrusting&&aimDir){
+  // Transfer state: continuous thrust in burn direction, scaled by thrustPower (slider)
+  if(orbitState===ORBIT_STATE.TRANSFER){
+    flyVel[0]+=transferBurnDir[0]*thrustPower*simDt;
+    flyVel[2]+=transferBurnDir[2]*thrustPower*simDt;
+    checkSOICapture();
+  }
+  // Orbiting state: handle altitude adjustments
+  if(orbitState===ORBIT_STATE.ORBITING){
+    updateAltitude(simDt);
+  }
+  // Free state or manual thrust (SPACE key still works in FREE state)
+  if(orbitState===ORBIT_STATE.FREE&&thrusting&&aimDir){
     flyVel[0]+=aimDir[0]*thrustPower*simDt;
     flyVel[2]+=aimDir[2]*thrustPower*simDt;
   }
+  // Lock to ecliptic plane
   flyPos[1]=0; flyVel[1]=0;
+  // Update forward direction from velocity
   const spd=v3len(flyVel);
   if(spd>0.1){
     flyFwd[0]=flyVel[0]/spd;flyFwd[1]=0;flyFwd[2]=flyVel[2]/spd;
