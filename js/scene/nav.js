@@ -124,9 +124,21 @@ function computeAimDir(mouseX,mouseY,camP,camF,camR,camU,fovY,aspect){
   return [dx/len, 0, dz/len];
 }
 
+/* ---- L-point orbit constants ---- */
+const LPOINT_SOI = 2.0;
+const LPOINT_DEFAULT_ALT = 1.0;
+const LPOINT_ORBIT_GM = 0.5; // tiny effective GM for orbiting an L-point
+
 /* ---- Orbit transfer and capture ---- */
+function getLPointPosition(flatIndex) {
+  // Get L-point world position from the lPointPositions array (set by render loop)
+  return [lPointPositions[flatIndex*3], lPointPositions[flatIndex*3+1], lPointPositions[flatIndex*3+2]];
+}
+
 function getBodyPosition(bodyIndex) {
   // Returns current position of body. BH is at origin; planets use analytical position.
+  // L-points use index >= 100 (flatIndex = bodyIndex - 100)
+  if (bodyIndex >= 100) return getLPointPosition(bodyIndex - 100);
   if (bodyIndex === -1) return [0, 0, 0];
   return planetPosAtTime(planetData[bodyIndex], simTime);
 }
@@ -137,7 +149,11 @@ function initiateTransfer(targetIndex) {
 
   // Get target orbit radius (distance from BH center)
   let targetR;
-  if (targetIndex === -1) {
+  if (targetIndex >= 100) {
+    // L-point target: compute distance from BH to L-point position
+    const lPos = getLPointPosition(targetIndex - 100);
+    targetR = Math.sqrt(lPos[0] * lPos[0] + lPos[2] * lPos[2]);
+  } else if (targetIndex === -1) {
     targetR = 8.0; // BH capture radius
   } else {
     targetR = planetData[targetIndex].oR; // already doubled in nav mode
@@ -193,16 +209,27 @@ function checkSOICapture() {
   const dz = flyPos[2] - targetPos[2];
   const dist = Math.sqrt(dx * dx + dz * dz);
 
-  const soi = getBodySOI(transferTarget);
-
-  if (dist < soi) {
-    // Captured! Auto-circularize
-    circularizeOrbit(flyPos, flyVel, targetPos, getBodyGM(transferTarget));
-    orbitState = ORBIT_STATE.ORBITING;
-    orbitBody = transferTarget;
-    orbitAltitude = dist - getBodyRadius(transferTarget);
-    transferTarget = -2;
-    transferBurnMag = 0;
+  if (transferTarget >= 100) {
+    // L-point capture: fixed SOI
+    if (dist < LPOINT_SOI) {
+      circularizeOrbit(flyPos, flyVel, targetPos, LPOINT_ORBIT_GM);
+      orbitState = ORBIT_STATE.ORBITING;
+      orbitBody = transferTarget;
+      orbitAltitude = dist - LPOINT_MARKER_RADIUS;
+      transferTarget = -2;
+      transferBurnMag = 0;
+    }
+  } else {
+    const soi = getBodySOI(transferTarget);
+    if (dist < soi) {
+      // Captured! Auto-circularize
+      circularizeOrbit(flyPos, flyVel, targetPos, getBodyGM(transferTarget));
+      orbitState = ORBIT_STATE.ORBITING;
+      orbitBody = transferTarget;
+      orbitAltitude = dist - getBodyRadius(transferTarget);
+      transferTarget = -2;
+      transferBurnMag = 0;
+    }
   }
 }
 
@@ -223,7 +250,44 @@ function updateAltitude(simDt) {
     }
   }
 
-  // Recompute altitude from current distance to body
+  // L-point orbiting: co-rotate with parent planet
+  if (orbitBody >= 100) {
+    // L-point position is updated each frame in the render loop (lPointPositions array)
+    const fi = orbitBody - 100;
+    const bodyPos = getLPointPosition(fi);
+    const dx = flyPos[0] - bodyPos[0];
+    const dz = flyPos[2] - bodyPos[2];
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    orbitAltitude = dist - LPOINT_MARKER_RADIUS;
+
+    // Apply circular orbit velocity around the L-point each frame
+    // This keeps the ship orbiting the co-rotating L-point
+    circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM);
+
+    // Crash detection
+    if (orbitAltitude < 0) {
+      const safeR = LPOINT_MARKER_RADIUS + LPOINT_DEFAULT_ALT;
+      const angle = Math.atan2(dx, dz);
+      flyPos[0] = bodyPos[0] + safeR * Math.sin(angle);
+      flyPos[2] = bodyPos[2] + safeR * Math.cos(angle);
+      circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM);
+      orbitAltitude = LPOINT_DEFAULT_ALT;
+      if (typeof flyHudAltEl !== 'undefined' && flyHudAltEl) {
+        flyHudAltEl.classList.add('warning');
+        setTimeout(() => flyHudAltEl.classList.remove('warning'), 1000);
+      }
+    }
+
+    // Escape detection
+    if (dist > LPOINT_SOI) {
+      orbitState = ORBIT_STATE.FREE;
+      orbitBody = -2;
+    }
+    return;
+  }
+
+  // Standard body orbiting (planets and BH)
   const bodyPos = getBodyPosition(orbitBody);
   const dx = flyPos[0] - bodyPos[0];
   const dz = flyPos[2] - bodyPos[2];

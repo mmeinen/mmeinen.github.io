@@ -440,6 +440,34 @@
                 initiateTransfer(-1); // BH clicked
               }
             }
+            // Check L-point click (when visible)
+            if(lagrangeVisible){
+              const minDimC=Math.min(canvas.width,canvas.height);
+              const fovYC=2*Math.atan(canvas.height/(2*minDimC*1.8));
+              const aspectC=canvas.width/canvas.height;
+              const ndcXC=(2*mSX/baseWidth-1)*aspectC*Math.tan(fovYC/2);
+              const ndcYC=(1-2*mSY/baseHeight)*Math.tan(fovYC/2);
+              const lrdx=rX*ndcXC+uXc*ndcYC+fX;
+              const lrdy=rY*ndcXC+uYc*ndcYC+fY;
+              const lrdz=rZ*ndcXC+uZc*ndcYC+fZ;
+              if(Math.abs(lrdy)>0.0001){
+                const lt=-cpy/lrdy;
+                if(lt>0){
+                  const lhitX=cpx+lrdx*lt, lhitZ=cpz+lrdz*lt;
+                  let lPointHit=-1;
+                  for(let li=0;li<12;li++){
+                    const lpx=lPointPositions[li*3],lpz=lPointPositions[li*3+2];
+                    const ldx=lhitX-lpx,ldz=lhitZ-lpz;
+                    if(ldx*ldx+ldz*ldz<LPOINT_MARKER_RADIUS*LPOINT_MARKER_RADIUS){
+                      lPointHit=li;break;
+                    }
+                  }
+                  if(lPointHit>=0){
+                    initiateTransfer(100+lPointHit);
+                  }
+                }
+              }
+            }
           }
         }
         return;

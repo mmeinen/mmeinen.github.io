@@ -901,6 +901,104 @@
         'index.html must reset divisors to 0 after instanced draw');
 
       // =============================================
+      // ORBITAL MECHANICS TESTS — Phase 2 invariants
+      // =============================================
+
+      let orbitalText, navText;
+      try {
+        orbitalText = await (await fetch('js/scene/orbital.js')).text();
+        navText = await (await fetch('js/scene/nav.js')).text();
+      } catch(e) {
+        showError('Could not fetch orbital/nav files: ' + e.message);
+      }
+
+      // Test 1: orbital.js contains ORBIT_STATE enum with ORBITING, TRANSFER, FREE
+      if (orbitalText) {
+        assert(orbitalText.match(/ORBIT_STATE\s*=/) &&
+               orbitalText.match(/ORBITING/) &&
+               orbitalText.match(/TRANSFER/) &&
+               orbitalText.match(/FREE/),
+          'Orbital Mechanics: ORBIT_STATE enum with ORBITING, TRANSFER, FREE',
+          'js/scene/orbital.js must define ORBIT_STATE with all three states');
+      }
+
+      // Test 2: orbital.js contains computeSOI function
+      if (orbitalText) {
+        assert(orbitalText.match(/function\s+computeSOI/),
+          'Orbital Mechanics: computeSOI function exists',
+          'js/scene/orbital.js must define computeSOI');
+      }
+
+      // Test 3: orbital.js contains computeHohmannDV function
+      if (orbitalText) {
+        assert(orbitalText.match(/function\s+computeHohmannDV/),
+          'Orbital Mechanics: computeHohmannDV function exists',
+          'js/scene/orbital.js must define computeHohmannDV');
+      }
+
+      // Test 4: orbital.js contains computeLagrangePoints function
+      if (orbitalText) {
+        assert(orbitalText.match(/function\s+computeLagrangePoints/),
+          'Orbital Mechanics: computeLagrangePoints function exists',
+          'js/scene/orbital.js must define computeLagrangePoints');
+      }
+
+      // Test 5: orbital.js contains circularizeOrbit function
+      if (orbitalText) {
+        assert(orbitalText.match(/function\s+circularizeOrbit/),
+          'Orbital Mechanics: circularizeOrbit function exists',
+          'js/scene/orbital.js must define circularizeOrbit');
+      }
+
+      // Test 6: nav.js contains orbitState variable
+      if (navText) {
+        assert(navText.match(/let\s+orbitState/),
+          'Orbital Mechanics: orbitState variable in nav.js',
+          'js/scene/nav.js must define orbitState');
+      }
+
+      // Test 7: nav.js contains initiateTransfer function
+      if (navText) {
+        assert(navText.match(/function\s+initiateTransfer/),
+          'Orbital Mechanics: initiateTransfer function in nav.js',
+          'js/scene/nav.js must define initiateTransfer');
+      }
+
+      // Test 8: nav.js contains checkSOICapture function
+      if (navText) {
+        assert(navText.match(/function\s+checkSOICapture/),
+          'Orbital Mechanics: checkSOICapture function in nav.js',
+          'js/scene/nav.js must define checkSOICapture');
+      }
+
+      // Test 9: nav.js contains updateAltitude function
+      if (navText) {
+        assert(navText.match(/function\s+updateAltitude/),
+          'Orbital Mechanics: updateAltitude function in nav.js',
+          'js/scene/nav.js must define updateAltitude');
+      }
+
+      // Test 10: index.html loads orbital.js script
+      assert(text.match(/src=["']js\/scene\/orbital\.js["']/),
+        'Orbital Mechanics: index.html loads orbital.js',
+        'index.html must include orbital.js script tag');
+
+      // Test 11: index.html contains createCapitalShipGeometry (not createBoxGeometry for ship)
+      if (mathText) {
+        assert(mathText.match(/function\s+createCapitalShipGeometry/) &&
+               text.match(/createCapitalShipGeometry\s*\(\s*\)/),
+          'Orbital Mechanics: createCapitalShipGeometry in use',
+          'math.js must define createCapitalShipGeometry and index.html must call it');
+      }
+
+      // Test 12: shaders.js contains u_thrustIntensity uniform
+      if (shadersText) {
+        assert(shadersText.match(/u_thrustIntensity/),
+          'Orbital Mechanics: u_thrustIntensity uniform in shaders.js',
+          'js/scene/shaders.js must reference u_thrustIntensity');
+      }
+
+      // =============================================
       // Done
       // =============================================
       render();
