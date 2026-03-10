@@ -66,11 +66,11 @@ Plans:
   2. Player can fire the plasma gun and its energy blast travels toward a target, fading over distance with minimal gravity deflection
   3. Before firing either weapon, the player can see a predicted trajectory line showing where the projectile will go (accounting for gravity)
   4. Kinetic rounds and plasma blasts that reach an enemy position register as hits (damage applied in Phase 6)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md -- Weapons module (weapons.js): projectile SoA store, kinetic/plasma firing logic, physics update, hit detection, combat mode toggle and input integration
+- [ ] 03-02-PLAN.md -- Projectile rendering (kinetic tracers with trails, plasma glow bolts), trajectory preview with hit prediction, visual verification
 
 ### Phase 4: Missile Systems & Explosions
 **Goal**: Player has two missile types -- guided regular missiles with fuel constraints and proximity detonation, and nuclear missiles with volumetric explosions -- plus a sprite-based explosion renderer for all non-nuclear combat detonations
