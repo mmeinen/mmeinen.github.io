@@ -147,6 +147,7 @@ function enterNavMode(){
    p.ph+=(p.sp-spKep)*tNow;
    p.sp=spKep;}
   flyMode=true;
+  if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;}
   missileState='idle';missileTargets.length=0;missiles.length=0;
   hudOverlay.classList.add('nav-active');
   flyNavGroup.classList.add('active');

@@ -99,6 +99,8 @@
     const canvas = document.getElementById('canvas');
     const gl = canvas.getContext('webgl', { antialias: true });
     gl.getExtension('OES_standard_derivatives');
+    const iExt = gl.getExtension('ANGLE_instanced_arrays');
+    if (!iExt) console.error('ANGLE_instanced_arrays not supported');
 
     let baseWidth = window.innerWidth;
     let baseHeight = window.innerHeight;
@@ -152,9 +154,10 @@
     let thrustDragging=false;
    </script>
 
-   <!-- Nav mode + missiles (depend on planetData, DOM refs, math) -->
+   <!-- Nav mode + missiles + combat (depend on planetData, DOM refs, math) -->
    <script src="js/scene/nav.js"></script>
    <script src="js/scene/missiles.js"></script>
+   <script src="js/scene/combat.js"></script>
 
    <script>
     /* ---- GL setup, buffers, input, render loop ---- */
@@ -233,6 +236,23 @@
       uColor:gl.getUniformLocation(shipPg,'u_shipColor'),
       uLight:gl.getUniformLocation(shipPg,'u_lightDir')
     };
+    /* ---- Enemy shader program (instanced) ---- */
+    const eVS=cS(gl,enemyVS,gl.VERTEX_SHADER),eFS=cS(gl,enemyFS,gl.FRAGMENT_SHADER),enemyPg=gl.createProgram();
+    gl.attachShader(enemyPg,eVS);gl.attachShader(enemyPg,eFS);gl.linkProgram(enemyPg);
+    if(!gl.getProgramParameter(enemyPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(enemyPg));
+    const enemyLocs={
+      aPos:gl.getAttribLocation(enemyPg,'a_position'),
+      aNorm:gl.getAttribLocation(enemyPg,'a_normal'),
+      aInstPos:gl.getAttribLocation(enemyPg,'a_instPos'),
+      aInstHeading:gl.getAttribLocation(enemyPg,'a_instHeading'),
+      aInstColor:gl.getAttribLocation(enemyPg,'a_instColor'),
+      aInstScale:gl.getAttribLocation(enemyPg,'a_instScale'),
+      uViewProj:gl.getUniformLocation(enemyPg,'u_viewProj'),
+      uLightDir:gl.getUniformLocation(enemyPg,'u_lightDir'),
+      uBhPos:gl.getUniformLocation(enemyPg,'u_bhPos'),
+      uTime:gl.getUniformLocation(enemyPg,'u_time')
+    };
+
     const shipGeo=createBoxGeometry(SHIP_HALF[0],SHIP_HALF[1],SHIP_HALF[2]);
     const shipPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
     gl.bufferData(gl.ARRAY_BUFFER,shipGeo.positions,gl.STATIC_DRAW);
@@ -248,6 +268,18 @@
     gl.bufferData(gl.ARRAY_BUFFER,missileGeo.normals,gl.STATIC_DRAW);
     const missileIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,missileGeo.indices,gl.STATIC_DRAW);
+    // Enemy geometry buffers
+    const gruntGeo=createGruntGeometry();
+    const enemyPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyPosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,gruntGeo.positions,gl.STATIC_DRAW);
+    const enemyNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyNrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,gruntGeo.normals,gl.STATIC_DRAW);
+    const enemyIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,enemyIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,gruntGeo.indices,gl.STATIC_DRAW);
+    const enemyIdxCount=gruntGeo.indices.length;
+    // Enemy instance buffer (pre-allocated for MAX_ENEMIES)
+    const enemyInstBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,MAX_ENEMIES*9*4,gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER,bf);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
     gl.useProgram(pg);
@@ -474,6 +506,18 @@
       updateMissileUI();
     });
 
+    /* ---- Enemy spawning (Phase 1 test) ---- */
+    let enemiesSpawned=false;
+    function spawnTestEnemies(){
+      for(let i=0;i<50;i++){
+        const angle=Math.random()*Math.PI*2;
+        const radius=20+Math.random()*70;
+        const x=radius*Math.sin(angle);
+        const z=radius*Math.cos(angle);
+        spawnEnemy(x,0,z,ETYPE.GRUNT);
+      }
+    }
+
     /* ---- Render loop ---- */
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
       hF=document.getElementById('hud-fps'),hSc=document.getElementById('hud-scale');
@@ -491,6 +535,19 @@
       wf();
       updateNav(simDtSec);
       updateMissiles(simDtSec);
+      // Update enemy positions (simple circular orbit for Phase 1 test)
+      if(enemyCount>0){
+        for(let i=0;i<MAX_ENEMIES;i++){
+          if(!enemies.alive[i])continue;
+          const r=Math.sqrt(enemies.posX[i]**2+enemies.posZ[i]**2);
+          const orbSpeed=0.5/Math.max(r,1);
+          const angle=Math.atan2(enemies.posX[i],enemies.posZ[i]);
+          const newAngle=angle+orbSpeed*simDtSec;
+          enemies.posX[i]=r*Math.sin(newAngle);
+          enemies.posZ[i]=r*Math.cos(newAngle);
+          enemies.heading[i]=newAngle;
+        }
+      }
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
       if(flyMode){
@@ -643,6 +700,58 @@
         _toLV[2]=_view[2]*_toLW[0]+_view[6]*_toLW[1]+_view[10]*_toLW[2];
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
+
+        // --- Enemy instanced rendering ---
+        if(enemyCount>0){
+          const liveCount=updateInstanceBuffer();
+          if(liveCount>0){
+            gl.useProgram(enemyPg);
+            gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
+            gl.uniform3f(enemyLocs.uLightDir,_toLV[0],_toLV[1],_toLV[2]);
+            gl.uniform3f(enemyLocs.uBhPos,0,0,0);
+            gl.uniform1f(enemyLocs.uTime,simTime);
+            gl.disableVertexAttribArray(aP);
+            // Per-vertex attributes (divisor 0)
+            gl.bindBuffer(gl.ARRAY_BUFFER,enemyPosBuf);
+            gl.enableVertexAttribArray(enemyLocs.aPos);
+            gl.vertexAttribPointer(enemyLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ARRAY_BUFFER,enemyNrmBuf);
+            gl.enableVertexAttribArray(enemyLocs.aNorm);
+            gl.vertexAttribPointer(enemyLocs.aNorm,3,gl.FLOAT,false,0,0);
+            // Per-instance attributes (divisor 1) -- interleaved in single buffer
+            gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
+            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,liveCount*9));
+            const INST_STRIDE=9*4;
+            gl.enableVertexAttribArray(enemyLocs.aInstPos);
+            gl.vertexAttribPointer(enemyLocs.aInstPos,3,gl.FLOAT,false,INST_STRIDE,0);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,1);
+            gl.enableVertexAttribArray(enemyLocs.aInstHeading);
+            gl.vertexAttribPointer(enemyLocs.aInstHeading,1,gl.FLOAT,false,INST_STRIDE,12);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,1);
+            gl.enableVertexAttribArray(enemyLocs.aInstColor);
+            gl.vertexAttribPointer(enemyLocs.aInstColor,4,gl.FLOAT,false,INST_STRIDE,16);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,1);
+            gl.enableVertexAttribArray(enemyLocs.aInstScale);
+            gl.vertexAttribPointer(enemyLocs.aInstScale,1,gl.FLOAT,false,INST_STRIDE,32);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,1);
+            // Index buffer and instanced draw
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,enemyIdxBuf);
+            iExt.drawElementsInstancedANGLE(gl.TRIANGLES,enemyIdxCount,gl.UNSIGNED_SHORT,0,liveCount);
+            // Reset divisors to prevent state leak to shipPg/trajPg
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,0);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,0);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,0);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,0);
+            // Disable all enemy attributes
+            gl.disableVertexAttribArray(enemyLocs.aPos);
+            gl.disableVertexAttribArray(enemyLocs.aNorm);
+            gl.disableVertexAttribArray(enemyLocs.aInstPos);
+            gl.disableVertexAttribArray(enemyLocs.aInstHeading);
+            gl.disableVertexAttribArray(enemyLocs.aInstColor);
+            gl.disableVertexAttribArray(enemyLocs.aInstScale);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+          }
+        }
 
         gl.useProgram(shipPg);
         gl.uniformMatrix4fv(shipLocs.uMvp,false,_mvp);
