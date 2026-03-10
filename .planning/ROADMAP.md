@@ -12,7 +12,7 @@ Transform the existing WebGL black hole navigation mode into a tactical orbital 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Combat Rendering Foundation** - Entity stores, instanced rendering pipeline, radial collision bins, and enemy procedural geometry
+- [x] **Phase 1: Combat Rendering Foundation** - Entity stores, instanced rendering pipeline, radial collision bins, and enemy procedural geometry
 - [ ] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
 - [ ] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview
 - [ ] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer
@@ -38,7 +38,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md -- Combat data layer: entity store, radial bins, Grunt geometry, enemy shaders
-- [ ] 01-02-PLAN.md -- Rendering integration: wire enemyPg into index.html, spawn 50 test enemies, Wave 0 regression tests
+- [x] 01-02-PLAN.md -- Rendering integration: wire enemyPg into index.html, spawn 50 test enemies, Wave 0 regression tests
 
 ### Phase 2: Player Ship & Orbital Movement
 **Goal**: Player commands a visible ship that transfers between any orbital body using physically-grounded trajectories, with full control over thrust and orbit altitude
@@ -175,7 +175,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Combat Rendering Foundation | 1/2 | In Progress | - |
+| 1. Combat Rendering Foundation | 2/2 | Complete | 2026-03-10 |
 | 2. Player Ship & Orbital Movement | 0/3 | Not started | - |
 | 3. Direct-Fire Weapons | 0/2 | Not started | - |
 | 4. Missile Systems & Explosions | 0/3 | Not started | - |

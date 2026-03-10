@@ -71,9 +71,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Performance
 
-- [ ] **PRF-01**: Maintains 30fps+ on GTX 1060 / RX 580 tier hardware with 30-50 enemies on screen
-- [ ] **PRF-02**: All combat elements (enemies, projectiles, explosions) rendered as separate GL geometry passes — never inside the ray march shader
-- [ ] **PRF-03**: Instanced rendering used for enemies and projectiles (ANGLE_instanced_arrays)
+- [x] **PRF-01**: Maintains 30fps+ on GTX 1060 / RX 580 tier hardware with 30-50 enemies on screen
+- [x] **PRF-02**: All combat elements (enemies, projectiles, explosions) rendered as separate GL geometry passes — never inside the ray march shader
+- [x] **PRF-03**: Instanced rendering used for enemies and projectiles (ANGLE_instanced_arrays)
 - [x] **PRF-04**: Radial bin collision detection (O(n), not O(n^2))
 
 ## v2 Requirements
@@ -163,9 +163,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VFX-01 | Phase 5 | Pending |
 | VFX-02 | Phase 5 | Pending |
 | VFX-03 | Phase 4 | Pending |
-| PRF-01 | Phase 1 | Pending |
-| PRF-02 | Phase 1 | Pending |
-| PRF-03 | Phase 1 | Pending |
+| PRF-01 | Phase 1 | Complete |
+| PRF-02 | Phase 1 | Complete |
+| PRF-03 | Phase 1 | Complete |
 | PRF-04 | Phase 1 | Complete |
 
 **Coverage:**
