@@ -153,6 +153,16 @@
         return;
       }
 
+      // --- Fetch combat files ---
+      let shadersText, mathText, combatText;
+      try {
+        shadersText = await (await fetch('js/scene/shaders.js')).text();
+        mathText = await (await fetch('js/scene/math.js')).text();
+        combatText = await (await fetch('js/scene/combat.js')).text();
+      } catch(e) {
+        showError('Could not fetch combat files: ' + e.message);
+      }
+
       // --- Extract shader source (everything between the fsSource backticks) ---
       const shaderMatch = text.match(/const\s+fsSource\s*=\s*`([\s\S]*?)`;/);
       if (!shaderMatch) { showError('Could not extract fragment shader source.'); render(); return; }
@@ -825,6 +835,70 @@
           'Scene structure: camDist preserved',
           defaultCamDist !== null ? `let camDist = ${defaultCamDist}` : 'not found');
       }
+
+      // =============================================
+      // COMBAT RENDERING TESTS — Wave 0 invariants
+      // =============================================
+
+      // Test 1: ANGLE_instanced_arrays extension acquired
+      assert(text.match(/getExtension\s*\(\s*['"]ANGLE_instanced_arrays['"]\s*\)/),
+        'Combat Rendering: ANGLE_instanced_arrays extension acquired',
+        'index.html must acquire ANGLE_instanced_arrays');
+
+      // Test 2: Instanced draw call used
+      assert(text.match(/drawElementsInstancedANGLE/),
+        'Combat Rendering: instanced draw call used',
+        'index.html must call drawElementsInstancedANGLE');
+
+      // Test 3: enemyPg shader program exists (separate from pg/shipPg)
+      if (shadersText) {
+        assert(shadersText.match(/const\s+enemyVS\s*=/),
+          'Combat Rendering: enemyVS shader string in shaders.js',
+          'js/scene/shaders.js must define enemyVS');
+        assert(shadersText.match(/const\s+enemyFS\s*=/),
+          'Combat Rendering: enemyFS shader string in shaders.js',
+          'js/scene/shaders.js must define enemyFS');
+      }
+
+      // Test 4: Enemy shaders not inside ray march fsSource
+      assert(!shader.match(/a_instPos|a_instColor|a_instHeading|enemyPg/),
+        'Combat Rendering: no enemy code in ray march fsSource',
+        'fsSource must not contain enemy shader identifiers');
+
+      // Test 5: createGruntGeometry exists in math.js
+      if (mathText) {
+        assert(mathText.match(/function\s+createGruntGeometry/),
+          'Combat Rendering: createGruntGeometry exists in math.js',
+          'js/scene/math.js must define createGruntGeometry');
+      }
+
+      // Test 6: Enemy entity store exists in combat.js
+      if (combatText) {
+        assert(combatText.match(/function\s+spawnEnemy/),
+          'Combat Rendering: spawnEnemy exists in combat.js',
+          'js/scene/combat.js must define spawnEnemy');
+        assert(combatText.match(/function\s+removeEnemy/),
+          'Combat Rendering: removeEnemy exists in combat.js',
+          'js/scene/combat.js must define removeEnemy');
+        assert(combatText.match(/function\s+updateInstanceBuffer/),
+          'Combat Rendering: updateInstanceBuffer exists in combat.js',
+          'js/scene/combat.js must define updateInstanceBuffer');
+      }
+
+      // Test 7: Radial bin collision exists in combat.js
+      if (combatText) {
+        assert(combatText.match(/function\s+rebinEntities/),
+          'Combat Rendering: rebinEntities exists in combat.js',
+          'js/scene/combat.js must define rebinEntities');
+        assert(combatText.match(/function\s+getCollisionCandidates/),
+          'Combat Rendering: getCollisionCandidates exists in combat.js',
+          'js/scene/combat.js must define getCollisionCandidates');
+      }
+
+      // Test 8: Per-instance divisor cleanup (state leak prevention)
+      assert(text.match(/vertexAttribDivisorANGLE\s*\([^,]+,\s*0\s*\)/),
+        'Combat Rendering: divisor cleanup (state leak prevention)',
+        'index.html must reset divisors to 0 after instanced draw');
 
       // =============================================
       // Done
