@@ -324,6 +324,11 @@
     const ringArray=new Float32Array(RING_SEGMENTS*3);
     // L-point marker buffer
     const lPointBuf=gl.createBuffer();
+    // Projectile render buffer (pre-allocated for MAX_PROJECTILES)
+    const projGlBuf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,projGlBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,MAX_PROJECTILES*3*4,gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER,null);
 
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
@@ -902,12 +907,19 @@
 
         aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
 
+        // Weapon preview + projectile rendering (combat mode)
+        computeWeaponPreview(simTime);
+        renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf);
+        renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf);
+
         gl.useProgram(trajPg);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
         gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
         gl.uniform1f(trajLocs.uPtSize,2.0);
 
+        // Orbit trajectory preview: hidden during combat mode (weapon preview replaces it)
+        if(!combatMode){
         // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
         if(orbitState===ORBIT_STATE.TRANSFER){
           // During transfer: simulate with guidance correction toward target
@@ -932,6 +944,7 @@
           gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.3);
           gl.drawArrays(gl.POINTS,0,n1);
         }
+        } // end !combatMode gate
 
         // Orbit ring rendering: around target body or current orbited body
         {

@@ -122,6 +122,220 @@ function fireSelectedWeapon(st) {
   }
 }
 
+/* ---- Trail buffer (shared ring buffer for all kinetic tracers) ---- */
+const TRAIL_MAX_POINTS = 512;
+const trailBuf = new Float32Array(TRAIL_MAX_POINTS * 3);  // xyz positions
+const trailAlpha = new Float32Array(TRAIL_MAX_POINTS);     // per-point alpha
+let trailHead = 0, trailCount = 0;
+
+/* ---- Trajectory preview state ---- */
+const PREVIEW_STEPS = 80;
+const PREVIEW_SIM_DT = 0.5;  // covers ~40s of flight time for kinetic
+const previewBuf = new Float32Array(PREVIEW_STEPS * 3);  // xyz positions
+let previewCount = 0;
+let hitPredictionPoint = null;  // [x, 0, z] if trajectory intersects enemy
+let hitPredictionIdx = -1;      // enemy index if hit predicted
+
+/* ---- Projectile render data ---- */
+const projRenderBuf = new Float32Array(MAX_PROJECTILES * 3);  // packed positions for draw calls
+
+/**
+ * Compute weapon trajectory preview with hit prediction.
+ * Called each frame in combat mode to show where shots will go.
+ * @param {number} simTime - current simulation time
+ */
+function computeWeaponPreview(simTime) {
+  hitPredictionPoint = null;
+  hitPredictionIdx = -1;
+
+  if (!combatMode || !aimDir) {
+    previewCount = 0;
+    return;
+  }
+
+  if (selectedWeapon === 0) {
+    // KINETIC: gravity-curved trajectory via simulateTrajectory
+    const startPos = [flyPos[0], 0, flyPos[2]];
+    const startVel = [
+      flyVel[0] + aimDir[0] * KINETIC_SPEED,
+      0,
+      flyVel[2] + aimDir[2] * KINETIC_SPEED
+    ];
+    previewCount = simulateTrajectory(startPos, startVel, simTime, PREVIEW_STEPS, PREVIEW_SIM_DT, previewBuf, null, 0, 0);
+  } else {
+    // PLASMA: straight-line preview
+    for (let s = 0; s < PREVIEW_STEPS; s++) {
+      const dist = s * (PLASMA_MAX_RANGE / PREVIEW_STEPS);
+      previewBuf[s * 3]     = flyPos[0] + aimDir[0] * dist;
+      previewBuf[s * 3 + 1] = 0;
+      previewBuf[s * 3 + 2] = flyPos[2] + aimDir[2] * dist;
+    }
+    previewCount = PREVIEW_STEPS;
+  }
+
+  // Hit prediction: check each preview point for enemy intersection
+  const hitRadSq = selectedWeapon === 0
+    ? HIT_RADIUS_KINETIC * HIT_RADIUS_KINETIC
+    : HIT_RADIUS_PLASMA * HIT_RADIUS_PLASMA;
+  for (let s = 0; s < previewCount; s++) {
+    const px = previewBuf[s * 3];
+    const pz = previewBuf[s * 3 + 2];
+    const r = Math.sqrt(px * px + pz * pz);
+    const candidates = getCollisionCandidates(r);
+    for (let j = 0; j < candidates.length; j++) {
+      const ci = candidates[j];
+      if (!enemies.alive[ci]) continue;
+      const dx = px - enemies.posX[ci];
+      const dz = pz - enemies.posZ[ci];
+      if (dx * dx + dz * dz < hitRadSq) {
+        hitPredictionPoint = [px, 0, pz];
+        hitPredictionIdx = ci;
+        return;  // first hit found, done
+      }
+    }
+  }
+}
+
+/**
+ * Render all projectiles (kinetic tracers + trails, plasma glow bolts).
+ * @param {WebGLRenderingContext} gl
+ * @param {WebGLProgram} trajPg - trajectory shader program
+ * @param {Object} trajLocs - attribute/uniform locations
+ * @param {Float32Array} vpMat - view-projection matrix
+ * @param {WebGLBuffer} projGlBuf - pre-allocated GL buffer for projectile data
+ */
+function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
+  if (projCount === 0 && trailCount === 0) return;
+
+  gl.useProgram(trajPg);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);  // additive blend for bright tracers
+  gl.uniformMatrix4fv(trajLocs.uMvp, false, vpMat);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, projGlBuf);
+  gl.enableVertexAttribArray(trajLocs.aPos);
+
+  // --- Kinetic round heads (white/yellow bright points) ---
+  let kCount = 0;
+  for (let i = 0; i < MAX_PROJECTILES; i++) {
+    if (!proj.alive[i] || proj.type[i] !== 0) continue;
+    projRenderBuf[kCount * 3]     = proj.posX[i];
+    projRenderBuf[kCount * 3 + 1] = 0;
+    projRenderBuf[kCount * 3 + 2] = proj.posZ[i];
+    kCount++;
+  }
+  if (kCount > 0) {
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, kCount * 3));
+    gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform4f(trajLocs.uColor, 1.0, 0.94, 0.71, 1.0);  // white/yellow
+    gl.uniform1f(trajLocs.uPtSize, 4.0);
+    gl.drawArrays(gl.POINTS, 0, kCount);
+  }
+
+  // --- Kinetic trails (faded white/yellow points) ---
+  let tCount = 0;
+  for (let i = 0; i < TRAIL_MAX_POINTS; i++) {
+    if (trailAlpha[i] <= 0) continue;
+    projRenderBuf[tCount * 3]     = trailBuf[i * 3];
+    projRenderBuf[tCount * 3 + 1] = trailBuf[i * 3 + 1];
+    projRenderBuf[tCount * 3 + 2] = trailBuf[i * 3 + 2];
+    tCount++;
+  }
+  if (tCount > 0) {
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, tCount * 3));
+    gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform4f(trajLocs.uColor, 1.0, 0.94, 0.71, 0.5);  // dimmer
+    gl.uniform1f(trajLocs.uPtSize, 2.0);
+    gl.drawArrays(gl.POINTS, 0, tCount);
+  }
+
+  // --- Plasma bolt heads (cyan glow + white-hot core) ---
+  // Render each plasma bolt individually (typically 1-2 active) for per-bolt fade
+  for (let i = 0; i < MAX_PROJECTILES; i++) {
+    if (!proj.alive[i] || proj.type[i] !== 1) continue;
+    const fade = proj.distTrav[i] < PLASMA_FADE_START
+      ? 1.0
+      : Math.max(0, 1.0 - (proj.distTrav[i] - PLASMA_FADE_START) / (PLASMA_MAX_RANGE - PLASMA_FADE_START));
+
+    projRenderBuf[0] = proj.posX[i];
+    projRenderBuf[1] = 0;
+    projRenderBuf[2] = proj.posZ[i];
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, 3));
+    gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+
+    // Glow pass: large, low-alpha cyan
+    gl.uniform4f(trajLocs.uColor, 0.0, 0.86, 1.0, 0.3 * fade);
+    gl.uniform1f(trajLocs.uPtSize, 12.0 * fade);
+    gl.drawArrays(gl.POINTS, 0, 1);
+
+    // Core pass: smaller, white-hot
+    gl.uniform4f(trajLocs.uColor, 0.9, 0.95, 1.0, fade);
+    gl.uniform1f(trajLocs.uPtSize, 5.0 * fade);
+    gl.drawArrays(gl.POINTS, 0, 1);
+  }
+
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);  // restore normal blend
+  gl.disableVertexAttribArray(trajLocs.aPos);
+}
+
+/**
+ * Render weapon trajectory preview and hit prediction marker.
+ * @param {WebGLRenderingContext} gl
+ * @param {WebGLProgram} trajPg - trajectory shader program
+ * @param {Object} trajLocs - attribute/uniform locations
+ * @param {Float32Array} vpMat - view-projection matrix
+ * @param {WebGLBuffer} projGlBuf - pre-allocated GL buffer
+ */
+function renderWeaponPreview(gl, trajPg, trajLocs, vpMat, projGlBuf) {
+  if (previewCount === 0) return;
+
+  gl.useProgram(trajPg);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniformMatrix4fv(trajLocs.uMvp, false, vpMat);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, projGlBuf);
+  gl.enableVertexAttribArray(trajLocs.aPos);
+
+  // Upload preview points
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, previewBuf.subarray(0, previewCount * 3));
+  gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+
+  if (selectedWeapon === 0) {
+    // Kinetic preview: curved white/yellow dots
+    gl.uniform4f(trajLocs.uColor, 1.0, 0.94, 0.71, 0.4);
+    gl.uniform1f(trajLocs.uPtSize, 2.5);
+    gl.drawArrays(gl.POINTS, 0, previewCount);
+  } else {
+    // Plasma preview: cyan dots that shrink toward max range (3 segments)
+    const seg = Math.floor(previewCount / 3);
+    // First third: largest
+    gl.uniform4f(trajLocs.uColor, 0.0, 0.86, 1.0, 0.35);
+    gl.uniform1f(trajLocs.uPtSize, 3.0);
+    gl.drawArrays(gl.POINTS, 0, seg);
+    // Second third: medium
+    gl.uniform1f(trajLocs.uPtSize, 2.0);
+    gl.drawArrays(gl.POINTS, seg, seg);
+    // Last third: smallest
+    gl.uniform1f(trajLocs.uPtSize, 1.5);
+    gl.drawArrays(gl.POINTS, seg * 2, previewCount - seg * 2);
+  }
+
+  // Hit prediction marker
+  if (hitPredictionPoint) {
+    projRenderBuf[0] = hitPredictionPoint[0];
+    projRenderBuf[1] = hitPredictionPoint[1];
+    projRenderBuf[2] = hitPredictionPoint[2];
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, 3));
+    gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform4f(trajLocs.uColor, 1.0, 0.3, 0.2, 0.9);  // bright red/orange
+    gl.uniform1f(trajLocs.uPtSize, 10.0);
+    gl.drawArrays(gl.POINTS, 0, 1);
+  }
+
+  gl.disableVertexAttribArray(trajLocs.aPos);
+}
+
 /**
  * Update all alive projectiles: physics, despawn, and kinetic burst continuation.
  * IMPORTANT: simDt is already scaled by BULLET_TIME_SCALE or FAST_FORWARD_SCALE (Pitfall 2).
@@ -129,6 +343,14 @@ function fireSelectedWeapon(st) {
  * @param {number} st - current simTime
  */
 function updateProjectiles(simDt, st) {
+  // Decay all trail point alphas (fade over ~0.25s)
+  for (let t = 0; t < TRAIL_MAX_POINTS; t++) {
+    if (trailAlpha[t] > 0) {
+      trailAlpha[t] -= simDt * 4.0;
+      if (trailAlpha[t] <= 0) { trailAlpha[t] = 0; trailCount = Math.max(0, trailCount - 1); }
+    }
+  }
+
   // Handle kinetic burst continuation (staggered firing)
   if (kineticBurstRemaining > 0) {
     kineticBurstTimer += simDt;
@@ -151,6 +373,14 @@ function updateProjectiles(simDt, st) {
       proj.velZ[i] += g[2] * simDt;
       proj.posX[i] += proj.velX[i] * simDt;
       proj.posZ[i] += proj.velZ[i] * simDt;
+
+      // Push current position into trail ring buffer
+      trailBuf[trailHead * 3]     = proj.posX[i];
+      trailBuf[trailHead * 3 + 1] = 0;
+      trailBuf[trailHead * 3 + 2] = proj.posZ[i];
+      if (trailAlpha[trailHead] <= 0) trailCount++;  // only increment if slot was empty
+      trailAlpha[trailHead] = 1.0;
+      trailHead = (trailHead + 1) % TRAIL_MAX_POINTS;
 
       // Despawn: lifetime exceeded
       if (proj.age[i] > KINETIC_LIFETIME) { removeProjectile(i); continue; }
