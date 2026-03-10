@@ -726,22 +726,29 @@ uniform mat4 u_mvp;
 uniform mat3 u_normalMatrix;
 varying vec3 v_normal;
 varying vec3 v_pos;
+varying vec3 v_objPos;
 void main(){
   v_normal=normalize(u_normalMatrix*a_shipNormal);
   v_pos=a_shipPos;
+  v_objPos=a_shipPos;
   gl_Position=u_mvp*vec4(a_shipPos,1.0);
 }`;
 const shipFS=`precision mediump float;
 uniform vec3 u_shipColor;
 uniform vec3 u_lightDir;
+uniform float u_thrustIntensity;
 varying vec3 v_normal;
 varying vec3 v_pos;
+varying vec3 v_objPos;
 void main(){
   vec3 n=normalize(v_normal);
   float diff=max(dot(n,u_lightDir),0.0);
   float amb=0.15;
   float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),3.0)*0.3;
   vec3 col=u_shipColor*(amb+diff*0.85)+vec3(0.3,0.5,0.8)*rim;
+  float engineMask=smoothstep(-0.30,-0.40,v_objPos.z);
+  vec3 engineColor=vec3(0.3,0.5,1.0)*u_thrustIntensity*engineMask;
+  col+=engineColor;
   gl_FragColor=vec4(col,1.0);
 }`;
 
