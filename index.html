@@ -390,14 +390,14 @@
           navCamEl=Math.max(0.05,Math.min(1.4,navCamEl-dy*FLY_SENSITIVITY));
           lX=e.clientX;lY=e.clientY;
           const tx=e.clientX-dsX,ty=e.clientY-dsY;
-          if(tx*tx+ty*ty>9){dD=true;}
+          if(tx*tx+ty*ty>36){dD=true;}
           canvas.style.cursor='grabbing';
         }else{
           canvas.style.cursor='crosshair';
         }
         return;
       }
-      if(dr){camAz+=(e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>9)dD=true}
+      if(dr){camAz+=(e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>36)dD=true}
     });
     canvas.addEventListener('click',()=>{
       if(flyMode){
@@ -423,6 +423,7 @@
               const clickDx=mSX-sxBH,clickDy=mSY-syBH;
               if(clickDx*clickDx+clickDy*clickDy<50*50){
                 initiateTransfer(-1); // BH clicked
+                return;
               }
             }
             // Check L-point click (when visible)
@@ -631,7 +632,7 @@
             if(dp<=0)continue;
             const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mD;
             const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mD;
-            const ar=Math.max((planetData[i].radius/dp)*mD*1.8, 20); // min 20px hit area
+            const ar=Math.max((planetData[i].radius/dp)*mD*1.8, 30); // min 30px hit area
             const tdx=mSX-sx,tdy=mSY-sy;
             if(tdx*tdx+tdy*tdy<ar*ar){hP=i;break;}
           }
@@ -882,8 +883,12 @@
 
         // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
         if(orbitState===ORBIT_STATE.TRANSFER){
-          // During transfer: simulate with continuous thrust in burn direction
-          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
+          // During transfer: simulate with guidance correction toward target
+          const _tP=getBodyPosition(transferTarget);
+          const _gx=_tP[0]-flyPos[0],_gz=_tP[2]-flyPos[2];
+          const _gd=Math.sqrt(_gx*_gx+_gz*_gz);
+          const _gDir=_gd>0.1?[_gx/_gd,0,_gz/_gd]:null;
+          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,_gDir,1.5,999);
           gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
           gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
           gl.enableVertexAttribArray(trajLocs.aPos);
@@ -913,13 +918,13 @@
             ringBodyIdx=orbitBody;
             ringRadius=orbitAltitude+getBodyRadius(orbitBody);
           }else if(transferTarget>=100){
-            // Transfer to L-point: show ring at default L-point orbit radius
+            // Transfer to L-point: show ring at target orbit altitude
             ringBodyIdx=transferTarget;
-            ringRadius=LPOINT_MARKER_RADIUS+LPOINT_DEFAULT_ALT;
+            ringRadius=LPOINT_MARKER_RADIUS+targetOrbitAlt;
           }else if(transferTarget>=-1){
-            // Show ring at default orbit altitude around target
+            // Show ring at target orbit altitude around target body
             ringBodyIdx=transferTarget;
-            ringRadius=getBodyRadius(transferTarget)+getDefaultOrbitAlt(transferTarget);
+            ringRadius=getBodyRadius(transferTarget)+targetOrbitAlt;
           }
           if(ringBodyIdx>=-1 || ringBodyIdx>=100){
             let bodyPos;
@@ -928,7 +933,7 @@
               const fi=ringBodyIdx-100;
               bodyPos=[lPointPositions[fi*3],lPointPositions[fi*3+1],lPointPositions[fi*3+2]];
             }else{
-              bodyPos=(ringBodyIdx===-1)?[0,0,0]:planetPosAtTime(planetData[ringBodyIdx],simTime);
+              bodyPos=getBodyPosition(ringBodyIdx);
             }
             for(let ri=0;ri<RING_SEGMENTS;ri++){
               const angle=(ri/RING_SEGMENTS)*Math.PI*2;
@@ -1063,7 +1068,7 @@
           altValEl.textContent=orbitAltitude.toFixed(1)+(bodyName?' · '+bodyName:'');
         }else if(orbitState===ORBIT_STATE.TRANSFER){
           const tgtName=getTargetName(transferTarget);
-          altValEl.textContent='→ '+(tgtName||'TRANSFER');
+          altValEl.textContent='→ '+(tgtName||'TRANSFER')+' alt:'+targetOrbitAlt.toFixed(1);
         }else{
           altValEl.textContent='FREE';
         }

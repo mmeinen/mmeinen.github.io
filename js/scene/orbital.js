@@ -57,10 +57,29 @@ function computeHohmannDV(r1, r2, GM) {
   return { dv: dv, transferTime: transferTime };
 }
 
+/* ---- Body velocity helper ---- */
+function getBodyVelocity(bodyIndex) {
+  // Returns [vx, 0, vz] of the body itself (its orbital motion).
+  // For a planet at position [px, 0, pz] with angular speed sp:
+  //   velocity = [sp * pz, 0, -sp * px]
+  if (bodyIndex === -1) return [0, 0, 0]; // BH is stationary
+  if (bodyIndex >= 100) {
+    // L-point co-rotates with its parent planet
+    const fi = bodyIndex - 100;
+    const pi = [0, 1, 3][Math.floor(fi / 4)]; // LPOINT_PLANETS mapping
+    const sp = planetData[pi].sp;
+    const pos = getLPointPosition(fi);
+    return [sp * pos[2], 0, -sp * pos[0]];
+  }
+  const p = planetData[bodyIndex];
+  const pos = getBodyPosition(bodyIndex);
+  return [p.sp * pos[2], 0, -p.sp * pos[0]];
+}
+
 /* ---- Auto-circularize on SOI capture ---- */
-function circularizeOrbit(flyPos, flyVel, bodyPos, bodyGM) {
-  // Sets flyVel to circular orbit velocity tangent to radius vector.
-  // Modifies flyVel in-place.
+function circularizeOrbit(flyPos, flyVel, bodyPos, bodyGM, bodyVel) {
+  // Sets flyVel to body velocity + circular orbit velocity around body.
+  // bodyVel is the body's own orbital velocity (so the ship co-moves with it).
   const dx = flyPos[0] - bodyPos[0];
   const dz = flyPos[2] - bodyPos[2];
   const r = Math.sqrt(dx * dx + dz * dz);
@@ -68,9 +87,11 @@ function circularizeOrbit(flyPos, flyVel, bodyPos, bodyGM) {
   const v_circ = Math.sqrt(bodyGM / r);
   // Tangent direction (perpendicular to radius, prograde)
   const tx = -dz / r, tz = dx / r;
-  flyVel[0] = tx * v_circ;
+  const bvx = bodyVel ? bodyVel[0] : 0;
+  const bvz = bodyVel ? bodyVel[2] : 0;
+  flyVel[0] = bvx + tx * v_circ;
   flyVel[1] = 0;
-  flyVel[2] = tz * v_circ;
+  flyVel[2] = bvz + tz * v_circ;
 }
 
 /* ---- Lagrange point computation ---- */

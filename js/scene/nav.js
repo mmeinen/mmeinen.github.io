@@ -33,6 +33,7 @@ let orbitAltitude=0;        // distance from body surface
 let transferTarget=-2;      // target body index (-1=BH, 0-6=planet, -2=none)
 let transferBurnDir=[0,0,0];
 let transferBurnMag=0;
+let targetOrbitAlt=-1;      // desired orbit altitude during transfer (-1 = use default)
 let altUpHeld=false;        // up arrow key held
 let altDownHeld=false;      // down arrow key held
 
@@ -149,14 +150,21 @@ function getLPointPosition(flatIndex) {
 }
 
 function getBodyPosition(bodyIndex) {
-  // Returns current position of body. BH is at origin; planets use analytical position.
-  // L-points use index >= 100 (flatIndex = bodyIndex - 100)
+  // Returns current position of body matching what the shader renders.
+  // Planets 0-5: read from WASM memory (same source as shader uniforms)
+  // Planet 6: JS-computed (not in WASM). BH: origin. L-points: from lPointPositions.
   if (bodyIndex >= 100) return getLPointPosition(bodyIndex - 100);
   if (bodyIndex === -1) return [0, 0, 0];
+  if (bodyIndex >= 0 && bodyIndex < 6) {
+    const b = 0x070 + bodyIndex * 12;
+    return [dv.getFloat32(b, true), dv.getFloat32(b + 4, true), dv.getFloat32(b + 8, true)];
+  }
   return planetPosAtTime(planetData[bodyIndex], simTime);
 }
 
 function initiateTransfer(targetIndex) {
+  // Ignore if already orbiting or transferring to the same body
+  if (targetIndex === orbitBody || targetIndex === transferTarget) return;
   transferTarget = targetIndex;
   orbitState = ORBIT_STATE.TRANSFER;
 
@@ -216,6 +224,13 @@ function initiateTransfer(targetIndex) {
   // Store burn magnitude for trajectory preview and continuous thrust direction
   transferBurnMag = Math.abs(dv_burn);
 
+  // Initialize target orbit altitude to body default
+  if (targetIndex >= 100) {
+    targetOrbitAlt = LPOINT_DEFAULT_ALT;
+  } else {
+    targetOrbitAlt = getDefaultOrbitAlt(targetIndex);
+  }
+
   // Clear orbit body (no longer orbiting)
   orbitBody = -2;
 }
@@ -228,24 +243,35 @@ function checkSOICapture() {
   const dz = flyPos[2] - targetPos[2];
   const dist = Math.sqrt(dx * dx + dz * dz);
 
+  const bodyVel = getBodyVelocity(transferTarget);
   if (transferTarget >= 100) {
     // L-point capture: fixed SOI
     if (dist < LPOINT_SOI) {
-      circularizeOrbit(flyPos, flyVel, targetPos, LPOINT_ORBIT_GM);
+      // Place ship at targetOrbitAlt from L-point center
+      const captureR = LPOINT_MARKER_RADIUS + targetOrbitAlt;
+      const angle = Math.atan2(dx, dz);
+      flyPos[0] = targetPos[0] + captureR * Math.sin(angle);
+      flyPos[2] = targetPos[2] + captureR * Math.cos(angle);
+      circularizeOrbit(flyPos, flyVel, targetPos, LPOINT_ORBIT_GM, bodyVel);
       orbitState = ORBIT_STATE.ORBITING;
       orbitBody = transferTarget;
-      orbitAltitude = dist - LPOINT_MARKER_RADIUS;
+      orbitAltitude = targetOrbitAlt;
       transferTarget = -2;
       transferBurnMag = 0;
     }
   } else {
     const soi = getBodySOI(transferTarget);
     if (dist < soi) {
-      // Captured! Auto-circularize
-      circularizeOrbit(flyPos, flyVel, targetPos, getBodyGM(transferTarget));
+      // Place ship at targetOrbitAlt from body surface
+      const bodyR = getBodyRadius(transferTarget);
+      const captureR = bodyR + targetOrbitAlt;
+      const angle = Math.atan2(dx, dz);
+      flyPos[0] = targetPos[0] + captureR * Math.sin(angle);
+      flyPos[2] = targetPos[2] + captureR * Math.cos(angle);
+      circularizeOrbit(flyPos, flyVel, targetPos, getBodyGM(transferTarget), bodyVel);
       orbitState = ORBIT_STATE.ORBITING;
       orbitBody = transferTarget;
-      orbitAltitude = dist - getBodyRadius(transferTarget);
+      orbitAltitude = targetOrbitAlt;
       transferTarget = -2;
       transferBurnMag = 0;
     }
@@ -255,34 +281,36 @@ function checkSOICapture() {
 function updateAltitude(simDt) {
   if (orbitState !== ORBIT_STATE.ORBITING || orbitBody === -2) return;
 
-  const ALT_RATE = 2.0; // delta-v units per second
+  const ALT_RATE = 8.0; // delta-v units per second
   let dvMag = 0;
 
   if (altUpHeld) dvMag = ALT_RATE * simDt;    // Prograde = raise orbit
   if (altDownHeld) dvMag = -ALT_RATE * simDt;  // Retrograde = lower orbit
 
   if (dvMag !== 0) {
-    const spd = Math.sqrt(flyVel[0] ** 2 + flyVel[2] ** 2);
-    if (spd > 0.01) {
-      flyVel[0] += (flyVel[0] / spd) * dvMag;
-      flyVel[2] += (flyVel[2] / spd) * dvMag;
+    // Apply delta-v prograde relative to the orbited body (not absolute velocity)
+    const bv = getBodyVelocity(orbitBody);
+    const relVx = flyVel[0] - bv[0], relVz = flyVel[2] - bv[2];
+    const relSpd = Math.sqrt(relVx * relVx + relVz * relVz);
+    if (relSpd > 0.01) {
+      flyVel[0] += (relVx / relSpd) * dvMag;
+      flyVel[2] += (relVz / relSpd) * dvMag;
     }
   }
 
   // L-point orbiting: co-rotate with parent planet
   if (orbitBody >= 100) {
-    // L-point position is updated each frame in the render loop (lPointPositions array)
     const fi = orbitBody - 100;
     const bodyPos = getLPointPosition(fi);
+    const lpVel = getBodyVelocity(orbitBody);
     const dx = flyPos[0] - bodyPos[0];
     const dz = flyPos[2] - bodyPos[2];
     const dist = Math.sqrt(dx * dx + dz * dz);
 
     orbitAltitude = dist - LPOINT_MARKER_RADIUS;
 
-    // Apply circular orbit velocity around the L-point each frame
-    // This keeps the ship orbiting the co-rotating L-point
-    circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM);
+    // Re-circularize each frame to co-rotate with the moving L-point
+    circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM, lpVel);
 
     // Crash detection
     if (orbitAltitude < 0) {
@@ -290,7 +318,7 @@ function updateAltitude(simDt) {
       const angle = Math.atan2(dx, dz);
       flyPos[0] = bodyPos[0] + safeR * Math.sin(angle);
       flyPos[2] = bodyPos[2] + safeR * Math.cos(angle);
-      circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM);
+      circularizeOrbit(flyPos, flyVel, bodyPos, LPOINT_ORBIT_GM, lpVel);
       orbitAltitude = LPOINT_DEFAULT_ALT;
       if (typeof flyHudAltEl !== 'undefined' && flyHudAltEl) {
         flyHudAltEl.classList.add('warning');
@@ -324,7 +352,7 @@ function updateAltitude(simDt) {
     const angle = Math.atan2(dx, dz);
     flyPos[0] = bodyPos[0] + safeR * Math.sin(angle);
     flyPos[2] = bodyPos[2] + safeR * Math.cos(angle);
-    circularizeOrbit(flyPos, flyVel, bodyPos, getBodyGM(orbitBody));
+    circularizeOrbit(flyPos, flyVel, bodyPos, getBodyGM(orbitBody), getBodyVelocity(orbitBody));
     orbitAltitude = defaultAlt;
     // Flash warning (handled by HUD -- set a flag)
     if (typeof flyHudAltEl !== 'undefined' && flyHudAltEl) {
@@ -377,7 +405,7 @@ function enterNavMode(){
   // Set initial orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
-  transferBurnMag=0; transferBurnDir[0]=0; transferBurnDir[1]=0; transferBurnDir[2]=0;
+  transferBurnMag=0; targetOrbitAlt=-1; transferBurnDir[0]=0; transferBurnDir[1]=0; transferBurnDir[2]=0;
   if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;}
   missileState='idle';missileTargets.length=0;missiles.length=0;
   hudOverlay.classList.add('nav-active');
@@ -397,7 +425,7 @@ function exitNavMode(){
   // Reset orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
-  transferBurnMag=0;
+  transferBurnMag=0; targetOrbitAlt=-1;
   lagrangeVisible=false;
   for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
   missileState='idle';missileTargets.length=0;missiles.length=0;
@@ -444,8 +472,31 @@ function updateNav(simDt){
   flyVel[0]+=0.5*a2[0]*simDt;
   flyVel[1]+=0.5*a2[1]*simDt;
   flyVel[2]+=0.5*a2[2]*simDt;
-  // Transfer state: coast on Hohmann trajectory (gravity only), check for SOI capture
+  // Transfer state: guidance correction + SOI capture check
   if(orbitState===ORBIT_STATE.TRANSFER){
+    // Up/Down adjusts target orbit altitude during transfer
+    const ALT_ADJ_RATE=12.0;
+    const maxAlt=transferTarget>=100?LPOINT_SOI*0.8:getBodySOI(transferTarget)*0.8;
+    if(altUpHeld) targetOrbitAlt=Math.min(targetOrbitAlt+ALT_ADJ_RATE*simDt, maxAlt);
+    if(altDownHeld) targetOrbitAlt=Math.max(targetOrbitAlt-ALT_ADJ_RATE*simDt, 0.5);
+    // Mid-course guidance: correct for multi-body perturbations
+    const tPos=getBodyPosition(transferTarget);
+    const toX=tPos[0]-flyPos[0], toZ=tPos[2]-flyPos[2];
+    const tDist=Math.sqrt(toX*toX+toZ*toZ);
+    if(tDist>0.5){
+      const tdx=toX/tDist, tdz=toZ/tDist;
+      const spd=Math.sqrt(flyVel[0]**2+flyVel[2]**2);
+      if(spd>0.01){
+        // How off-course are we? dot=1 means perfect heading, dot=-1 means opposite
+        const vdx=flyVel[0]/spd, vdz=flyVel[2]/spd;
+        const dot=vdx*tdx+vdz*tdz;
+        const offCourse=Math.max(0,1-dot); // 0=on course, up to 2=going backwards
+        const GUIDANCE_ACCEL=3.0;
+        const corrForce=offCourse*GUIDANCE_ACCEL;
+        flyVel[0]+=tdx*corrForce*simDt;
+        flyVel[2]+=tdz*corrForce*simDt;
+      }
+    }
     checkSOICapture();
   }
   // Orbiting state: handle altitude adjustments
