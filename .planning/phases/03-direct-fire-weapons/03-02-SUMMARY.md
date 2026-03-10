@@ -44,7 +44,7 @@ patterns-established:
 requirements-completed: [WPN-11, WPN-01, WPN-02, WPN-03, WPN-04]
 
 # Metrics
-duration: 3min
+duration: 7min
 completed: 2026-03-10
 ---
 
@@ -54,10 +54,10 @@ completed: 2026-03-10
 
 ## Performance
 
-- **Duration:** 3 min
+- **Duration:** 7 min (including checkpoint verification)
 - **Started:** 2026-03-10T18:09:09Z
-- **Completed:** 2026-03-10T18:12:18Z
-- **Tasks:** 1 (of 2; Task 2 is human-verify checkpoint)
+- **Completed:** 2026-03-10T18:16:00Z
+- **Tasks:** 2 (1 automated + 1 human-verify checkpoint approved)
 - **Files modified:** 2
 
 ## Accomplishments
@@ -72,6 +72,7 @@ completed: 2026-03-10
 Each task was committed atomically:
 
 1. **Task 1: Projectile rendering + trail buffer + trajectory preview + hit prediction** - `8f87cc0` (feat)
+2. **Task 2: Visual verification of direct-fire weapons** - Checkpoint: human-verify (approved)
 
 ## Files Created/Modified
 - `js/scene/weapons.js` - Trail ring buffer (512 points with alpha decay), trajectory preview computation (80 steps), hit prediction logic, renderProjectiles() with kinetic heads/trails/plasma glow, renderWeaponPreview() with kinetic/plasma preview dots and hit marker
@@ -95,8 +96,9 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 - All Phase 3 WPN requirements (WPN-01 through WPN-04, WPN-11) are now functionally and visually complete
-- Task 2 (human-verify checkpoint) awaits user confirmation of visual correctness and gameplay feel
-- Phase 4 (missile systems) can build on the rendering patterns established here (dual-pass glow, trail ring buffer)
+- Human-verify checkpoint approved: user confirmed all weapon visuals, combat mode, trajectory preview, and gameplay feel
+- Phase 4 (missile systems) can build on the rendering patterns established here (dual-pass glow, trail ring buffer, projGlBuf)
+- Combat mode input gate pattern ready for additional weapon types (missile keys in Phase 4)
 
 ## Self-Check: PASSED
 

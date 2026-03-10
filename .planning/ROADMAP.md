@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Combat Rendering Foundation** - Entity stores, instanced rendering pipeline, radial collision bins, and enemy procedural geometry
 - [x] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
-- [ ] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview
+- [x] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview (completed 2026-03-10)
 - [ ] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer
 - [ ] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles
 - [ ] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators
@@ -66,11 +66,11 @@ Plans:
   2. Player can fire the plasma gun and its energy blast travels toward a target, fading over distance with minimal gravity deflection
   3. Before firing either weapon, the player can see a predicted trajectory line showing where the projectile will go (accounting for gravity)
   4. Kinetic rounds and plasma blasts that reach an enemy position register as hits (damage applied in Phase 6)
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md -- Weapons module (weapons.js): projectile SoA store, kinetic/plasma firing logic, physics update, hit detection, combat mode toggle and input integration
-- [ ] 03-02-PLAN.md -- Projectile rendering (kinetic tracers with trails, plasma glow bolts), trajectory preview with hit prediction, visual verification
+- [x] 03-02-PLAN.md -- Projectile rendering (kinetic tracers with trails, plasma glow bolts), trajectory preview with hit prediction, visual verification
 
 ### Phase 4: Missile Systems & Explosions
 **Goal**: Player has two missile types -- guided regular missiles with fuel constraints and proximity detonation, and nuclear missiles with volumetric explosions -- plus a sprite-based explosion renderer for all non-nuclear combat detonations
@@ -177,7 +177,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 1. Combat Rendering Foundation | 2/2 | Complete | 2026-03-10 |
 | 2. Player Ship & Orbital Movement | 3/3 | Complete | 2026-03-10 |
-| 3. Direct-Fire Weapons | 1/2 | In progress | - |
+| 3. Direct-Fire Weapons | 2/2 | Complete   | 2026-03-10 |
 | 4. Missile Systems & Explosions | 0/3 | Not started | - |
 | 5. Enemy Behavior & Combat Feedback | 0/2 | Not started | - |
 | 6. Player Defense & Survival | 0/3 | Not started | - |
