@@ -124,6 +124,21 @@ function computeAimDir(mouseX,mouseY,camP,camF,camR,camU,fovY,aspect){
   return [dx/len, 0, dz/len];
 }
 
+/* ---- Target name helper ---- */
+function getTargetName(idx) {
+  if (idx === -2) return '';
+  if (idx === -1) return 'Black Hole';
+  if (idx >= 100) {
+    const fi = idx - 100;
+    const pi = Math.floor(fi / 4);
+    const li = fi % 4;
+    const pNames = ['Jupiter', 'Saturn', 'Neptune'];
+    const lNames = ['L1', 'L2', 'L4', 'L5'];
+    return pNames[pi] + ' ' + lNames[li];
+  }
+  return planetData[idx].name;
+}
+
 /* ---- L-point orbit constants ---- */
 const LPOINT_SOI = 2.0;
 const LPOINT_DEFAULT_ALT = 1.0;
@@ -199,6 +214,10 @@ function initiateTransfer(targetIndex) {
 
   // Clear orbit body (no longer orbiting)
   orbitBody = -2;
+
+  // UX: auto-zoom out and enable fast forward so transfer is visible
+  if (navCamDist < 60) navCamDist = 120;
+  fastForward = true;
 }
 
 function checkSOICapture() {
@@ -218,6 +237,7 @@ function checkSOICapture() {
       orbitAltitude = dist - LPOINT_MARKER_RADIUS;
       transferTarget = -2;
       transferBurnMag = 0;
+      fastForward = false; // slow down on arrival
     }
   } else {
     const soi = getBodySOI(transferTarget);
@@ -229,6 +249,7 @@ function checkSOICapture() {
       orbitAltitude = dist - getBodyRadius(transferTarget);
       transferTarget = -2;
       transferBurnMag = 0;
+      fastForward = false; // slow down on arrival
     }
   }
 }
@@ -332,7 +353,7 @@ function enterNavMode(){
   if(spd>0.1){flyFwd[0]=flyVel[0]/spd;flyFwd[1]=0;flyFwd[2]=flyVel[2]/spd;}
   else{flyFwd[0]=0;flyFwd[1]=0;flyFwd[2]=-1;}
   flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
-  navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=3;
+  navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=60;
   fastForward=false;thrustPower=5.0;aimDir=null;
   const tNow=simTime;
   for(let i=0;i<6;i++){

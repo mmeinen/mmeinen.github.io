@@ -997,6 +997,16 @@
             gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.4); // blue HUD with transparency
             gl.uniform1f(trajLocs.uPtSize,1.5);
             gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
+            // Draw target crosshair at center of ring for visual reference
+            const _crossSize=ringRadius*0.3;
+            const _crossArr=new Float32Array([
+              bodyPos[0]-_crossSize,0,bodyPos[2], bodyPos[0]+_crossSize,0,bodyPos[2],
+              bodyPos[0],0,bodyPos[2]-_crossSize, bodyPos[0],0,bodyPos[2]+_crossSize
+            ]);
+            gl.bufferData(gl.ARRAY_BUFFER,_crossArr,gl.DYNAMIC_DRAW);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.uniform4f(trajLocs.uColor,0.4,0.7,1.0,0.6);
+            gl.drawArrays(gl.LINES,0,4);
           }
         }
 
@@ -1108,9 +1118,11 @@
         else flyBulletTime.classList.remove('active');
         // Altitude HUD readout
         if(orbitState===ORBIT_STATE.ORBITING){
-          altValEl.textContent=orbitAltitude.toFixed(1);
+          const bodyName=getTargetName(orbitBody);
+          altValEl.textContent=orbitAltitude.toFixed(1)+(bodyName?' · '+bodyName:'');
         }else if(orbitState===ORBIT_STATE.TRANSFER){
-          altValEl.textContent='TRANSFER';
+          const tgtName=getTargetName(transferTarget);
+          altValEl.textContent='→ '+(tgtName||'TRANSFER');
         }else{
           altValEl.textContent='FREE';
         }
