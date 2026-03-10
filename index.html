@@ -959,22 +959,22 @@
         // Orbit ring rendering: around target body or current orbited body
         {
           let ringBodyIdx=-2, ringRadius=0;
-          if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=-1){
-            // Show ring at current orbit altitude
-            ringBodyIdx=orbitBody;
-            ringRadius=orbitAltitude+getBodyRadius(orbitBody);
-          }else if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=100){
+          if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=100){
             // Orbiting L-point: show ring around L-point position
             ringBodyIdx=orbitBody;
             ringRadius=orbitAltitude+LPOINT_MARKER_RADIUS;
-          }else if(transferTarget>=-1){
-            // Show ring at default orbit altitude around target
-            ringBodyIdx=transferTarget;
-            ringRadius=getBodyRadius(transferTarget)+getDefaultOrbitAlt(transferTarget);
+          }else if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=-1){
+            // Show ring at current orbit altitude
+            ringBodyIdx=orbitBody;
+            ringRadius=orbitAltitude+getBodyRadius(orbitBody);
           }else if(transferTarget>=100){
             // Transfer to L-point: show ring at default L-point orbit radius
             ringBodyIdx=transferTarget;
             ringRadius=LPOINT_MARKER_RADIUS+LPOINT_DEFAULT_ALT;
+          }else if(transferTarget>=-1){
+            // Show ring at default orbit altitude around target
+            ringBodyIdx=transferTarget;
+            ringRadius=getBodyRadius(transferTarget)+getDefaultOrbitAlt(transferTarget);
           }
           if(ringBodyIdx>=-1 || ringBodyIdx>=100){
             let bodyPos;
