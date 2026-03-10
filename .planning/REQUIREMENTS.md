@@ -14,7 +14,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **MOV-03**: Transfer trajectory is shown as a dotted/curved line during transit
 - [ ] **MOV-04**: Player can control thrust to adjust transit speed
 - [ ] **MOV-05**: Player can adjust orbit altitude once captured in orbit around a body
-- [ ] **MOV-06**: Player can orbit Lagrange points (L1-L5) between major bodies
+- [x] **MOV-06**: Player can orbit Lagrange points (L1-L5) between major bodies
 
 ### Weapons
 
@@ -124,7 +124,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MOV-03 | Phase 2 | Pending |
 | MOV-04 | Phase 2 | Pending |
 | MOV-05 | Phase 2 | Pending |
-| MOV-06 | Phase 2 | Pending |
+| MOV-06 | Phase 2 | Complete |
 | WPN-01 | Phase 3 | Pending |
 | WPN-02 | Phase 3 | Pending |
 | WPN-03 | Phase 3 | Pending |
