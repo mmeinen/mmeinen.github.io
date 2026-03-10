@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Movement
 
-- [ ] **MOV-01**: Player can select any orbital body (black hole, 7 planets, Lagrange points) as an orbit target
-- [ ] **MOV-02**: Ship computes and flies a physically accurate transfer orbit to the selected body
-- [ ] **MOV-03**: Transfer trajectory is shown as a dotted/curved line during transit
-- [ ] **MOV-04**: Player can control thrust to adjust transit speed
-- [ ] **MOV-05**: Player can adjust orbit altitude once captured in orbit around a body
+- [x] **MOV-01**: Player can select any orbital body (black hole, 7 planets, Lagrange points) as an orbit target
+- [x] **MOV-02**: Ship computes and flies a physically accurate transfer orbit to the selected body
+- [x] **MOV-03**: Transfer trajectory is shown as a dotted/curved line during transit
+- [x] **MOV-04**: Player can control thrust to adjust transit speed
+- [x] **MOV-05**: Player can adjust orbit altitude once captured in orbit around a body
 - [x] **MOV-06**: Player can orbit Lagrange points (L1-L5) between major bodies
 
 ### Weapons
@@ -119,11 +119,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MOV-01 | Phase 2 | Pending |
-| MOV-02 | Phase 2 | Pending |
-| MOV-03 | Phase 2 | Pending |
-| MOV-04 | Phase 2 | Pending |
-| MOV-05 | Phase 2 | Pending |
+| MOV-01 | Phase 2 | Complete |
+| MOV-02 | Phase 2 | Complete |
+| MOV-03 | Phase 2 | Complete |
+| MOV-04 | Phase 2 | Complete |
+| MOV-05 | Phase 2 | Complete |
 | MOV-06 | Phase 2 | Complete |
 | WPN-01 | Phase 3 | Pending |
 | WPN-02 | Phase 3 | Pending |

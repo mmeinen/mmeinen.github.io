@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-10T12:52:16Z"
-last_activity: 2026-03-10 -- Phase 2 Plan 1 complete (orbital mechanics foundation)
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-10T12:59:36Z"
+last_activity: 2026-03-10 -- Phase 2 Plan 2 complete (orbit state machine & navigation integration)
 progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -26,28 +26,28 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 2 of 9 (Player Ship & Orbital Movement)
-Plan: 1 of 3 in current phase (02-01 complete)
-Status: Plan 02-01 complete, ready for Plan 02-02
-Last activity: 2026-03-10 -- Phase 2 Plan 1 complete (orbital mechanics foundation)
+Plan: 2 of 3 in current phase (02-02 complete)
+Status: Plan 02-02 complete, ready for Plan 02-03
+Last activity: 2026-03-10 -- Phase 2 Plan 2 complete (orbit state machine & navigation integration)
 
-Progress: [######░░░░] 60%
+Progress: [########░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 6.7 min
-- Total execution time: 0.33 hours
+- Total plans completed: 4
+- Average duration: 6.3 min
+- Total execution time: 0.42 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 2 | 15 min | 7.5 min |
-| 2 | 1 | 5 min | 5 min |
+| 2 | 2 | 10 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 12min, 5min
+- Last 5 plans: 3min, 12min, 5min, 5min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -72,6 +72,10 @@ Recent decisions affecting current work:
 - [02-01]: Lagrange points only for 3 major planets (Jupiter, Saturn, Neptune)
 - [02-01]: Capital ship 176 tris with octagonal hull cross-section
 - [02-01]: Engine glow via object-space z threshold (smoothstep at z=-0.35) in ship fragment shader
+- [02-02]: State-aware delta-v: Hohmann for ORBITING, vis-viva from actual velocity for retargeting
+- [02-02]: Continuous thrust during TRANSFER in burn direction scaled by thrustPower (slider)
+- [02-02]: Nav-mode hover detection via screen-space projection with 20px min hit area
+- [02-02]: Orbit ring as GL_LINE_LOOP (64 segments) using trajectory shader program
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T12:52:16.944Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-10T12:59:36Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
