@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-10T12:59:36Z"
-last_activity: 2026-03-10 -- Phase 2 Plan 2 complete (orbit state machine & navigation integration)
+stopped_at: Phase 2 complete, ready for Phase 3
+last_updated: "2026-03-10T18:00:00Z"
+last_activity: 2026-03-10 -- Phase 2 complete (all MOV requirements verified)
 progress:
   total_phases: 9
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -21,34 +21,34 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 2: Player Ship & Orbital Movement
+**Current focus:** Phase 3: Direct-Fire Weapons
 
 ## Current Position
 
-Phase: 2 of 9 (Player Ship & Orbital Movement)
-Plan: 2 of 3 in current phase (02-02 complete)
-Status: Plan 02-02 complete, ready for Plan 02-03
-Last activity: 2026-03-10 -- Phase 2 Plan 2 complete (orbit state machine & navigation integration)
+Phase: 3 of 9 (Direct-Fire Weapons)
+Plan: 0 of TBD in current phase (not yet planned)
+Status: Phase 2 complete, Phase 3 ready to plan
+Last activity: 2026-03-10 -- Phase 2 complete (all MOV requirements verified)
 
-Progress: [########░░] 80%
+Progress: [██████████] 100% (Phase 2)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 6.3 min
-- Total execution time: 0.42 hours
+- Total plans completed: 5
+- Average duration: ~8 min
+- Total execution time: ~0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 2 | 15 min | 7.5 min |
-| 2 | 2 | 10 min | 5 min |
+| 2 | 3 | 55 min | 18 min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 12min, 5min, 5min
-- Trend: stable
+- Last 5 plans: 12min, 5min, 5min, ~45min (02-03 with debugging)
+- Trend: variable (02-03 required multiple fix iterations)
 
 *Updated after each plan completion*
 
@@ -73,9 +73,13 @@ Recent decisions affecting current work:
 - [02-01]: Capital ship 176 tris with octagonal hull cross-section
 - [02-01]: Engine glow via object-space z threshold (smoothstep at z=-0.35) in ship fragment shader
 - [02-02]: State-aware delta-v: Hohmann for ORBITING, vis-viva from actual velocity for retargeting
-- [02-02]: Continuous thrust during TRANSFER in burn direction scaled by thrustPower (slider)
 - [02-02]: Nav-mode hover detection via screen-space projection with 20px min hit area
 - [02-02]: Orbit ring as GL_LINE_LOOP (64 segments) using trajectory shader program
+- [02-03]: L-point indices >= 100 (flatIndex = planetIdx*4 + lpointType)
+- [02-03]: Body-relative circularization via bodyVel parameter
+- [02-03]: Mid-course guidance correction during transfers
+- [02-03]: Pure Hohmann coasting (removed user thrust control)
+- [02-03]: Double-click guard in initiateTransfer
 
 ### Pending Todos
 
@@ -87,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T12:59:36Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-10T18:00:00Z
+Stopped at: Phase 2 complete, ready for Phase 3
 Resume file: None

@@ -13,7 +13,7 @@ Transform the existing WebGL black hole navigation mode into a tactical orbital 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Combat Rendering Foundation** - Entity stores, instanced rendering pipeline, radial collision bins, and enemy procedural geometry
-- [ ] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
+- [x] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
 - [ ] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview
 - [ ] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer
 - [ ] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles
