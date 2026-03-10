@@ -306,7 +306,7 @@ function enterNavMode(){
   thrustSlider.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
-  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; BULLET TIME<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
+  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; BULLET TIME<br>L &mdash; LAGRANGE PTS<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
 }
 
 function exitNavMode(){
@@ -316,6 +316,8 @@ function exitNavMode(){
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
   transferBurnMag=0;
+  lagrangeVisible=false;
+  for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
   missileState='idle';missileTargets.length=0;missiles.length=0;
   for(let i=0;i<6;i++){detSlots[i].active=false;}
   for(let i=0;i<6;i++){

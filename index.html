@@ -88,6 +88,19 @@
        <div class="planet-label" id="planet-label-6" data-planet="6">
          <span class="pl-bracket">[</span> CAT INVASION <span class="pl-bracket">]</span>
        </div>
+      <!-- L-point labels — positioned by JS, toggled with L key -->
+       <div class="lpoint-label" id="lpoint-label-0">Jupiter L1</div>
+       <div class="lpoint-label" id="lpoint-label-1">Jupiter L2</div>
+       <div class="lpoint-label" id="lpoint-label-2">Jupiter L4</div>
+       <div class="lpoint-label" id="lpoint-label-3">Jupiter L5</div>
+       <div class="lpoint-label" id="lpoint-label-4">Saturn L1</div>
+       <div class="lpoint-label" id="lpoint-label-5">Saturn L2</div>
+       <div class="lpoint-label" id="lpoint-label-6">Saturn L4</div>
+       <div class="lpoint-label" id="lpoint-label-7">Saturn L5</div>
+       <div class="lpoint-label" id="lpoint-label-8">Neptune L1</div>
+       <div class="lpoint-label" id="lpoint-label-9">Neptune L2</div>
+       <div class="lpoint-label" id="lpoint-label-10">Neptune L4</div>
+       <div class="lpoint-label" id="lpoint-label-11">Neptune L5</div>
        <button class="nuke-btn" id="nuke-btn">
          <span class="nuke-icon">&#x2622;</span> DETONATE
        </button>
@@ -158,6 +171,14 @@
     const thrustFill=document.getElementById('thrust-fill');
     const thrustHandle=document.getElementById('thrust-handle');
     let thrustDragging=false;
+    // L-point state
+    let lagrangeVisible=false;
+    const LPOINT_PLANETS=[0,1,3]; // Jupiter, Saturn, Neptune
+    const LPOINT_NAMES=['L1','L2','L4','L5'];
+    const lPointPositions=new Float32Array(12*3); // 3 planets x 4 L-points x 3 floats
+    const LPOINT_MARKER_RADIUS=0.8;
+    const lPointLabels=[];
+    for(let i=0;i<12;i++)lPointLabels.push(document.getElementById('lpoint-label-'+i));
    </script>
 
    <!-- Nav mode + missiles + combat (depend on planetData, DOM refs, math) -->
@@ -311,6 +332,8 @@
     const ringBuf=gl.createBuffer();
     const RING_SEGMENTS=64;
     const ringArray=new Float32Array(RING_SEGMENTS*3);
+    // L-point marker buffer
+    const lPointBuf=gl.createBuffer();
 
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
@@ -502,6 +525,10 @@
         if(e.key==='c'||e.key==='C'){missileTargets.length=0;missileState='idle';updateMissileUI();}
         if(e.key==='ArrowUp'){altUpHeld=true;e.preventDefault();}
         if(e.key==='ArrowDown'){altDownHeld=true;e.preventDefault();}
+        if(e.key==='l'||e.key==='L'){
+          lagrangeVisible=!lagrangeVisible;
+          if(!lagrangeVisible){for(let i=0;i<12;i++)lPointLabels[i].style.display='none';}
+        }
         return;
       }
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
@@ -908,13 +935,28 @@
             // Show ring at current orbit altitude
             ringBodyIdx=orbitBody;
             ringRadius=orbitAltitude+getBodyRadius(orbitBody);
+          }else if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=100){
+            // Orbiting L-point: show ring around L-point position
+            ringBodyIdx=orbitBody;
+            ringRadius=orbitAltitude+LPOINT_MARKER_RADIUS;
           }else if(transferTarget>=-1){
             // Show ring at default orbit altitude around target
             ringBodyIdx=transferTarget;
             ringRadius=getBodyRadius(transferTarget)+getDefaultOrbitAlt(transferTarget);
+          }else if(transferTarget>=100){
+            // Transfer to L-point: show ring at default L-point orbit radius
+            ringBodyIdx=transferTarget;
+            ringRadius=LPOINT_MARKER_RADIUS+LPOINT_DEFAULT_ALT;
           }
-          if(ringBodyIdx>=-1){
-            const bodyPos=(ringBodyIdx===-1)?[0,0,0]:planetPosAtTime(planetData[ringBodyIdx],simTime);
+          if(ringBodyIdx>=-1 || ringBodyIdx>=100){
+            let bodyPos;
+            if(ringBodyIdx>=100){
+              // L-point position from the flat array
+              const fi=ringBodyIdx-100;
+              bodyPos=[lPointPositions[fi*3],lPointPositions[fi*3+1],lPointPositions[fi*3+2]];
+            }else{
+              bodyPos=(ringBodyIdx===-1)?[0,0,0]:planetPosAtTime(planetData[ringBodyIdx],simTime);
+            }
             for(let ri=0;ri<RING_SEGMENTS;ri++){
               const angle=(ri/RING_SEGMENTS)*Math.PI*2;
               ringArray[ri*3]=bodyPos[0]+ringRadius*Math.cos(angle);
@@ -928,6 +970,47 @@
             gl.uniform1f(trajLocs.uPtSize,1.5);
             gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
           }
+        }
+
+        // L-point marker rendering
+        if(lagrangeVisible){
+          let lIdx=0;
+          for(let pi=0;pi<LPOINT_PLANETS.length;pi++){
+            const lpData=computeLagrangePoints(LPOINT_PLANETS[pi],simTime);
+            if(!lpData){lIdx+=4;continue;}
+            const pts=[lpData.L1,lpData.L2,lpData.L4,lpData.L5];
+            for(let li=0;li<4;li++){
+              const flat=lIdx*3;
+              lPointPositions[flat]=pts[li][0];
+              lPointPositions[flat+1]=pts[li][1];
+              lPointPositions[flat+2]=pts[li][2];
+              lIdx++;
+            }
+          }
+          gl.bindBuffer(gl.ARRAY_BUFFER,lPointBuf);
+          gl.bufferData(gl.ARRAY_BUFFER,lPointPositions,gl.DYNAMIC_DRAW);
+          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+          gl.uniform4f(trajLocs.uColor,0.706,0.863,1.0,0.6); // light blue
+          gl.uniform1f(trajLocs.uPtSize,4.0);
+          gl.drawArrays(gl.POINTS,0,12);
+          // Position L-point HTML labels
+          const mDL=Math.min(baseWidth,baseHeight);
+          for(let i=0;i<12;i++){
+            const lb=lPointLabels[i];
+            const px=lPointPositions[i*3],py=lPointPositions[i*3+1],pz=lPointPositions[i*3+2];
+            const dx=px-_camP[0],dy=py-_camP[1],dz=pz-_camP[2];
+            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
+            if(dp>0){
+              const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mDL;
+              const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mDL;
+              if(sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){
+                lb.style.display='block';
+                lb.style.transform='translate(calc('+sx.toFixed(0)+'px - 50%),'+(sy-14).toFixed(0)+'px)';
+              }else{lb.style.display='none';}
+            }else{lb.style.display='none';}
+          }
+        }else{
+          for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
         }
 
         if(aimDir&&orbitState===ORBIT_STATE.FREE){

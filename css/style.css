@@ -201,6 +201,22 @@ body {
 }
 
 /* ============================================
+   L-POINT LABELS — toggled with L key
+   ============================================ */
+
+.lpoint-label {
+  position: absolute;
+  z-index: 25;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: rgba(180, 220, 255, 0.7);
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 0 4px rgba(60, 140, 255, 0.5);
+  display: none;
+}
+
+/* ============================================
    FLY MODE HUD
    ============================================ */
 
@@ -514,7 +530,8 @@ body {
   .fly-hud-speed,
   .fly-hud-altitude,
   .fly-thrust-slider,
-  .missile-fire-btn {
+  .missile-fire-btn,
+  .lpoint-label {
     display: none !important;
   }
 
