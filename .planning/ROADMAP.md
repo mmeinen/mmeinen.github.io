@@ -82,12 +82,12 @@ Plans:
   3. Regular missiles consume fuel during flight and self-destruct without detonation when fuel is exhausted and trajectory will miss the target
   4. Player can fire nuclear missiles that produce the existing volumetric shader detonation effect
   5. Sprite billboard explosions render correctly at various distances and camera angles for all non-nuclear combat detonations
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md -- Missile SoA store, lock-on targeting with multi-lock salvo, fuel depletion, PN guidance with enemy tracking, weapon slots 3/4
+- [ ] 04-02-PLAN.md -- Billboard explosion system: procedural sprite sheet, billboard shaders, explosion SoA store with instanced rendering
+- [ ] 04-03-PLAN.md -- Rendering integration: missile bodies/trails, proximity detonation wiring (sprite + volumetric), lock reticle overlays, visual verification
 
 ### Phase 5: Enemy Behavior & Combat Feedback
 **Goal**: Enemies are alive -- Grunt enemies orbit bodies, approach the player, fire projectiles, and provide clear visual feedback when hit
