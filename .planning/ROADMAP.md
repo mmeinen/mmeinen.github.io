@@ -50,12 +50,12 @@ Plans:
   3. Player can increase or decrease thrust during transit to control transfer speed
   4. Once captured in orbit, player can raise or lower orbit altitude around the current body
   5. Player can select and orbit Lagrange points (L1-L5) between major bodies as valid destinations
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md -- Orbital mechanics module (orbital.js), capital ship geometry, engine glow shader
+- [ ] 02-02-PLAN.md -- Orbit state machine, transfer orbit execution, click-to-target, trajectory preview, altitude control
+- [ ] 02-03-PLAN.md -- Lagrange point markers and orbiting, CSS polish, regression tests, visual verification
 
 ### Phase 3: Direct-Fire Weapons
 **Goal**: Player can engage enemies with two distinct direct-fire weapons -- a gravity-affected kinetic cannon and a light-speed plasma gun -- and preview trajectories before firing
