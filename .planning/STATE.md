@@ -3,30 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-10T17:11:41.834Z"
-last_activity: 2026-03-10 -- Phase 2 complete (all MOV requirements verified)
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-10T18:05:00Z"
+last_activity: 2026-03-10 -- Phase 3 Plan 01 complete (weapons module + combat mode)
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Phase 2 complete, ready for Phase 3
-last_updated: "2026-03-10T18:00:00Z"
-last_activity: 2026-03-10 -- Phase 2 complete (all MOV requirements verified)
-progress:
-  total_phases: 9
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_plans: 7
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -41,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 3 of 9 (Direct-Fire Weapons)
-Plan: 0 of TBD in current phase (not yet planned)
-Status: Phase 2 complete, Phase 3 ready to plan
-Last activity: 2026-03-10 -- Phase 2 complete (all MOV requirements verified)
+Plan: 1 of 2 in current phase
+Status: Plan 01 complete, Plan 02 next (projectile rendering + trajectory preview)
+Last activity: 2026-03-10 -- Phase 3 Plan 01 complete (weapons module + combat mode)
 
-Progress: [██████████] 100% (Phase 2)
+Progress: [████████░░] 86% (6/7 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: ~8 min
-- Total execution time: ~0.7 hours
+- Total plans completed: 6
+- Average duration: ~7 min
+- Total execution time: ~0.8 hours
 
 **By Phase:**
 
@@ -60,10 +45,11 @@ Progress: [██████████] 100% (Phase 2)
 |-------|-------|-------|----------|
 | 1 | 2 | 15 min | 7.5 min |
 | 2 | 3 | 55 min | 18 min |
+| 3 | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 12min, 5min, 5min, ~45min (02-03 with debugging)
-- Trend: variable (02-03 required multiple fix iterations)
+- Last 5 plans: 5min, 5min, ~45min (02-03 with debugging), 4min (03-01)
+- Trend: fast execution when plan is well-researched
 
 *Updated after each plan completion*
 
@@ -95,6 +81,10 @@ Recent decisions affecting current work:
 - [02-03]: Mid-course guidance correction during transfers
 - [02-03]: Pure Hohmann coasting (removed user thrust control)
 - [02-03]: Double-click guard in initiateTransfer
+- [03-01]: Kinetic burst via simDt accumulator for correct bullet-time/fast-forward scaling
+- [03-01]: rebinEntities() called each frame for hit detection radial bin queries
+- [03-01]: 1/2 keys gated on combatMode (weapon select in combat, camera presets otherwise)
+- [03-01]: Combat mode resets on exitNavMode to prevent stale state
 
 ### Pending Todos
 
@@ -106,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T17:11:41.831Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-direct-fire-weapons/03-CONTEXT.md
+Last session: 2026-03-10T18:05:00Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-direct-fire-weapons/03-01-SUMMARY.md

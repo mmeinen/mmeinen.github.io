@@ -69,7 +69,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Weapons module (weapons.js): projectile SoA store, kinetic/plasma firing logic, physics update, hit detection, combat mode toggle and input integration
+- [x] 03-01-PLAN.md -- Weapons module (weapons.js): projectile SoA store, kinetic/plasma firing logic, physics update, hit detection, combat mode toggle and input integration
 - [ ] 03-02-PLAN.md -- Projectile rendering (kinetic tracers with trails, plasma glow bolts), trajectory preview with hit prediction, visual verification
 
 ### Phase 4: Missile Systems & Explosions
@@ -176,8 +176,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Combat Rendering Foundation | 2/2 | Complete | 2026-03-10 |
-| 2. Player Ship & Orbital Movement | 0/3 | Not started | - |
-| 3. Direct-Fire Weapons | 0/2 | Not started | - |
+| 2. Player Ship & Orbital Movement | 3/3 | Complete | 2026-03-10 |
+| 3. Direct-Fire Weapons | 1/2 | In progress | - |
 | 4. Missile Systems & Explosions | 0/3 | Not started | - |
 | 5. Enemy Behavior & Combat Feedback | 0/2 | Not started | - |
 | 6. Player Defense & Survival | 0/3 | Not started | - |

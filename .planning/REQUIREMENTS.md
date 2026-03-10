@@ -18,10 +18,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Weapons
 
-- [ ] **WPN-01**: Player can fire a kinetic cannon that launches a projectile carried by momentum with no guidance
-- [ ] **WPN-02**: Kinetic cannon rounds are affected by gravity (curve around gravity wells)
-- [ ] **WPN-03**: Player can fire a plasma gun that emits an energy blast toward a target
-- [ ] **WPN-04**: Plasma blasts fade over distance and have minimal gravity effect (light-based)
+- [x] **WPN-01**: Player can fire a kinetic cannon that launches a projectile carried by momentum with no guidance
+- [x] **WPN-02**: Kinetic cannon rounds are affected by gravity (curve around gravity wells)
+- [x] **WPN-03**: Player can fire a plasma gun that emits an energy blast toward a target
+- [x] **WPN-04**: Plasma blasts fade over distance and have minimal gravity effect (light-based)
 - [ ] **WPN-05**: Player can fire regular missiles with proportional navigation guidance toward a target
 - [ ] **WPN-06**: Regular missiles detonate when within blast radius of their target (proximity detonation)
 - [ ] **WPN-07**: Regular missiles have a fuel supply that depletes during flight
@@ -125,10 +125,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MOV-04 | Phase 2 | Complete |
 | MOV-05 | Phase 2 | Complete |
 | MOV-06 | Phase 2 | Complete |
-| WPN-01 | Phase 3 | Pending |
-| WPN-02 | Phase 3 | Pending |
-| WPN-03 | Phase 3 | Pending |
-| WPN-04 | Phase 3 | Pending |
+| WPN-01 | Phase 3 | Complete |
+| WPN-02 | Phase 3 | Complete |
+| WPN-03 | Phase 3 | Complete |
+| WPN-04 | Phase 3 | Complete |
 | WPN-05 | Phase 4 | Pending |
 | WPN-06 | Phase 4 | Pending |
 | WPN-07 | Phase 4 | Pending |
