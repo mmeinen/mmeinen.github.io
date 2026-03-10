@@ -28,7 +28,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **WPN-08**: Missiles self-destruct without detonation when fuel is exhausted and trajectory will not intersect target
 - [ ] **WPN-09**: Regular missile explosions are sprite-based (billboard), not volumetric
 - [ ] **WPN-10**: Player can fire nuclear missiles with existing volumetric detonation shader
-- [ ] **WPN-11**: Player can preview the predicted trajectory of a weapon before firing (gravity-affected path)
+- [x] **WPN-11**: Player can preview the predicted trajectory of a weapon before firing (gravity-affected path)
 
 ### Enemies
 
@@ -135,7 +135,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WPN-08 | Phase 4 | Pending |
 | WPN-09 | Phase 4 | Pending |
 | WPN-10 | Phase 4 | Pending |
-| WPN-11 | Phase 3 | Pending |
+| WPN-11 | Phase 3 | Complete |
 | ENM-01 | Phase 5 | Pending |
 | ENM-02 | Phase 7 | Pending |
 | ENM-03 | Phase 7 | Pending |
