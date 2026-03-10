@@ -365,70 +365,6 @@ body {
 }
 
 /* --- Thrust Slider (Nav mode) — horizontal, above speed indicator --- */
-.fly-thrust-slider {
-  display: none;
-  position: absolute;
-  bottom: calc(max(3vh, env(safe-area-inset-bottom, 0px)) + 44px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 25;
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-  pointer-events: auto;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-.fly-thrust-slider.active { display: flex; }
-
-.thrust-label {
-  font-size: 0.7em;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  color: rgba(80, 160, 255, 0.85);
-}
-.thrust-val {
-  font-size: 0.85em;
-  font-weight: 300;
-  letter-spacing: 0.1em;
-  color: rgba(170, 210, 255, 0.9);
-  min-width: 2.5em;
-}
-.thrust-track {
-  position: relative;
-  width: 180px;
-  height: 4px;
-  background: rgba(60, 140, 255, 0.12);
-  border: 1px solid rgba(60, 140, 255, 0.2);
-  border-radius: 2px;
-  cursor: pointer;
-}
-.thrust-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 100%;
-  background: rgba(60, 140, 255, 0.25);
-  border-radius: 2px 0 0 2px;
-  pointer-events: none;
-}
-.thrust-handle {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 24px;
-  background: rgba(60, 140, 255, 0.6);
-  border: 1px solid rgba(100, 180, 255, 0.7);
-  border-radius: 3px;
-  cursor: grab;
-  transition: background 0.15s, box-shadow 0.15s;
-}
-.thrust-handle:hover,
-.thrust-handle.dragging {
-  background: rgba(80, 170, 255, 0.8);
-  box-shadow: 0 0 8px rgba(80, 160, 255, 0.5);
-  cursor: grabbing;
-}
 
 
 /* ============================================
@@ -529,7 +465,6 @@ body {
   .fly-crosshair,
   .fly-hud-speed,
   .fly-hud-altitude,
-  .fly-thrust-slider,
   .missile-fire-btn,
   .lpoint-label {
     display: none !important;

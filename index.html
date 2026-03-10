@@ -57,14 +57,6 @@
         <span class="readout-label">ALT</span>
         <span id="altitude-val">--</span>
       </div>
-      <div class="fly-thrust-slider" id="fly-thrust-slider">
-        <div class="thrust-label">THR</div>
-        <div class="thrust-val" id="thrust-val">1.5</div>
-        <div class="thrust-track" id="thrust-track">
-          <div class="thrust-fill" id="thrust-fill"></div>
-          <div class="thrust-handle" id="thrust-handle"></div>
-        </div>
-      </div>
 
       <!-- Planet labels — positioned by JS to track planet screen positions -->
        <div class="planet-label" id="planet-label-0" data-planet="0">
@@ -164,13 +156,6 @@
     const flyPosEl=document.getElementById('fly-pos');
     const flyHudAltEl=document.getElementById('fly-hud-altitude');
     const altValEl=document.getElementById('altitude-val');
-    // Thrust slider refs
-    const thrustSlider=document.getElementById('fly-thrust-slider');
-    const thrustValEl=document.getElementById('thrust-val');
-    const thrustTrack=document.getElementById('thrust-track');
-    const thrustFill=document.getElementById('thrust-fill');
-    const thrustHandle=document.getElementById('thrust-handle');
-    let thrustDragging=false;
     // L-point state
     let lagrangeVisible=false;
     const LPOINT_PLANETS=[0,1,3]; // Jupiter, Saturn, Neptune
@@ -477,7 +462,7 @@
     canvas.addEventListener('wheel',e=>{
       e.preventDefault();
       if(flyMode){
-        thrustPower=Math.max(THRUST_MIN,Math.min(THRUST_MAX,thrustPower-e.deltaY*0.01));
+        navCamDist=Math.max(NAV_CAM_DIST_MIN,Math.min(NAV_CAM_DIST_MAX,navCamDist+e.deltaY*0.1));
         return;
       }
       camDist=Math.max(5,Math.min(300,camDist+e.deltaY*0.05));
@@ -500,44 +485,6 @@
           if(tdx*tdx+tdy*tdy<(ar+25)*(ar+25))hP=6;}}
       if(hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href}tId=null}}});
 
-    // Thrust slider drag handlers
-    function thrustFromX(clientX){
-      const rect=thrustTrack.getBoundingClientRect();
-      const frac=Math.max(0,Math.min(rect.width,clientX-rect.left))/rect.width;
-      thrustPower=THRUST_MIN+(THRUST_MAX-THRUST_MIN)*frac;
-    }
-    thrustTrack.addEventListener('mousedown',e=>{
-      e.stopPropagation();e.preventDefault();
-      thrustDragging=true;thrustHandle.classList.add('dragging');
-      thrustFromX(e.clientX);
-    });
-    thrustHandle.addEventListener('mousedown',e=>{
-      e.stopPropagation();e.preventDefault();
-      thrustDragging=true;thrustHandle.classList.add('dragging');
-    });
-    window.addEventListener('mousemove',e=>{
-      if(!thrustDragging)return;
-      e.preventDefault();thrustFromX(e.clientX);
-    });
-    window.addEventListener('mouseup',()=>{
-      if(thrustDragging){thrustDragging=false;thrustHandle.classList.remove('dragging');}
-    });
-    thrustTrack.addEventListener('touchstart',e=>{
-      e.stopPropagation();e.preventDefault();
-      thrustDragging=true;thrustHandle.classList.add('dragging');
-      thrustFromX(e.touches[0].clientX);
-    },{passive:false});
-    thrustHandle.addEventListener('touchstart',e=>{
-      e.stopPropagation();e.preventDefault();
-      thrustDragging=true;thrustHandle.classList.add('dragging');
-    },{passive:false});
-    window.addEventListener('touchmove',e=>{
-      if(!thrustDragging)return;
-      e.preventDefault();thrustFromX(e.touches[0].clientX);
-    },{passive:false});
-    window.addEventListener('touchend',()=>{
-      if(thrustDragging){thrustDragging=false;thrustHandle.classList.remove('dragging');}
-    });
 
     window.addEventListener('keydown',e=>{
       if(e.key==='`'){
@@ -546,7 +493,6 @@
         return;
       }
       if(flyMode){
-        if(e.key===' '){thrusting=true;e.preventDefault();}
         if(e.key==='b'||e.key==='B'){fastForward=!fastForward;}
         if(e.key==='1')navCamDist=3;
         if(e.key==='2')navCamDist=120;
@@ -565,7 +511,6 @@
     });
     window.addEventListener('keyup',e=>{
       if(flyMode){
-        if(e.key===' ')thrusting=false;
         if(e.key==='ArrowUp')altUpHeld=false;
         if(e.key==='ArrowDown')altDownHeld=false;
       }
@@ -938,7 +883,7 @@
         // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
         if(orbitState===ORBIT_STATE.TRANSFER){
           // During transfer: simulate with continuous thrust in burn direction
-          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,transferBurnDir,thrustPower,999);
+          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
           gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
           gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
           gl.enableVertexAttribArray(trajLocs.aPos);
@@ -1052,7 +997,7 @@
         }
 
         if(aimDir&&orbitState===ORBIT_STATE.FREE){
-          const lineLen=thrustPower*0.5;
+          const lineLen=2.0;
           _aimLine[0]=flyPos[0];_aimLine[1]=flyPos[1];_aimLine[2]=flyPos[2];
           _aimLine[3]=flyPos[0]+aimDir[0]*lineLen;_aimLine[4]=flyPos[1];_aimLine[5]=flyPos[2]+aimDir[2]*lineLen;
           gl.bindBuffer(gl.ARRAY_BUFFER,aimLineBuf);
@@ -1110,10 +1055,6 @@
         for(let i=0;i<pL.length;i++)pL[i].classList.remove('visible','hovered');
         flySpdEl.textContent=v3len(flyVel).toFixed(1);
         flyPosEl.textContent=flyPos[0].toFixed(0)+', '+flyPos[1].toFixed(0)+', '+flyPos[2].toFixed(0);
-        const tFrac=(thrustPower-THRUST_MIN)/(THRUST_MAX-THRUST_MIN);
-        thrustValEl.textContent=thrustPower.toFixed(1);
-        thrustHandle.style.left=(tFrac*180)+'px';
-        thrustFill.style.width=(tFrac*100)+'%';
         if(!fastForward)flyBulletTime.classList.add('active');
         else flyBulletTime.classList.remove('active');
         // Altitude HUD readout

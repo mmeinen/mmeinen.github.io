@@ -9,9 +9,8 @@ const FLY_SENSITIVITY=0.003;
 // Gravity constants
 const BH_GM=400;
 const PLANET_GM_K=50.0;
-// Thrust
-let thrustPower=1.5;
-const THRUST_MIN=0.2, THRUST_MAX=8.0;
+// Altitude thrust (internal, not user-controllable)
+const ALT_THRUST=2.0;
 // Time scale: default is bullet time (0.03x), "b" toggles fast forward (0.5x)
 let fastForward=false;
 const BULLET_TIME_SCALE=0.03;
@@ -27,7 +26,6 @@ let navCamDist=3;
 const NAV_CAM_DIST_MIN=15, NAV_CAM_DIST_MAX=200;
 // Cached aim direction (updated each frame from mouse)
 let aimDir=null;
-let thrusting=false;
 // Orbit state machine (uses ORBIT_STATE from orbital.js)
 let orbitState=2; // ORBIT_STATE.FREE (2), set after orbital.js loads
 let orbitBody=-2;           // -1=BH, 0-6=planet index, -2=no body
@@ -354,7 +352,7 @@ function enterNavMode(){
   else{flyFwd[0]=0;flyFwd[1]=0;flyFwd[2]=-1;}
   flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
   navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=3;
-  fastForward=false;thrustPower=5.0;aimDir=null;
+  fastForward=false;aimDir=null;
   const tNow=simTime;
   for(let i=0;i<6;i++){
     const p=planetData[i],b=0x100+i*16;
@@ -388,15 +386,14 @@ function enterNavMode(){
   flyCrosshair.classList.add('active');
   flyHudSpeed.classList.add('active');
   flyHudAltEl.classList.add('active');
-  thrustSlider.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
-  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; POWER<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; BULLET TIME<br>L &mdash; LAGRANGE PTS<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
+  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; ZOOM<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; TARGET<br>C &mdash; CLEAR TARGETS<br>B &mdash; FAST FORWARD<br>L &mdash; LAGRANGE PTS<br>1 &mdash; CLOSE CAM<br>2 &mdash; FAR CAM<br>` &mdash; EXIT</div>';
 }
 
 function exitNavMode(){
   flyMode=false;
-  fastForward=false;thrusting=false;
+  fastForward=false;
   // Reset orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
@@ -425,7 +422,6 @@ function exitNavMode(){
   flyCrosshair.classList.remove('active');
   flyHudSpeed.classList.remove('active');
   flyHudAltEl.classList.remove('active');
-  thrustSlider.classList.remove('active');
   hudOverlay.appendChild(missileFireBtn);
   missileFireBtn.className='missile-fire-btn';
   canvas.style.cursor='grab';
@@ -448,20 +444,13 @@ function updateNav(simDt){
   flyVel[0]+=0.5*a2[0]*simDt;
   flyVel[1]+=0.5*a2[1]*simDt;
   flyVel[2]+=0.5*a2[2]*simDt;
-  // Transfer state: continuous thrust in burn direction, scaled by thrustPower (slider)
+  // Transfer state: coast on Hohmann trajectory (gravity only), check for SOI capture
   if(orbitState===ORBIT_STATE.TRANSFER){
-    flyVel[0]+=transferBurnDir[0]*thrustPower*simDt;
-    flyVel[2]+=transferBurnDir[2]*thrustPower*simDt;
     checkSOICapture();
   }
   // Orbiting state: handle altitude adjustments
   if(orbitState===ORBIT_STATE.ORBITING){
     updateAltitude(simDt);
-  }
-  // Free state or manual thrust (SPACE key still works in FREE state)
-  if(orbitState===ORBIT_STATE.FREE&&thrusting&&aimDir){
-    flyVel[0]+=aimDir[0]*thrustPower*simDt;
-    flyVel[2]+=aimDir[2]*thrustPower*simDt;
   }
   // Lock to ecliptic plane
   flyPos[1]=0; flyVel[1]=0;
