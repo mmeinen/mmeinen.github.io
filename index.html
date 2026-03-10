@@ -1174,6 +1174,37 @@
           combatIndicatorEl.style.display='none';
           weaponIndicatorEl.style.display='none';
         }
+        // Lock reticle DOM update: project locked enemy positions to screen
+        if(combatMode&&selectedWeapon>=2&&lockState.targets.length>0){
+          lockReticlesContainer.style.display='block';
+          const mDR=Math.min(baseWidth,baseHeight);
+          for(let ri=0;ri<lockReticleDivs.length;ri++){
+            if(ri<lockState.targets.length){
+              const lk=lockState.targets[ri];
+              if(!enemies.alive[lk.enemyIdx]){lockReticleDivs[ri].style.display='none';continue;}
+              const eDx=enemies.posX[lk.enemyIdx]-_camP[0];
+              const eDy=(enemies.posY?enemies.posY[lk.enemyIdx]:0)-_camP[1];
+              const eDz=enemies.posZ[lk.enemyIdx]-_camP[2];
+              const eDp=eDx*_camF[0]+eDy*_camF[1]+eDz*_camF[2];
+              if(eDp<=0){lockReticleDivs[ri].style.display='none';continue;}
+              const eSx=baseWidth*0.5+(eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2])/eDp*1.8*mDR;
+              const eSy=baseHeight*0.5-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2])/eDp*1.8*mDR;
+              if(eSx<-50||eSx>baseWidth+50||eSy<-50||eSy>baseHeight+50){
+                lockReticleDivs[ri].style.display='none';continue;
+              }
+              lockReticleDivs[ri].style.display='block';
+              lockReticleDivs[ri].style.left=(eSx-12)+'px';
+              lockReticleDivs[ri].style.top=(eSy-12)+'px';
+              const countSpan=lockReticleDivs[ri].querySelector('.lock-count');
+              if(countSpan)countSpan.textContent=lk.count>1?'x'+lk.count:'';
+            }else{
+              lockReticleDivs[ri].style.display='none';
+            }
+          }
+        }else{
+          lockReticlesContainer.style.display='none';
+          for(let ri=0;ri<lockReticleDivs.length;ri++)lockReticleDivs[ri].style.display='none';
+        }
       }else{
         for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
           if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}

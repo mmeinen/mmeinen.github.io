@@ -490,7 +490,7 @@ body {
   box-shadow: 0 0 8px rgba(255, 80, 60, 0.4);
 }
 
-.missile-lock-count {
+.lock-reticle .lock-count {
   position: absolute;
   top: -14px;
   right: -20px;
@@ -501,6 +501,7 @@ body {
   pointer-events: none;
   z-index: 25;
   text-shadow: 0 0 4px rgba(255, 80, 60, 0.4);
+  transform: rotate(-45deg);
 }
 
 /* ============================================
