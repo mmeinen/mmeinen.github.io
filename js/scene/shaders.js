@@ -829,3 +829,35 @@ void main(){
   col+=v_color.rgb*engineGlow;
   gl_FragColor=vec4(col,1.0);
 }`;
+
+/* -- Billboard Explosion Shader (instanced rendering) -- */
+const billboardVS=`attribute vec2 a_corner;
+attribute vec3 a_bbCenter;
+attribute float a_bbFrame;
+attribute float a_bbSize;
+uniform mat4 u_bbViewProj;
+uniform mat4 u_bbView;
+uniform float u_bbFrameCount;
+varying vec2 v_uv;
+void main(){
+  vec3 camRight=vec3(u_bbView[0][0],u_bbView[1][0],u_bbView[2][0]);
+  vec3 camUp=vec3(u_bbView[0][1],u_bbView[1][1],u_bbView[2][1]);
+  vec3 worldPos=a_bbCenter
+    +camRight*a_corner.x*a_bbSize
+    +camUp*a_corner.y*a_bbSize;
+  gl_Position=u_bbViewProj*vec4(worldPos,1.0);
+  float frameWidth=1.0/u_bbFrameCount;
+  float texelInset=0.5/(u_bbFrameCount*64.0);
+  v_uv=vec2(
+    clamp((a_bbFrame+a_corner.x+0.5)*frameWidth,a_bbFrame*frameWidth+texelInset,(a_bbFrame+1.0)*frameWidth-texelInset),
+    a_corner.y+0.5
+  );
+}`;
+const billboardFS=`precision mediump float;
+uniform sampler2D u_bbSprite;
+varying vec2 v_uv;
+void main(){
+  vec4 texel=texture2D(u_bbSprite,v_uv);
+  if(texel.a<0.01)discard;
+  gl_FragColor=texel;
+}`;
