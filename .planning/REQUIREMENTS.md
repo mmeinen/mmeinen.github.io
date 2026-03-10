@@ -22,12 +22,12 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **WPN-02**: Kinetic cannon rounds are affected by gravity (curve around gravity wells)
 - [x] **WPN-03**: Player can fire a plasma gun that emits an energy blast toward a target
 - [x] **WPN-04**: Plasma blasts fade over distance and have minimal gravity effect (light-based)
-- [ ] **WPN-05**: Player can fire regular missiles with proportional navigation guidance toward a target
+- [x] **WPN-05**: Player can fire regular missiles with proportional navigation guidance toward a target
 - [ ] **WPN-06**: Regular missiles detonate when within blast radius of their target (proximity detonation)
-- [ ] **WPN-07**: Regular missiles have a fuel supply that depletes during flight
-- [ ] **WPN-08**: Missiles self-destruct without detonation when fuel is exhausted and trajectory will not intersect target
+- [x] **WPN-07**: Regular missiles have a fuel supply that depletes during flight
+- [x] **WPN-08**: Missiles self-destruct without detonation when fuel is exhausted and trajectory will not intersect target
 - [x] **WPN-09**: Regular missile explosions are sprite-based (billboard), not volumetric
-- [ ] **WPN-10**: Player can fire nuclear missiles with existing volumetric detonation shader
+- [x] **WPN-10**: Player can fire nuclear missiles with existing volumetric detonation shader
 - [x] **WPN-11**: Player can preview the predicted trajectory of a weapon before firing (gravity-affected path)
 
 ### Enemies
@@ -129,12 +129,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WPN-02 | Phase 3 | Complete |
 | WPN-03 | Phase 3 | Complete |
 | WPN-04 | Phase 3 | Complete |
-| WPN-05 | Phase 4 | Pending |
+| WPN-05 | Phase 4 | Complete |
 | WPN-06 | Phase 4 | Pending |
-| WPN-07 | Phase 4 | Pending |
-| WPN-08 | Phase 4 | Pending |
+| WPN-07 | Phase 4 | Complete |
+| WPN-08 | Phase 4 | Complete |
 | WPN-09 | Phase 4 | Complete |
-| WPN-10 | Phase 4 | Pending |
+| WPN-10 | Phase 4 | Complete |
 | WPN-11 | Phase 3 | Complete |
 | ENM-01 | Phase 5 | Pending |
 | ENM-02 | Phase 7 | Pending |

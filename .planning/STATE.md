@@ -45,7 +45,7 @@ Progress: [████████░░] 80% (8/10 plans)
 | 1 | 2 | 15 min | 7.5 min |
 | 2 | 3 | 55 min | 18 min |
 | 3 | 2 | 7 min | 3.5 min |
-| 4 | 1* | 3 min | 3 min |
+| 4 | 2* | 16 min | 8 min |
 
 **Recent Trend:**
 - Last 5 plans: ~45min (02-03 with debugging), 4min (03-01), 3min (03-02), 3min (04-02)
@@ -89,6 +89,11 @@ Recent decisions affecting current work:
 - [03-02]: Plasma bolts rendered per-bolt (individual draw calls) since max 2-3 active simultaneously
 - [03-02]: Trajectory preview uses simulateTrajectory for kinetic, linear projection for plasma
 - [03-02]: Orbit trajectory preview hidden during combat mode to avoid visual overlap
+- [04-01]: Missile SoA store named 'missile' (singular) vs old 'missiles' AoS
+- [04-01]: Lock-on limits weapon-type-dependent: regular=6x3, nuclear=3x1
+- [04-01]: Left-click adds lock, right-click fires salvo in missile mode
+- [04-01]: onMissileDetonate is stub -- Plan 02 wires explosion visuals
+- [04-01]: Nuclear missiles rendered 1.8x larger with whiter NUKE_MISSILE_COLOR
 - [04-02]: Billboard shaders compiled at runtime by initExplosionSystem using global cS helper
 - [04-02]: Sprite sheet on texture unit 1 to avoid conflicting with blackbody/noise on unit 0
 - [04-02]: Additive blending (SRC_ALPHA, ONE) for bright fireball effect
