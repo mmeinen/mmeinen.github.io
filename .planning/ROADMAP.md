@@ -117,7 +117,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- Player state (250 HP), shield SoA (10 pieces), shield rendering, damage wiring with shield-before-hull collision, vignette overlay, HP bar, stat tracking hooks
+- [x] 06-01-PLAN.md -- Player state (250 HP), shield SoA (10 pieces), shield rendering, damage wiring with shield-before-hull collision, vignette overlay, HP bar, stat tracking hooks
 - [ ] 06-02-PLAN.md -- Multi-stage death sequence (flicker/breakup/detonation), camera pull-out, game over screen with stats and localStorage high scores, restart flow (R key), exit flow (Escape)
 - [ ] 06-03-PLAN.md -- Off-screen enemy indicators (DOM chevrons at viewport edges with distance readout), visual verification of complete Phase 6
 

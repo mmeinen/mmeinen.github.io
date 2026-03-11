@@ -46,11 +46,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Defense
 
-- [ ] **DEF-01**: Player ship has a hull integrity (HP) value displayed on HUD
+- [x] **DEF-01**: Player ship has a hull integrity (HP) value displayed on HUD
 - [ ] **DEF-02**: Player ship is destroyed with an explosion when hull reaches zero
 - [ ] **DEF-03**: Game over screen shows stats (waves survived, enemies killed)
 - [ ] **DEF-04**: Player can restart from game over screen
-- [ ] **DEF-05**: Kinetic shields — physical debris objects positioned in front of the ship that absorb projectile hits
+- [x] **DEF-05**: Kinetic shields — physical debris objects positioned in front of the ship that absorb projectile hits
 - [ ] **DEF-06**: Off-screen enemy indicators — chevrons at screen edge pointing toward enemies outside the viewport
 
 ### Targeting & HUD
@@ -147,11 +147,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENM-09 | Phase 7 | Pending |
 | ENM-10 | Phase 5 | Complete |
 | ENM-11 | Phase 1 | Complete |
-| DEF-01 | Phase 6 | Pending |
+| DEF-01 | Phase 6 | Complete |
 | DEF-02 | Phase 6 | Pending |
 | DEF-03 | Phase 6 | Pending |
 | DEF-04 | Phase 6 | Pending |
-| DEF-05 | Phase 6 | Pending |
+| DEF-05 | Phase 6 | Complete |
 | DEF-06 | Phase 6 | Pending |
 | HUD-01 | Phase 8 | Pending |
 | HUD-02 | Phase 8 | Pending |
