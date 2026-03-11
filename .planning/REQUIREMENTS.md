@@ -51,7 +51,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DEF-03**: Game over screen shows stats (waves survived, enemies killed)
 - [x] **DEF-04**: Player can restart from game over screen
 - [x] **DEF-05**: Kinetic shields — physical debris objects positioned in front of the ship that absorb projectile hits
-- [ ] **DEF-06**: Off-screen enemy indicators — chevrons at screen edge pointing toward enemies outside the viewport
+- [x] **DEF-06**: Off-screen enemy indicators — chevrons at screen edge pointing toward enemies outside the viewport
 
 ### Targeting & HUD
 
@@ -152,7 +152,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEF-03 | Phase 6 | Complete |
 | DEF-04 | Phase 6 | Complete |
 | DEF-05 | Phase 6 | Complete |
-| DEF-06 | Phase 6 | Pending |
+| DEF-06 | Phase 6 | Complete |
 | HUD-01 | Phase 8 | Pending |
 | HUD-02 | Phase 8 | Pending |
 | HUD-03 | Phase 8 | Pending |

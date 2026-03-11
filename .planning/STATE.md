@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-11T16:06:00Z"
-last_activity: 2026-03-11 -- Phase 6 Plan 02 complete (death sequence + game over)
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-11T16:12:00Z"
+last_activity: 2026-03-11 -- Phase 6 Plan 03 complete (off-screen enemy indicators)
 progress:
   total_phases: 9
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 ---
@@ -51,23 +51,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 6: Player Defense & Survival -- Plan 02 complete (death sequence, game over, restart).
+**Current focus:** Phase 6: Player Defense & Survival -- Plan 03 complete (off-screen enemy indicators). Phase 6 complete pending visual verification.
 
 ## Current Position
 
 Phase: 6 of 9 (Player Defense & Survival)
-Plan: 2 of 3 in current phase (complete)
-Status: Plan 02 complete. Death sequence, game over screen, stats, high scores, restart flow.
-Last activity: 2026-03-11 -- Phase 6 Plan 02 complete (death sequence + game over)
+Plan: 3 of 3 in current phase (complete)
+Status: Plan 03 complete. Off-screen enemy indicators with directional chevrons and distance readout. Phase 6 complete pending visual verification.
+Last activity: 2026-03-11 -- Phase 6 Plan 03 complete (off-screen enemy indicators)
 
-Progress: [█████████░] 93% (14/15 plans)
+Progress: [██████████] 100% (15/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: ~6 min
-- Total execution time: ~1.3 hours
+- Total execution time: ~1.4 hours
 
 **By Phase:**
 
@@ -88,6 +88,7 @@ Progress: [█████████░] 93% (14/15 plans)
 | Phase 05 P02 | 3min | 2 tasks | 2 files |
 | Phase 06 P01 | 5min | 2 tasks | 5 files |
 | Phase 06 P02 | 9min | 2 tasks | 3 files |
+| Phase 06 P03 | 4min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,8 @@ Recent decisions affecting current work:
 - [Phase 06]: Camera freezes on deathPos during breakup/detonation (not live flyPos)
 - [Phase 06]: Free slot lists rebuilt during resetCombat to prevent pool exhaustion
 - [Phase 06]: Death phase state machine: 0=alive, 1=flicker(1s), 2=breakup(1.5s), 3=detonation(3.5s), 4=gameOver
+- [Phase 06]: Off-screen indicators use camera-vector dot-product projection (not _mvp which includes model transform)
+- [Phase 06]: Indicator archetype colors indexed by enemy type (5-color array, extensible for Phase 7)
 
 ### Pending Todos
 
@@ -165,6 +168,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T16:06:00Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-11T16:12:00Z
+Stopped at: Completed 06-03-PLAN.md (awaiting visual verification checkpoint)
 Resume file: None
