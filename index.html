@@ -256,6 +256,63 @@
     }
     loadHighScores();
 
+    /* ---- Death Sequence: Breakup Debris Store ---- */
+    const BREAKUP_PIECES = 4;
+    const breakup = {
+      posX: new Float32Array(BREAKUP_PIECES),
+      posY: new Float32Array(BREAKUP_PIECES),
+      posZ: new Float32Array(BREAKUP_PIECES),
+      velX: new Float32Array(BREAKUP_PIECES),
+      velY: new Float32Array(BREAKUP_PIECES),
+      velZ: new Float32Array(BREAKUP_PIECES),
+      rotX: new Float32Array(BREAKUP_PIECES),
+      rotY: new Float32Array(BREAKUP_PIECES),
+      spinX: new Float32Array(BREAKUP_PIECES),
+      spinY: new Float32Array(BREAKUP_PIECES),
+    };
+    let deathCamSaved = { az: 0, el: 0, dist: 0 };
+    let deathPos = [0, 0, 0]; // frozen position for camera target during death
+
+    function initBreakup() {
+      deathPos[0] = flyPos[0]; deathPos[1] = flyPos[1]; deathPos[2] = flyPos[2];
+      for (let i = 0; i < BREAKUP_PIECES; i++) {
+        breakup.posX[i] = flyPos[0];
+        breakup.posY[i] = 0;
+        breakup.posZ[i] = flyPos[2];
+        // Random outward velocity (3-8 units/s radially outward + 1-3 units/s upward)
+        const angle = (i / BREAKUP_PIECES) * Math.PI * 2 + (Math.random() - 0.5) * 1.0;
+        const speed = 3 + Math.random() * 5;
+        breakup.velX[i] = Math.sin(angle) * speed;
+        breakup.velY[i] = 1 + Math.random() * 2;
+        breakup.velZ[i] = Math.cos(angle) * speed;
+        breakup.rotX[i] = 0;
+        breakup.rotY[i] = 0;
+        breakup.spinX[i] = (Math.random() - 0.5) * 6;
+        breakup.spinY[i] = (Math.random() - 0.5) * 6;
+      }
+      spawnExplosion(flyPos[0], 0, flyPos[2], 2.0);
+    }
+
+    function updateBreakup(dt) {
+      for (let i = 0; i < BREAKUP_PIECES; i++) {
+        breakup.posX[i] += breakup.velX[i] * dt;
+        breakup.posY[i] += breakup.velY[i] * dt;
+        breakup.posZ[i] += breakup.velZ[i] * dt;
+        breakup.rotX[i] += breakup.spinX[i] * dt;
+        breakup.rotY[i] += breakup.spinY[i] * dt;
+        // Slight downward gravity
+        breakup.velY[i] -= 2.0 * dt;
+      }
+    }
+
+    function triggerDetonationAtShip() {
+      const slot = detSlots.find(function(s) { return !s.active; });
+      if (!slot) return;
+      slot.pos[0] = deathPos[0]; slot.pos[1] = 0; slot.pos[2] = deathPos[2];
+      slot.startSimTime = simTime;
+      slot.active = true;
+    }
+
     // HUD refs for HP
     const vignetteEl = document.getElementById('damage-vignette');
     const hpBarEl = document.getElementById('hp-bar');
@@ -435,6 +492,60 @@
         gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shieldIdxBuf);
         gl.drawElements(gl.TRIANGLES,shieldIdxCount,gl.UNSIGNED_SHORT,0);
+        gl.disableVertexAttribArray(shipLocs.aPos);
+        gl.disableVertexAttribArray(shipLocs.aNorm);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+      }
+    }
+    // Breakup debris geometry (larger hull chunks)
+    const breakupGeo=createBoxGeometry(0.4,0.2,0.6);
+    const breakupIdxCount=breakupGeo.indices.length;
+    const breakupPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,breakupPosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,breakupGeo.positions,gl.STATIC_DRAW);
+    const breakupNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,breakupNrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,breakupGeo.normals,gl.STATIC_DRAW);
+    const breakupIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,breakupIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,breakupGeo.indices,gl.STATIC_DRAW);
+    // Breakup model matrices (scratch)
+    const _brkModel=new Float32Array(16),_brkMvp=new Float32Array(16),_brkT16=new Float32Array(16),_brkNorm=new Float32Array(9);
+    const BREAKUP_COLOR=[0.2,0.28,0.42]; // ship color tinted slightly darker
+    function renderBreakupPieces(){
+      gl.useProgram(shipPg);
+      for(let i=0;i<BREAKUP_PIECES;i++){
+        const px=breakup.posX[i],py=breakup.posY[i],pz=breakup.posZ[i];
+        const rx=breakup.rotX[i],ry=breakup.rotY[i];
+        // Build rotation matrix from rotX/rotY tumble angles
+        const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry);
+        // Combined Y*X rotation applied to identity basis
+        const fwd=[sy*cx, -sx, cy*cx];
+        const up=[sy*sx, cx, cy*sx]; // approximate
+        const right=[cy, 0, -sy];
+        // Normalize
+        const fl=Math.sqrt(fwd[0]*fwd[0]+fwd[1]*fwd[1]+fwd[2]*fwd[2])||1;
+        fwd[0]/=fl;fwd[1]/=fl;fwd[2]/=fl;
+        const rl=Math.sqrt(right[0]*right[0]+right[1]*right[1]+right[2]*right[2])||1;
+        right[0]/=rl;right[1]/=rl;right[2]/=rl;
+        // Recompute up as cross(right, fwd)
+        up[0]=right[1]*fwd[2]-right[2]*fwd[1];
+        up[1]=right[2]*fwd[0]-right[0]*fwd[2];
+        up[2]=right[0]*fwd[1]-right[1]*fwd[0];
+        const bPos=[px,py,pz];
+        mat4Model(bPos,fwd,up,right,_brkModel);
+        mat4Mul(_view,_brkModel,_brkT16);
+        mat4Mul(_proj,_brkT16,_brkMvp);
+        mat3NormalFromMat4(_brkT16,_brkNorm);
+        gl.uniformMatrix4fv(shipLocs.uMvp,false,_brkMvp);
+        gl.uniformMatrix3fv(shipLocs.uNorm,false,_brkNorm);
+        gl.uniform3f(shipLocs.uColor,BREAKUP_COLOR[0],BREAKUP_COLOR[1],BREAKUP_COLOR[2]);
+        gl.uniform1f(shipLocs.uThrust,0.0);
+        gl.bindBuffer(gl.ARRAY_BUFFER,breakupPosBuf);
+        gl.enableVertexAttribArray(shipLocs.aPos);
+        gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
+        gl.bindBuffer(gl.ARRAY_BUFFER,breakupNrmBuf);
+        gl.enableVertexAttribArray(shipLocs.aNorm);
+        gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,breakupIdxBuf);
+        gl.drawElements(gl.TRIANGLES,breakupIdxCount,gl.UNSIGNED_SHORT,0);
         gl.disableVertexAttribArray(shipLocs.aPos);
         gl.disableVertexAttribArray(shipLocs.aNorm);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
@@ -753,6 +864,13 @@
     /* ---- Init explosion system ---- */
     initExplosionSystem(gl, iExt);
 
+    /* ---- Game Over Screen (stubs -- fully implemented in Task 2) ---- */
+    function showGameOverScreen() {
+      // Populated in Task 2; for now just log
+      console.log('GAME OVER - deathPhase=4');
+    }
+    function hideGameOverScreen() {}
+
     /* ---- Render loop ---- */
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
       hF=document.getElementById('hud-fps'),hSc=document.getElementById('hud-scale');
@@ -768,16 +886,51 @@
       dv.setFloat32(0x010,simTime,true);
       wMem();
       wf();
+      // --- Death sequence state machine ---
+      if (playerState.deathPhase > 0) {
+        const prevTimer = playerState.deathTimer;
+        playerState.deathTimer += simDtSec;
+        if (playerState.deathPhase === 1) {
+          // FLICKER phase (~1.0s): ship flickers, small sparks every ~0.25s
+          if (Math.floor(playerState.deathTimer / 0.25) > Math.floor(prevTimer / 0.25)) {
+            spawnExplosion(flyPos[0] + (Math.random()-0.5)*0.5, 0, flyPos[2] + (Math.random()-0.5)*0.5, 0.5);
+          }
+          if (playerState.deathTimer > 1.0) {
+            playerState.deathPhase = 2;
+            playerState.deathTimer = 0;
+            deathCamSaved.az = navCamAz;
+            deathCamSaved.el = navCamEl;
+            deathCamSaved.dist = navCamDist;
+            initBreakup();
+          }
+        } else if (playerState.deathPhase === 2) {
+          // BREAKUP phase (~1.5s): pieces tumble outward, no ship mesh
+          updateBreakup(simDtSec);
+          if (playerState.deathTimer > 1.5) {
+            playerState.deathPhase = 3;
+            playerState.deathTimer = 0;
+            triggerDetonationAtShip();
+          }
+        } else if (playerState.deathPhase === 3) {
+          // DETONATION phase (~3.5s): volumetric explosion, camera pulls out
+          navCamDist += (120 - navCamDist) * simDtSec * 0.8;
+          navCamEl += (0.6 - navCamEl) * simDtSec * 0.5;
+          if (playerState.deathTimer > 3.5) {
+            playerState.deathPhase = 4;
+            showGameOverScreen();
+          }
+        }
+      }
       updateNav(simDtSec);
       updateMissiles(simDtSec);
       if(flyMode)updateExplosions(simDtSec);
       // Missile trail ring buffer: push positions, decay alphas
       if(flyMode&&missileCount>0){for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){if(!missile.alive[mi])continue;const mta=missile.fuel[mi]>0?1.0:0.3;const mth=missileTrailHead;missileTrailPos[mth*3]=missile.posX[mi];missileTrailPos[mth*3+1]=0;missileTrailPos[mth*3+2]=missile.posZ[mi];if(missileTrailAlpha[mth]<=0)missileTrailCount++;missileTrailAlpha[mth]=mta;missileTrailType[mth]=missile.type[mi];missileTrailHead=(missileTrailHead+1)%missileTrailMaxPts;}}
       for(let mt=0;mt<missileTrailMaxPts;mt++){if(missileTrailAlpha[mt]>0){missileTrailAlpha[mt]-=simDtSec*3.0;if(missileTrailAlpha[mt]<=0){missileTrailAlpha[mt]=0;missileTrailCount=Math.max(0,missileTrailCount-1);}}}
-      // Update shield positions (follow ship)
-      if(flyMode&&shieldCount>0)updateShieldPositions();
-      // Track time survived
-      if(flyMode&&playerState.alive)playerState.stats.timeSurvived+=simDtSec;
+      // Update shield positions (follow ship) -- only when alive
+      if(flyMode&&shieldCount>0&&playerState.alive)updateShieldPositions();
+      // Track time survived -- only when not in death sequence
+      if(flyMode&&playerState.deathPhase===0)playerState.stats.timeSurvived+=simDtSec;
       // Update enemy AI state machine (only when player alive)
       if(enemyCount>0&&playerState.alive){
         updateEnemyAI(simDtSec,simTime,flyPos,flyVel,orbitBody);
@@ -789,11 +942,15 @@
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
       if(flyMode){
-        const cx=flyPos[0]+navCamDist*Math.cos(navCamEl)*Math.sin(navCamAz);
-        const cy=flyPos[1]+navCamDist*Math.sin(navCamEl);
-        const cz=flyPos[2]+navCamDist*Math.cos(navCamEl)*Math.cos(navCamAz);
+        // Camera target: use deathPos during death phases 2+ (breakup/detonation/gameOver)
+        const camTargetX = playerState.deathPhase >= 2 ? deathPos[0] : flyPos[0];
+        const camTargetY = playerState.deathPhase >= 2 ? deathPos[1] : flyPos[1];
+        const camTargetZ = playerState.deathPhase >= 2 ? deathPos[2] : flyPos[2];
+        const cx=camTargetX+navCamDist*Math.cos(navCamEl)*Math.sin(navCamAz);
+        const cy=camTargetY+navCamDist*Math.sin(navCamEl);
+        const cz=camTargetZ+navCamDist*Math.cos(navCamEl)*Math.cos(navCamAz);
         _camP[0]=cx;_camP[1]=cy;_camP[2]=cz;
-        _camF[0]=flyPos[0]-cx;_camF[1]=flyPos[1]-cy;_camF[2]=flyPos[2]-cz;
+        _camF[0]=camTargetX-cx;_camF[1]=camTargetY-cy;_camF[2]=camTargetZ-cz;
         v3norm(_camF,_camF);
         v3cross(_camR,_camF,_worldUp);v3norm(_camR,_camR);
         v3cross(_camU,_camR,_camF);v3norm(_camU,_camU);
@@ -948,7 +1105,8 @@
         const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
         const aspect=canvas.width/canvas.height;
         mat4Perspective(fovY,aspect,0.1,500,_proj);
-        mat4LookAt(_camP,flyPos,_camU,_view);
+        const _lookTarget = playerState.deathPhase >= 2 ? deathPos : flyPos;
+        mat4LookAt(_camP,_lookTarget,_camU,_view);
         mat4Mul(_proj,_view,_vpMat);
         mat4Model(flyPos,flyFwd,flyUp,_shipR,_model);
         mat4Mul(_view,_model,_t16);
@@ -1018,31 +1176,45 @@
           }
         }
 
-        gl.useProgram(shipPg);
-        gl.uniformMatrix4fv(shipLocs.uMvp,false,_mvp);
-        gl.uniformMatrix3fv(shipLocs.uNorm,false,_normM);
-        gl.uniform3f(shipLocs.uColor,SHIP_COLOR[0],SHIP_COLOR[1],SHIP_COLOR[2]);
-        gl.uniform3f(shipLocs.uLight,_toLV[0],_toLV[1],_toLV[2]);
-        { // Engine glow: full during transfer, half during altitude adjust, off otherwise
-          const thrustIntensity=(orbitState===ORBIT_STATE.TRANSFER)?1.0
-                                :(altUpHeld||altDownHeld)?0.5:0.0;
-          gl.uniform1f(shipLocs.uThrust,thrustIntensity);
-        }
+        // Ship mesh rendering: gated by death phase
+        // Phase 0 (alive) or phase 1 (flicker): draw ship
+        // Phase 2 (breakup): draw breakup debris instead
+        // Phase 3+ (detonation/game over): draw nothing
         gl.disableVertexAttribArray(aP);
-        gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
-        gl.enableVertexAttribArray(shipLocs.aPos);
-        gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,shipNrmBuf);
-        gl.enableVertexAttribArray(shipLocs.aNorm);
-        gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
-        gl.drawElements(gl.TRIANGLES,shipIdxCount,gl.UNSIGNED_SHORT,0);
-        gl.disableVertexAttribArray(shipLocs.aPos);
-        gl.disableVertexAttribArray(shipLocs.aNorm);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+        if (playerState.deathPhase === 0 || playerState.deathPhase === 1) {
+          // During flicker: skip rendering every other cycle based on sin(timer*30)
+          const showShip = playerState.deathPhase === 0 || Math.sin(playerState.deathTimer * 30) > 0;
+          if (showShip) {
+            gl.useProgram(shipPg);
+            gl.uniformMatrix4fv(shipLocs.uMvp,false,_mvp);
+            gl.uniformMatrix3fv(shipLocs.uNorm,false,_normM);
+            gl.uniform3f(shipLocs.uColor,SHIP_COLOR[0],SHIP_COLOR[1],SHIP_COLOR[2]);
+            gl.uniform3f(shipLocs.uLight,_toLV[0],_toLV[1],_toLV[2]);
+            { // Engine glow: full during transfer, half during altitude adjust, off otherwise
+              const thrustIntensity=(orbitState===ORBIT_STATE.TRANSFER)?1.0
+                                    :(altUpHeld||altDownHeld)?0.5:0.0;
+              gl.uniform1f(shipLocs.uThrust,thrustIntensity);
+            }
+            gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
+            gl.enableVertexAttribArray(shipLocs.aPos);
+            gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ARRAY_BUFFER,shipNrmBuf);
+            gl.enableVertexAttribArray(shipLocs.aNorm);
+            gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
+            gl.drawElements(gl.TRIANGLES,shipIdxCount,gl.UNSIGNED_SHORT,0);
+            gl.disableVertexAttribArray(shipLocs.aPos);
+            gl.disableVertexAttribArray(shipLocs.aNorm);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+          }
+        } else if (playerState.deathPhase === 2) {
+          // Breakup phase: render tumbling debris pieces
+          renderBreakupPieces();
+        }
+        // Phase 3+: no ship or debris rendered (detonation VFX handles it)
 
-        // Shield piece rendering (after ship, before missiles)
-        if(shieldCount>0)renderShieldPieces();
+        // Shield piece rendering (after ship, before missiles) -- only when alive
+        if(shieldCount>0&&playerState.alive)renderShieldPieces();
 
         // SoA missile body rendering (individual draw calls -- max 24 missiles, tiny geometry)
         if(missileCount>0){
