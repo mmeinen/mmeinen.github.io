@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-11T01:47:37.708Z"
+last_activity: 2026-03-11 -- Phase 5 Plans 01-02 executed
+progress:
+  total_phases: 9
+  completed_phases: 5
+  total_plans: 12
+  completed_plans: 12
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
 stopped_at: Completed 05-02-PLAN.md Task 1, awaiting checkpoint
 last_updated: "2026-03-11T01:44:49Z"
 last_activity: 2026-03-11 -- Phase 5 Plans 01-02 executed (enemy AI + impact particles)
 progress:
-  total_phases: 9
+  [██████████] 100%
   completed_phases: 4
   total_plans: 12
   completed_plans: 12
@@ -53,6 +69,7 @@ Progress: [████████████] 100% (12/12 plans)
 - Trend: fast execution when plan is well-researched
 
 *Updated after each plan completion*
+| Phase 05 P01 | 8min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -113,6 +130,7 @@ Recent decisions affecting current work:
 - [05-02]: Impact particles 256-slot SoA with 0.3s lifetime, 5-8 per hit
 - [05-02]: Particle rendering via GL_POINTS with additive blending, lazy GL buffer
 - [05-02]: typeof guard for spawnImpactParticles handles script load order
+- [Phase 05-01]: Instance buffer stride 10 floats with flash attribute for hit visual feedback
 
 ### Pending Todos
 
@@ -124,6 +142,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T01:44:49Z
-Stopped at: Completed 05-02-PLAN.md Task 1, checkpoint:human-verify pending
-Resume file: .planning/phases/05-enemy-behavior-combat-feedback/05-02-PLAN.md
+Last session: 2026-03-11T01:47:37.705Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None

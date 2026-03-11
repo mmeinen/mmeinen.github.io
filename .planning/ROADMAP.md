@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
 - [x] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview (completed 2026-03-10)
 - [x] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer (completed 2026-03-11)
-- [ ] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles
+- [x] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles (completed 2026-03-11)
 - [ ] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators
 - [ ] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling
 - [ ] **Phase 8: Combat HUD** - Weapon status panel, wave counter, hull integrity bar, orbit info display
@@ -98,7 +98,7 @@ Plans:
   2. Grunt enemies fire projectiles at the player when in range with accuracy that can be tuned per difficulty
   3. When a projectile hits an enemy, the enemy flashes visibly to confirm the hit
   4. Projectile impacts produce visible particle effects at the hit location
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 05-01-PLAN.md -- Enemy AI state machine (idle/alert/transfer/attack/disengage/re-orbit), instance buffer extension (9->10 floats for flash), enemy firing with lead prediction, shader flash support
@@ -179,7 +179,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 2. Player Ship & Orbital Movement | 3/3 | Complete | 2026-03-10 |
 | 3. Direct-Fire Weapons | 2/2 | Complete   | 2026-03-10 |
 | 4. Missile Systems & Explosions | 3/3 | Complete   | 2026-03-11 |
-| 5. Enemy Behavior & Combat Feedback | 0/2 | Not started | - |
+| 5. Enemy Behavior & Combat Feedback | 2/2 | Complete   | 2026-03-11 |
 | 6. Player Defense & Survival | 0/3 | Not started | - |
 | 7. Wave Progression & Enemy Variety | 0/3 | Not started | - |
 | 8. Combat HUD | 0/2 | Not started | - |
