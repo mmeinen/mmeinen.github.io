@@ -406,7 +406,7 @@ function enterNavMode(){
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
   transferBurnMag=0; targetOrbitAlt=-1; transferBurnDir[0]=0; transferBurnDir[1]=0; transferBurnDir[2]=0;
-  if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;}
+  if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;if(typeof initShieldWall==='function')initShieldWall();}
   clearLocks();for(let _mi=0;_mi<MAX_MISSILES_ACTIVE;_mi++){if(missile.alive[_mi])removeMissile(_mi);}
   hudOverlay.classList.add('nav-active');
   flyNavGroup.classList.add('active');

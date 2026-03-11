@@ -505,6 +505,34 @@ body {
 }
 
 /* ============================================
+   DAMAGE VIGNETTE & HP BAR
+   ============================================ */
+
+.damage-vignette {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none; z-index: 15;
+  box-shadow: inset 0 0 150px rgba(255, 60, 30, var(--vignette-alpha, 0));
+  transition: box-shadow 0.3s ease;
+}
+.hp-bar-container {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 8px; background: rgba(60,140,255,0.15);
+  border: 1px solid rgba(60,140,255,0.4); z-index: 25;
+  display: none; /* shown when nav-active */
+}
+.nav-active .hp-bar-container { display: block; }
+.hp-bar {
+  height: 100%; width: 100%; background: rgba(60,140,255,0.8);
+  transition: width 0.2s ease;
+}
+.hp-bar.warning { background: rgba(255,160,80,0.8); }
+.hp-bar.critical { background: rgba(255,60,30,0.8); }
+.hp-text {
+  position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  color: rgba(60,140,255,0.9); font-family: monospace; font-size: 11px;
+}
+
+/* ============================================
    MOBILE RESPONSIVE — phones
    ============================================ */
 
@@ -543,7 +571,9 @@ body {
   .fly-hud-combat,
   .fly-hud-weapon,
   .missile-fire-btn,
-  .lpoint-label {
+  .lpoint-label,
+  .damage-vignette,
+  .hp-bar-container {
     display: none !important;
   }
 

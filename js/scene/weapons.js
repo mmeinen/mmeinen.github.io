@@ -99,6 +99,7 @@ function fireKineticBurst(st) {
   fireOneKinetic();
   kineticBurstRemaining--;
   weaponCooldownEnd[0] = st + KINETIC_COOLDOWN;
+  if (typeof recordShotFired === 'function') recordShotFired();
 }
 
 /**
@@ -111,6 +112,7 @@ function firePlasma(st) {
   const vz = aimDir[2] * PLASMA_SPEED;
   spawnProjectile(1, flyPos[0], flyPos[2], vx, vz);
   weaponCooldownEnd[1] = st + PLASMA_COOLDOWN;
+  if (typeof recordShotFired === 'function') recordShotFired();
 }
 
 /**
@@ -502,11 +504,14 @@ function checkProjectileHits() {
         // HIT: apply damage, trigger flash, spawn impact particles
         enemies.hp[ci] -= dmg;
         enemies.flash[ci] = 1.0;
+        if (typeof recordDamageDealt === 'function') recordDamageDealt(dmg);
+        if (typeof recordShotHit === 'function') recordShotHit();
         if (typeof spawnImpactParticles === 'function') {
           spawnImpactParticles(proj.posX[i], proj.posZ[i], enemies.type[ci]);
         }
         if (enemies.hp[ci] <= 0) {
           spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+          if (typeof recordEnemyKill === 'function') recordEnemyKill();
           removeEnemy(ci);
         }
         removeProjectile(i);
@@ -542,11 +547,13 @@ function checkMissileBlastHits(x, z, damage, blastRadius) {
     if (dx * dx + dz * dz < blastRadSq) {
       enemies.hp[ci] -= damage;
       enemies.flash[ci] = 1.0;
+      if (typeof recordDamageDealt === 'function') recordDamageDealt(damage);
       if (typeof spawnImpactParticles === 'function') {
         spawnImpactParticles(enemies.posX[ci], enemies.posZ[ci], enemies.type[ci]);
       }
       if (enemies.hp[ci] <= 0) {
         spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+        if (typeof recordEnemyKill === 'function') recordEnemyKill();
         removeEnemy(ci);
       }
     }

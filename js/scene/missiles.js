@@ -172,6 +172,7 @@ function fireMissileSalvo(st) {
     const lock = lockState.targets[t];
     for (let c = 0; c < lock.count; c++) {
       const spawned = spawnMissile(missileType, lock.enemyIdx);
+      if (spawned >= 0 && typeof recordShotFired === 'function') recordShotFired();
       if (spawned >= 0 && c > 0) {
         // Fan-out: add perpendicular velocity offset for spread
         const perpX = -missile.fwdZ[spawned];

@@ -99,7 +99,9 @@
          <span class="nuke-icon">&#x2622;</span> DETONATE
        </button>
        <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
+       <div class="hp-bar-container" id="hp-bar-container"><div class="hp-bar" id="hp-bar"></div><span class="hp-text" id="hp-text">250</span></div>
      </div>
+     <div class="damage-vignette" id="damage-vignette"></div>
      <div id="lock-reticles" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25;"></div>
    </div>
 
@@ -169,6 +171,95 @@
     const LPOINT_MARKER_RADIUS=0.8;
     const lPointLabels=[];
     for(let i=0;i<12;i++)lPointLabels.push(document.getElementById('lpoint-label-'+i));
+
+    /* ---- Player State ---- */
+    const playerState = {
+      hp: 250, maxHp: 250, alive: true,
+      deathPhase: 0, deathTimer: 0, // 0=alive, 1=flicker, 2=breakup, 3=detonation, 4=gameOver
+      stats: { enemiesKilled: 0, wavesSurvived: 1, timeSurvived: 0, damageDealt: 0, shotsFired: 0, shotsHit: 0 },
+      best: { wavesSurvived: 0, enemiesKilled: 0 },
+    };
+    const ENEMY_KINETIC_DAMAGE = 15;
+
+    /* ---- Shield SoA Store ---- */
+    const MAX_SHIELD_PIECES = 10;
+    const shield = {
+      alive: new Uint8Array(MAX_SHIELD_PIECES),
+      posX: new Float32Array(MAX_SHIELD_PIECES),
+      posY: new Float32Array(MAX_SHIELD_PIECES),
+      posZ: new Float32Array(MAX_SHIELD_PIECES),
+      offFwd: new Float32Array(MAX_SHIELD_PIECES),
+      offRight: new Float32Array(MAX_SHIELD_PIECES),
+    };
+    let shieldCount = 0;
+    const SHIELD_HIT_RADIUS = 0.8;
+    const SHIELD_HIT_RADIUS_SQ = SHIELD_HIT_RADIUS * SHIELD_HIT_RADIUS;
+
+    function initShieldWall() {
+      // Two rows of 5, staggered arc formation in front of ship
+      for (let i = 0; i < MAX_SHIELD_PIECES; i++) {
+        shield.alive[i] = 1;
+        const row = i < 5 ? 0 : 1;
+        const col = i < 5 ? i : i - 5;
+        shield.offFwd[i] = 3.0 + row * 0.8; // 3.0 front row, 3.8 back row
+        shield.offRight[i] = (col - 2) * 1.1 + (row === 1 ? 0.55 : 0); // staggered
+      }
+      shieldCount = MAX_SHIELD_PIECES;
+    }
+
+    function updateShieldPositions() {
+      const rightX = -flyFwd[2], rightZ = flyFwd[0];
+      for (let i = 0; i < MAX_SHIELD_PIECES; i++) {
+        if (!shield.alive[i]) continue;
+        shield.posX[i] = flyPos[0] + flyFwd[0] * shield.offFwd[i] + rightX * shield.offRight[i];
+        shield.posY[i] = 0;
+        shield.posZ[i] = flyPos[2] + flyFwd[2] * shield.offFwd[i] + rightZ * shield.offRight[i];
+      }
+    }
+
+    function destroyShieldPiece(idx) {
+      shield.alive[idx] = 0;
+      shieldCount--;
+      if (typeof spawnImpactParticles === 'function') spawnImpactParticles(shield.posX[idx], shield.posZ[idx], 0);
+    }
+
+    function applyPlayerDamage(amount) {
+      if (!playerState.alive) return;
+      playerState.hp -= amount;
+      if (playerState.hp <= 0) {
+        playerState.hp = 0;
+        playerState.alive = false;
+        playerState.deathPhase = 1;
+        playerState.deathTimer = 0;
+      }
+    }
+
+    /* ---- Stat Tracking Helpers ---- */
+    function recordDamageDealt(amount) { playerState.stats.damageDealt += amount; }
+    function recordEnemyKill() { playerState.stats.enemiesKilled++; }
+    function recordShotFired() { playerState.stats.shotsFired++; }
+    function recordShotHit() { playerState.stats.shotsHit++; }
+
+    function loadHighScores() {
+      try {
+        const d = JSON.parse(localStorage.getItem('meinenspace_best'));
+        if (d) { playerState.best.wavesSurvived = d.wavesSurvived || 0; playerState.best.enemiesKilled = d.enemiesKilled || 0; }
+      } catch (e) { /* ignore */ }
+    }
+    function saveHighScores() {
+      try {
+        const b = playerState.best;
+        if (playerState.stats.wavesSurvived > b.wavesSurvived) b.wavesSurvived = playerState.stats.wavesSurvived;
+        if (playerState.stats.enemiesKilled > b.enemiesKilled) b.enemiesKilled = playerState.stats.enemiesKilled;
+        localStorage.setItem('meinenspace_best', JSON.stringify(b));
+      } catch (e) { /* ignore */ }
+    }
+    loadHighScores();
+
+    // HUD refs for HP
+    const vignetteEl = document.getElementById('damage-vignette');
+    const hpBarEl = document.getElementById('hp-bar');
+    const hpTextEl = document.getElementById('hp-text');
    </script>
 
    <!-- Nav mode + combat + weapons + explosions + missiles (depend on planetData, DOM refs, math) -->
@@ -303,6 +394,52 @@
     gl.bufferData(gl.ARRAY_BUFFER,missileGeo.normals,gl.STATIC_DRAW);
     const missileIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,missileGeo.indices,gl.STATIC_DRAW);
+    // Shield piece geometry (small rectangular debris)
+    const shieldGeo=createBoxGeometry(0.3,0.15,0.4);
+    const shieldIdxCount=shieldGeo.indices.length;
+    const shieldPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shieldPosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,shieldGeo.positions,gl.STATIC_DRAW);
+    const shieldNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shieldNrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,shieldGeo.normals,gl.STATIC_DRAW);
+    const shieldIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shieldIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,shieldGeo.indices,gl.STATIC_DRAW);
+    // Shield model matrices (scratch)
+    const _shieldModel=new Float32Array(16),_shieldMvp=new Float32Array(16),_shieldT16=new Float32Array(16),_shieldNorm=new Float32Array(9);
+    const _shieldFwd=new Float32Array(3),_shieldR=new Float32Array(3);
+    const SHIELD_COLOR=[0.5,0.55,0.65];
+    function renderShieldPieces(){
+      if(shieldCount===0)return;
+      gl.useProgram(shipPg);
+      for(let i=0;i<MAX_SHIELD_PIECES;i++){
+        if(!shield.alive[i])continue;
+        const px=shield.posX[i],pz=shield.posZ[i];
+        // Slight rotation offset per piece for visual variety
+        const rotOff=i*0.3;
+        const c=Math.cos(rotOff),s=Math.sin(rotOff);
+        _shieldFwd[0]=flyFwd[0]*c+(-flyFwd[2])*s;_shieldFwd[1]=0;_shieldFwd[2]=flyFwd[2]*c+flyFwd[0]*s;
+        v3cross(_shieldR,_shieldFwd,_worldUp);v3norm(_shieldR,_shieldR);
+        const sPos=[px,0,pz];
+        mat4Model(sPos,_shieldFwd,_worldUp,_shieldR,_shieldModel);
+        mat4Mul(_view,_shieldModel,_shieldT16);
+        mat4Mul(_proj,_shieldT16,_shieldMvp);
+        mat3NormalFromMat4(_shieldT16,_shieldNorm);
+        gl.uniformMatrix4fv(shipLocs.uMvp,false,_shieldMvp);
+        gl.uniformMatrix3fv(shipLocs.uNorm,false,_shieldNorm);
+        gl.uniform3f(shipLocs.uColor,SHIELD_COLOR[0],SHIELD_COLOR[1],SHIELD_COLOR[2]);
+        gl.uniform1f(shipLocs.uThrust,0.0);
+        gl.bindBuffer(gl.ARRAY_BUFFER,shieldPosBuf);
+        gl.enableVertexAttribArray(shipLocs.aPos);
+        gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
+        gl.bindBuffer(gl.ARRAY_BUFFER,shieldNrmBuf);
+        gl.enableVertexAttribArray(shipLocs.aNorm);
+        gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shieldIdxBuf);
+        gl.drawElements(gl.TRIANGLES,shieldIdxCount,gl.UNSIGNED_SHORT,0);
+        gl.disableVertexAttribArray(shipLocs.aPos);
+        gl.disableVertexAttribArray(shipLocs.aNorm);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+      }
+    }
     // Enemy geometry buffers
     const gruntGeo=createGruntGeometry();
     const enemyPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyPosBuf);
@@ -630,8 +767,12 @@
       // Missile trail ring buffer: push positions, decay alphas
       if(flyMode&&missileCount>0){for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){if(!missile.alive[mi])continue;const mta=missile.fuel[mi]>0?1.0:0.3;const mth=missileTrailHead;missileTrailPos[mth*3]=missile.posX[mi];missileTrailPos[mth*3+1]=0;missileTrailPos[mth*3+2]=missile.posZ[mi];if(missileTrailAlpha[mth]<=0)missileTrailCount++;missileTrailAlpha[mth]=mta;missileTrailType[mth]=missile.type[mi];missileTrailHead=(missileTrailHead+1)%missileTrailMaxPts;}}
       for(let mt=0;mt<missileTrailMaxPts;mt++){if(missileTrailAlpha[mt]>0){missileTrailAlpha[mt]-=simDtSec*3.0;if(missileTrailAlpha[mt]<=0){missileTrailAlpha[mt]=0;missileTrailCount=Math.max(0,missileTrailCount-1);}}}
-      // Update enemy AI state machine
-      if(enemyCount>0){
+      // Update shield positions (follow ship)
+      if(flyMode&&shieldCount>0)updateShieldPositions();
+      // Track time survived
+      if(flyMode&&playerState.alive)playerState.stats.timeSurvived+=simDtSec;
+      // Update enemy AI state machine (only when player alive)
+      if(enemyCount>0&&playerState.alive){
         updateEnemyAI(simDtSec,simTime,flyPos,flyVel,orbitBody);
         rebinEntities();
       }
@@ -892,6 +1033,9 @@
         gl.disableVertexAttribArray(shipLocs.aPos);
         gl.disableVertexAttribArray(shipLocs.aNorm);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+
+        // Shield piece rendering (after ship, before missiles)
+        if(shieldCount>0)renderShieldPieces();
 
         // SoA missile body rendering (individual draw calls -- max 24 missiles, tiny geometry)
         if(missileCount>0){
@@ -1155,6 +1299,21 @@
         flyPosEl.textContent=flyPos[0].toFixed(0)+', '+flyPos[1].toFixed(0)+', '+flyPos[2].toFixed(0);
         if(!fastForward)flyBulletTime.classList.add('active');
         else flyBulletTime.classList.remove('active');
+        // Damage vignette and HP bar update
+        {
+          const hpRatio=playerState.hp/playerState.maxHp;
+          if(hpRatio<0.3){
+            const intensity=1.0-(hpRatio/0.3);
+            vignetteEl.style.setProperty('--vignette-alpha',(intensity*0.7).toFixed(2));
+          }else{
+            vignetteEl.style.setProperty('--vignette-alpha','0');
+          }
+          hpBarEl.style.width=(hpRatio*100).toFixed(1)+'%';
+          hpTextEl.textContent=Math.max(0,Math.round(playerState.hp));
+          if(hpRatio<0.25){hpBarEl.className='hp-bar critical';}
+          else if(hpRatio<0.5){hpBarEl.className='hp-bar warning';}
+          else{hpBarEl.className='hp-bar';}
+        }
         // Altitude HUD readout
         if(orbitState===ORBIT_STATE.ORBITING){
           const bodyName=getTargetName(orbitBody);
