@@ -177,6 +177,7 @@
    <script src="js/scene/combat.js"></script>
    <script src="js/scene/weapons.js"></script>
    <script src="js/scene/explosions.js"></script>
+   <script src="js/scene/particles.js"></script>
    <script src="js/scene/missiles.js"></script>
 
    <script>
@@ -636,6 +637,7 @@
       }
       updateProjectiles(simDtSec, simTime);
       checkProjectileHits();
+      updateParticles(simDtSec);
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
       if(flyMode){
@@ -934,6 +936,7 @@
         // Weapon preview + projectile rendering (combat mode)
         computeWeaponPreview(simTime);
         renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf);
+        renderParticles(gl,trajPg,trajLocs,_vpMat);
         renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf);
 
         // Billboard explosions (uses _view and _vpMat)
