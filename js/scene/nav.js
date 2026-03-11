@@ -514,3 +514,108 @@ function updateNav(simDt){
   }
   flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
 }
+
+/* ---- Reset Combat (restart from game over) ---- */
+function resetCombat() {
+  // Restore player state
+  playerState.hp = playerState.maxHp;
+  playerState.alive = true;
+  playerState.deathPhase = 0;
+  playerState.deathTimer = 0;
+  // Zero stats but keep best scores
+  playerState.stats.enemiesKilled = 0;
+  playerState.stats.wavesSurvived = 1;
+  playerState.stats.timeSurvived = 0;
+  playerState.stats.damageDealt = 0;
+  playerState.stats.shotsFired = 0;
+  playerState.stats.shotsHit = 0;
+  // Restore shields
+  initShieldWall();
+  // Camera: restore from deathCamSaved or defaults
+  if (typeof deathCamSaved !== 'undefined') {
+    navCamAz = deathCamSaved.az || Math.atan2(flyPos[0], flyPos[2]);
+    navCamEl = 0.5;
+    navCamDist = 3;
+  } else {
+    navCamAz = Math.atan2(flyPos[0], flyPos[2]);
+    navCamEl = 0.5;
+    navCamDist = 3;
+  }
+  // Clear all projectiles (also rebuild free slot list)
+  projFreeSlots.length = 0;
+  for (let i = MAX_PROJECTILES - 1; i >= 0; i--) {
+    proj.alive[i] = 0;
+    projFreeSlots.push(i);
+  }
+  projCount = 0;
+  // Clear all missiles
+  for (let i = 0; i < MAX_MISSILES_ACTIVE; i++) {
+    if (missile.alive[i]) removeMissile(i);
+  }
+  clearLocks();
+  // Clear all enemies
+  for (let i = 0; i < MAX_ENEMIES; i++) {
+    if (enemies.alive[i]) removeEnemy(i);
+  }
+  // Clear explosions (also rebuild free slot list)
+  explosionFreeSlots.length = 0;
+  for (let i = MAX_EXPLOSIONS - 1; i >= 0; i--) {
+    explosion.alive[i] = 0;
+    explosionFreeSlots.push(i);
+  }
+  explosionCount = 0;
+  // Clear particles (also rebuild free slot list)
+  particleFreeSlots.length = 0;
+  for (let i = MAX_PARTICLES - 1; i >= 0; i--) {
+    particle.alive[i] = 0;
+    particleFreeSlots.push(i);
+  }
+  particleCount = 0;
+  // Deactivate all detonation slots
+  for (let i = 0; i < 6; i++) detSlots[i].active = false;
+  // Reposition ship at current orbit body (or reset to a safe default orbit)
+  if (orbitBody >= 0 && orbitBody < 7) {
+    const bp = getBodyPosition(orbitBody);
+    const br = getBodyRadius(orbitBody);
+    const alt = getDefaultOrbitAlt(orbitBody);
+    const angle = Math.atan2(flyPos[0] - bp[0], flyPos[2] - bp[2]);
+    const r = br + alt;
+    flyPos[0] = bp[0] + r * Math.sin(angle);
+    flyPos[1] = 0;
+    flyPos[2] = bp[2] + r * Math.cos(angle);
+    circularizeOrbit(flyPos, flyVel, bp, getBodyGM(orbitBody), getBodyVelocity(orbitBody));
+  } else {
+    // Free orbit: compute circular orbit at current distance from BH
+    const dist = Math.sqrt(flyPos[0] * flyPos[0] + flyPos[2] * flyPos[2]);
+    if (dist > 2) {
+      const vorb = Math.sqrt(BH_GM / dist);
+      const rx = flyPos[0] / dist, rz = flyPos[2] / dist;
+      flyVel[0] = -rz * vorb; flyVel[1] = 0; flyVel[2] = rx * vorb;
+    }
+  }
+  // Update forward direction from velocity
+  const spd = v3len(flyVel);
+  if (spd > 0.1) {
+    flyFwd[0] = flyVel[0] / spd; flyFwd[1] = 0; flyFwd[2] = flyVel[2] / spd;
+  }
+  flyUp[0] = 0; flyUp[1] = 1; flyUp[2] = 0;
+  // Re-spawn enemies
+  spawnTestEnemies();
+  // Reset combat mode
+  combatMode = false;
+  selectedWeapon = 0;
+  // Reset vignette
+  if (typeof vignetteEl !== 'undefined' && vignetteEl) {
+    vignetteEl.style.setProperty('--vignette-alpha', '0');
+  }
+  // Reset HP bar
+  if (typeof hpBarEl !== 'undefined' && hpBarEl) {
+    hpBarEl.style.width = '100%';
+    hpBarEl.className = 'hp-bar';
+  }
+  if (typeof hpTextEl !== 'undefined' && hpTextEl) {
+    hpTextEl.textContent = playerState.maxHp;
+  }
+  // Update missile UI
+  updateMissileUI();
+}

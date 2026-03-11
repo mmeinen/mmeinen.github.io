@@ -533,6 +533,53 @@ body {
 }
 
 /* ============================================
+   GAME OVER SCREEN
+   ============================================ */
+
+.game-over-screen {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 30; pointer-events: none;
+  opacity: 0; transition: opacity 1.5s ease, background 1.5s ease;
+}
+.game-over-screen.visible {
+  opacity: 1; pointer-events: auto;
+  background: rgba(0, 0, 0, 0.85);
+}
+.game-over-title {
+  font-family: monospace; font-size: 48px; font-weight: bold;
+  color: rgba(255, 60, 30, 0.9);
+  letter-spacing: 8px; margin-bottom: 40px;
+  text-shadow: 0 0 20px rgba(255, 60, 30, 0.5);
+}
+.game-over-stats, .game-over-best {
+  width: 300px; margin-bottom: 24px;
+}
+.best-title {
+  font-family: monospace; font-size: 14px; color: rgba(255, 200, 50, 0.9);
+  letter-spacing: 4px; margin-bottom: 8px; text-align: center;
+  border-top: 1px solid rgba(255, 200, 50, 0.3); padding-top: 16px;
+}
+.stat-row {
+  display: flex; justify-content: space-between;
+  font-family: monospace; font-size: 14px;
+  color: rgba(60, 140, 255, 0.9); padding: 4px 0;
+}
+.stat-label { opacity: 0.7; }
+.stat-value { font-weight: bold; }
+.game-over-prompt {
+  margin-top: 30px; font-family: monospace; font-size: 14px;
+  color: rgba(60, 140, 255, 0.6);
+}
+.game-over-key {
+  display: inline-block; padding: 2px 8px;
+  border: 1px solid rgba(60, 140, 255, 0.5);
+  color: rgba(60, 140, 255, 0.9); margin-right: 4px;
+}
+
+/* ============================================
    MOBILE RESPONSIVE — phones
    ============================================ */
 
@@ -573,7 +620,8 @@ body {
   .missile-fire-btn,
   .lpoint-label,
   .damage-vignette,
-  .hp-bar-container {
+  .hp-bar-container,
+  .game-over-screen {
     display: none !important;
   }
 
