@@ -101,8 +101,8 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 05-01-PLAN.md -- Enemy AI state machine (idle/alert/transfer/attack/disengage/re-orbit), instance buffer extension (9->10 floats for flash), enemy firing with lead prediction, shader flash support
-- [ ] 05-02-PLAN.md -- Impact particle system (particles.js), combat feedback wiring (sparks on hit, explosion on missile hit), visual verification
+- [x] 05-01-PLAN.md -- Enemy AI state machine (idle/alert/transfer/attack/disengage/re-orbit), instance buffer extension (9->10 floats for flash), enemy firing with lead prediction, shader flash support
+- [x] 05-02-PLAN.md -- Impact particle system (particles.js), combat feedback wiring (sparks on hit, explosion on missile hit), visual verification
 
 ### Phase 6: Player Defense & Survival
 **Goal**: Player can take damage, defend with kinetic shields, and experience a complete death-and-restart loop with stats tracking
