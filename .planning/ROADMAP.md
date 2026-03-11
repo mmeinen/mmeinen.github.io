@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Combat Rendering Foundation** - Entity stores, instanced rendering pipeline, radial collision bins, and enemy procedural geometry
 - [x] **Phase 2: Player Ship & Orbital Movement** - Visible ship with orbital transfers between bodies, trajectory preview, thrust and altitude control
 - [x] **Phase 3: Direct-Fire Weapons** - Kinetic cannon with gravity-curved projectiles and plasma gun with distance fade, plus trajectory preview (completed 2026-03-10)
-- [ ] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer
+- [x] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer (completed 2026-03-11)
 - [ ] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles
 - [ ] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators
 - [ ] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling
@@ -82,12 +82,12 @@ Plans:
   3. Regular missiles consume fuel during flight and self-destruct without detonation when fuel is exhausted and trajectory will miss the target
   4. Player can fire nuclear missiles that produce the existing volumetric shader detonation effect
   5. Sprite billboard explosions render correctly at various distances and camera angles for all non-nuclear combat detonations
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md -- Missile SoA store, lock-on targeting with multi-lock salvo, fuel depletion, PN guidance with enemy tracking, weapon slots 3/4
+- [x] 04-01-PLAN.md -- Missile SoA store, lock-on targeting with multi-lock salvo, fuel depletion, PN guidance with enemy tracking, weapon slots 3/4
 - [x] 04-02-PLAN.md -- Billboard explosion system: procedural sprite sheet, billboard shaders, explosion SoA store with instanced rendering
-- [ ] 04-03-PLAN.md -- Rendering integration: missile bodies/trails, proximity detonation wiring (sprite + volumetric), lock reticle overlays, visual verification
+- [x] 04-03-PLAN.md -- Rendering integration: missile bodies/trails, proximity detonation wiring (sprite + volumetric), lock reticle overlays, visual verification
 
 ### Phase 5: Enemy Behavior & Combat Feedback
 **Goal**: Enemies are alive -- Grunt enemies orbit bodies, approach the player, fire projectiles, and provide clear visual feedback when hit
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 1. Combat Rendering Foundation | 2/2 | Complete | 2026-03-10 |
 | 2. Player Ship & Orbital Movement | 3/3 | Complete | 2026-03-10 |
 | 3. Direct-Fire Weapons | 2/2 | Complete   | 2026-03-10 |
-| 4. Missile Systems & Explosions | 1/3 | In Progress | - |
+| 4. Missile Systems & Explosions | 3/3 | Complete   | 2026-03-11 |
 | 5. Enemy Behavior & Combat Feedback | 0/2 | Not started | - |
 | 6. Player Defense & Survival | 0/3 | Not started | - |
 | 7. Wave Progression & Enemy Variety | 0/3 | Not started | - |

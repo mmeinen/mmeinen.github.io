@@ -23,7 +23,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **WPN-03**: Player can fire a plasma gun that emits an energy blast toward a target
 - [x] **WPN-04**: Plasma blasts fade over distance and have minimal gravity effect (light-based)
 - [x] **WPN-05**: Player can fire regular missiles with proportional navigation guidance toward a target
-- [ ] **WPN-06**: Regular missiles detonate when within blast radius of their target (proximity detonation)
+- [x] **WPN-06**: Regular missiles detonate when within blast radius of their target (proximity detonation)
 - [x] **WPN-07**: Regular missiles have a fuel supply that depletes during flight
 - [x] **WPN-08**: Missiles self-destruct without detonation when fuel is exhausted and trajectory will not intersect target
 - [x] **WPN-09**: Regular missile explosions are sprite-based (billboard), not volumetric
@@ -130,7 +130,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WPN-03 | Phase 3 | Complete |
 | WPN-04 | Phase 3 | Complete |
 | WPN-05 | Phase 4 | Complete |
-| WPN-06 | Phase 4 | Pending |
+| WPN-06 | Phase 4 | Complete |
 | WPN-07 | Phase 4 | Complete |
 | WPN-08 | Phase 4 | Complete |
 | WPN-09 | Phase 4 | Complete |
