@@ -190,20 +190,26 @@ function fireMissileSalvo(st) {
 function detonateMissileNuke(idx) {
   const slot = detSlots.find(s => !s.active);
   if (!slot) { removeMissile(idx); return; }
-  slot.pos[0] = missile.posX[idx];
+  const mx = missile.posX[idx], mz = missile.posZ[idx];
+  slot.pos[0] = mx;
   slot.pos[1] = 0;
-  slot.pos[2] = missile.posZ[idx];
+  slot.pos[2] = mz;
   slot.startSimTime = simTime;
   slot.active = true;
+  // Apply blast damage to nearby enemies
+  checkMissileBlastHits(mx, mz, MISSILE_DAMAGE_NUKE, NUKE_BLAST_RADIUS);
   removeMissile(idx);
 }
 
 /**
  * Called when a regular missile detonates on proximity hit.
- * Spawns a billboard sprite explosion at the missile position.
+ * Spawns a billboard sprite explosion at the missile position + blast damage.
  */
 function onMissileDetonate(idx) {
-  spawnExplosion(missile.posX[idx], 0, missile.posZ[idx], EXPLOSION_BASE_SIZE);
+  const mx = missile.posX[idx], mz = missile.posZ[idx];
+  spawnExplosion(mx, 0, mz, EXPLOSION_BASE_SIZE);
+  // Apply blast damage to nearby enemies
+  checkMissileBlastHits(mx, mz, MISSILE_DAMAGE_REGULAR);
   removeMissile(idx);
 }
 

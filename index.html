@@ -581,15 +581,27 @@
       }
     });
 
-    /* ---- Enemy spawning (Phase 1 test) ---- */
+    /* ---- Enemy spawning ---- */
     let enemiesSpawned=false;
     function spawnTestEnemies(){
-      for(let i=0;i<50;i++){
-        const angle=Math.random()*Math.PI*2;
-        const radius=20+Math.random()*70;
-        const x=radius*Math.sin(angle);
-        const z=radius*Math.cos(angle);
-        spawnEnemy(x,0,z,ETYPE.GRUNT);
+      // Distribute enemies among planets (1-2 per planet, 8 total)
+      const planetIndices=[0,1,2,3,4,5,6];
+      let spawned=0;
+      for(let pi=0;pi<planetIndices.length&&spawned<8;pi++){
+        const pIdx=planetIndices[pi];
+        const count=pi<1?2:1; // 2 on Jupiter, 1 on each other planet
+        for(let c=0;c<count&&spawned<8;c++){
+          const stPh=Math.random()*Math.PI*2;
+          const bodyPos=getBodyPosition(pIdx);
+          const bodyR=getBodyRadius(pIdx);
+          const stR=bodyR+3.0;
+          const planetAngle=Math.atan2(bodyPos[0],bodyPos[2]);
+          const angle=planetAngle+stPh;
+          const x=bodyPos[0]+stR*Math.sin(angle);
+          const z=bodyPos[2]+stR*Math.cos(angle);
+          spawnEnemy(x,0,z,ETYPE.GRUNT,pIdx,stPh);
+          spawned++;
+        }
       }
     }
 
@@ -617,18 +629,9 @@
       // Missile trail ring buffer: push positions, decay alphas
       if(flyMode&&missileCount>0){for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){if(!missile.alive[mi])continue;const mta=missile.fuel[mi]>0?1.0:0.3;const mth=missileTrailHead;missileTrailPos[mth*3]=missile.posX[mi];missileTrailPos[mth*3+1]=0;missileTrailPos[mth*3+2]=missile.posZ[mi];if(missileTrailAlpha[mth]<=0)missileTrailCount++;missileTrailAlpha[mth]=mta;missileTrailType[mth]=missile.type[mi];missileTrailHead=(missileTrailHead+1)%missileTrailMaxPts;}}
       for(let mt=0;mt<missileTrailMaxPts;mt++){if(missileTrailAlpha[mt]>0){missileTrailAlpha[mt]-=simDtSec*3.0;if(missileTrailAlpha[mt]<=0){missileTrailAlpha[mt]=0;missileTrailCount=Math.max(0,missileTrailCount-1);}}}
-      // Update enemy positions (simple circular orbit for Phase 1 test)
+      // Update enemy AI state machine
       if(enemyCount>0){
-        for(let i=0;i<MAX_ENEMIES;i++){
-          if(!enemies.alive[i])continue;
-          const r=Math.sqrt(enemies.posX[i]**2+enemies.posZ[i]**2);
-          const orbSpeed=0.5/Math.max(r,1);
-          const angle=Math.atan2(enemies.posX[i],enemies.posZ[i]);
-          const newAngle=angle+orbSpeed*simDtSec;
-          enemies.posX[i]=r*Math.sin(newAngle);
-          enemies.posZ[i]=r*Math.cos(newAngle);
-          enemies.heading[i]=newAngle;
-        }
+        updateEnemyAI(simDtSec,simTime,flyPos,flyVel,orbitBody);
         rebinEntities();
       }
       updateProjectiles(simDtSec, simTime);

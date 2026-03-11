@@ -13,6 +13,9 @@ const PLASMA_FADE_START = 80;       // units where alpha/size fade begins
 const PLASMA_COOLDOWN = 2.5;        // seconds between shots
 const HIT_RADIUS_KINETIC = 1.5;     // generous hit area for kinetic
 const HIT_RADIUS_PLASMA = 2.0;      // slightly larger for plasma bolt
+const KINETIC_DAMAGE = 15;          // damage per kinetic hit
+const PLASMA_DAMAGE = 35;           // damage per plasma hit
+const ENEMY_KINETIC_SPEED = 60;     // enemy projectile speed
 
 /* Combat mode state */
 let combatMode = false;
@@ -30,7 +33,7 @@ const proj = {
   posZ:     new Float32Array(MAX_PROJECTILES),
   velX:     new Float32Array(MAX_PROJECTILES),
   velZ:     new Float32Array(MAX_PROJECTILES),
-  type:     new Uint8Array(MAX_PROJECTILES),    // 0=kinetic, 1=plasma
+  type:     new Uint8Array(MAX_PROJECTILES),    // 0=kinetic, 1=plasma, 2=enemy kinetic
   age:      new Float32Array(MAX_PROJECTILES),
   distTrav: new Float32Array(MAX_PROJECTILES),  // for plasma fade
 };
@@ -122,6 +125,40 @@ function fireSelectedWeapon(st) {
   } else if (selectedWeapon === 2 || selectedWeapon === 3) {
     fireMissileSalvo(st);
   }
+}
+
+/**
+ * Fire a lead-predicted kinetic round from an enemy toward the player.
+ * Type=2 projectile (enemy kinetic) with red tracer.
+ * @param {number} enemyIdx - enemy slot index
+ * @param {Float32Array} playerPos - player position [x,y,z]
+ * @param {Float32Array} playerVel - player velocity [x,y,z]
+ */
+function enemyFireAt(enemyIdx, playerPos, playerVel) {
+  const ex = enemies.posX[enemyIdx], ez = enemies.posZ[enemyIdx];
+  const dx = playerPos[0] - ex, dz = playerPos[2] - ez;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist < 0.1) return;
+  // Lead prediction: estimate time-of-flight
+  const tof = dist / ENEMY_KINETIC_SPEED;
+  // Predict player position
+  let predX = playerPos[0] + playerVel[0] * tof;
+  let predZ = playerPos[2] + playerVel[2] * tof;
+  // Add accuracy noise via Box-Muller
+  const u1 = Math.random(), u2 = Math.random();
+  const mag = Math.sqrt(-2 * Math.log(Math.max(u1, 0.0001))) * ACCURACY_NOISE;
+  const theta = u2 * 6.283185;
+  predX += Math.cos(theta) * mag;
+  predZ += Math.sin(theta) * mag;
+  // Aim direction from enemy to predicted position
+  const adx = predX - ex, adz = predZ - ez;
+  const adist = Math.sqrt(adx * adx + adz * adz);
+  if (adist < 0.01) return;
+  const aimX = adx / adist, aimZ = adz / adist;
+  // Spawn type=2 enemy kinetic round (inherit enemy velocity + muzzle velocity)
+  spawnProjectile(2, ex, ez,
+    enemies.velX[enemyIdx] + aimX * ENEMY_KINETIC_SPEED,
+    enemies.velZ[enemyIdx] + aimZ * ENEMY_KINETIC_SPEED);
 }
 
 /* ---- Trail buffer (shared ring buffer for all kinetic tracers) ---- */
@@ -282,6 +319,23 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
     gl.drawArrays(gl.POINTS, 0, 1);
   }
 
+  // --- Enemy kinetic round heads (red points, type=2) ---
+  let eCount = 0;
+  for (let i = 0; i < MAX_PROJECTILES; i++) {
+    if (!proj.alive[i] || proj.type[i] !== 2) continue;
+    projRenderBuf[eCount * 3]     = proj.posX[i];
+    projRenderBuf[eCount * 3 + 1] = 0;
+    projRenderBuf[eCount * 3 + 2] = proj.posZ[i];
+    eCount++;
+  }
+  if (eCount > 0) {
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, eCount * 3));
+    gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform4f(trajLocs.uColor, 1.0, 0.314, 0.235, 0.9);  // enemy red
+    gl.uniform1f(trajLocs.uPtSize, 3.0);
+    gl.drawArrays(gl.POINTS, 0, eCount);
+  }
+
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);  // restore normal blend
   gl.disableVertexAttribArray(trajLocs.aPos);
 }
@@ -374,21 +428,23 @@ function updateProjectiles(simDt, st) {
 
     proj.age[i] += simDt;
 
-    if (proj.type[i] === 0) {
-      // KINETIC: full gravity, leapfrog integration
+    if (proj.type[i] === 0 || proj.type[i] === 2) {
+      // KINETIC (player type=0) or ENEMY KINETIC (type=2): gravity, leapfrog
       const g = computeGravAccel([proj.posX[i], 0, proj.posZ[i]]);
       proj.velX[i] += g[0] * simDt;
       proj.velZ[i] += g[2] * simDt;
       proj.posX[i] += proj.velX[i] * simDt;
       proj.posZ[i] += proj.velZ[i] * simDt;
 
-      // Push current position into trail ring buffer
-      trailBuf[trailHead * 3]     = proj.posX[i];
-      trailBuf[trailHead * 3 + 1] = 0;
-      trailBuf[trailHead * 3 + 2] = proj.posZ[i];
-      if (trailAlpha[trailHead] <= 0) trailCount++;  // only increment if slot was empty
-      trailAlpha[trailHead] = 1.0;
-      trailHead = (trailHead + 1) % TRAIL_MAX_POINTS;
+      // Trail ring buffer (player kinetic only, not enemy)
+      if (proj.type[i] === 0) {
+        trailBuf[trailHead * 3]     = proj.posX[i];
+        trailBuf[trailHead * 3 + 1] = 0;
+        trailBuf[trailHead * 3 + 2] = proj.posZ[i];
+        if (trailAlpha[trailHead] <= 0) trailCount++;
+        trailAlpha[trailHead] = 1.0;
+        trailHead = (trailHead + 1) % TRAIL_MAX_POINTS;
+      }
 
       // Despawn: lifetime exceeded
       if (proj.age[i] > KINETIC_LIFETIME) { removeProjectile(i); continue; }
@@ -396,7 +452,7 @@ function updateProjectiles(simDt, st) {
       const r2 = proj.posX[i] * proj.posX[i] + proj.posZ[i] * proj.posZ[i];
       if (r2 < 4.0) { removeProjectile(i); continue; }
 
-    } else {
+    } else if (proj.type[i] === 1) {
       // PLASMA: straight line, no gravity, constant speed
       proj.posX[i] += proj.velX[i] * simDt;
       proj.posZ[i] += proj.velZ[i] * simDt;
@@ -410,17 +466,32 @@ function updateProjectiles(simDt, st) {
 }
 
 /**
- * Check all alive projectiles against enemy positions using radial bins.
- * On hit: remove the projectile. Damage is deferred to Phase 6.
+ * Check all alive projectiles for hits.
+ * Player projectiles (type 0,1) check against enemies -- apply damage, flash, kill.
+ * Enemy projectiles (type 2) check against player position (flyPos).
  */
 function checkProjectileHits() {
   for (let i = 0; i < MAX_PROJECTILES; i++) {
     if (!proj.alive[i]) continue;
+
+    if (proj.type[i] === 2) {
+      // Enemy kinetic: check against player position
+      const dx = proj.posX[i] - flyPos[0];
+      const dz = proj.posZ[i] - flyPos[2];
+      if (dx * dx + dz * dz < HIT_RADIUS_KINETIC * HIT_RADIUS_KINETIC) {
+        // Hit player (damage deferred to Phase 6 player HP system)
+        removeProjectile(i);
+      }
+      continue;
+    }
+
+    // Player projectiles (type 0 kinetic, type 1 plasma): check against enemies
     const r = Math.sqrt(proj.posX[i] * proj.posX[i] + proj.posZ[i] * proj.posZ[i]);
     const candidates = getCollisionCandidates(r);
     const hitRadSq = proj.type[i] === 0
       ? HIT_RADIUS_KINETIC * HIT_RADIUS_KINETIC
       : HIT_RADIUS_PLASMA * HIT_RADIUS_PLASMA;
+    const dmg = proj.type[i] === 0 ? KINETIC_DAMAGE : PLASMA_DAMAGE;
 
     for (let j = 0; j < candidates.length; j++) {
       const ci = candidates[j];
@@ -428,10 +499,55 @@ function checkProjectileHits() {
       const dx = proj.posX[i] - enemies.posX[ci];
       const dz = proj.posZ[i] - enemies.posZ[ci];
       if (dx * dx + dz * dz < hitRadSq) {
-        // HIT! Remove projectile. Damage applied in Phase 6.
-        // TODO Phase 6: enemies.hp[ci] -= damage
+        // HIT: apply damage, trigger flash, spawn impact particles
+        enemies.hp[ci] -= dmg;
+        enemies.flash[ci] = 1.0;
+        if (typeof spawnImpactParticles === 'function') {
+          spawnImpactParticles(proj.posX[i], proj.posZ[i], enemies.type[ci]);
+        }
+        if (enemies.hp[ci] <= 0) {
+          spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+          removeEnemy(ci);
+        }
         removeProjectile(i);
         break;
+      }
+    }
+  }
+}
+
+/* ---- Missile blast damage ---- */
+const MISSILE_DAMAGE_REGULAR = 50;
+const MISSILE_DAMAGE_NUKE = 150;
+const MISSILE_BLAST_RADIUS = 5.0;
+const NUKE_BLAST_RADIUS = 15.0;
+
+/**
+ * Check missile blast against enemies. Called from missile detonation handlers.
+ * @param {number} x - blast center X
+ * @param {number} z - blast center Z
+ * @param {number} damage - damage per hit
+ * @param {number} [blastRadius] - optional blast radius override (default MISSILE_BLAST_RADIUS)
+ */
+function checkMissileBlastHits(x, z, damage, blastRadius) {
+  const br = blastRadius || MISSILE_BLAST_RADIUS;
+  const r = Math.sqrt(x * x + z * z);
+  const candidates = getCollisionCandidates(r);
+  const blastRadSq = br * br;
+  for (let j = 0; j < candidates.length; j++) {
+    const ci = candidates[j];
+    if (!enemies.alive[ci]) continue;
+    const dx = x - enemies.posX[ci];
+    const dz = z - enemies.posZ[ci];
+    if (dx * dx + dz * dz < blastRadSq) {
+      enemies.hp[ci] -= damage;
+      enemies.flash[ci] = 1.0;
+      if (typeof spawnImpactParticles === 'function') {
+        spawnImpactParticles(enemies.posX[ci], enemies.posZ[ci], enemies.type[ci]);
+      }
+      if (enemies.hp[ci] <= 0) {
+        spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+        removeEnemy(ci);
       }
     }
   }
