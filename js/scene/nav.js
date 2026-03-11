@@ -422,6 +422,7 @@ function enterNavMode(){
 function exitNavMode(){
   flyMode=false;
   fastForward=false;
+  if(typeof hideAllIndicators==='function')hideAllIndicators();
   // Reset orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;

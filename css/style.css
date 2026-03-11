@@ -533,6 +533,34 @@ body {
 }
 
 /* ============================================
+   OFF-SCREEN ENEMY INDICATORS
+   ============================================ */
+
+.enemy-indicator {
+  position: fixed;
+  pointer-events: none;
+  z-index: 25;
+  font-family: monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  display: none;
+  color: rgba(255, 60, 40, 0.9);
+}
+.indicator-chevron {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid currentColor;
+  margin: 0 auto 2px;
+}
+.indicator-dist {
+  display: block;
+  text-align: center;
+  text-shadow: 0 0 4px currentColor;
+}
+
+/* ============================================
    GAME OVER SCREEN
    ============================================ */
 
@@ -621,7 +649,8 @@ body {
   .lpoint-label,
   .damage-vignette,
   .hp-bar-container,
-  .game-over-screen {
+  .game-over-screen,
+  .enemy-indicator {
     display: none !important;
   }
 

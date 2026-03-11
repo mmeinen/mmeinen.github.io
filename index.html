@@ -362,6 +362,17 @@
     const lockReticlesContainer=document.getElementById('lock-reticles');
     const lockReticleDivs=[];
     for(let lr=0;lr<6;lr++){const d=document.createElement('div');d.className='lock-reticle';d.innerHTML='<span class="lock-count"></span>';d.style.display='none';lockReticlesContainer.appendChild(d);lockReticleDivs.push(d);}
+    // Off-screen enemy indicator DOM pool
+    const INDICATOR_RANGE=200;
+    const indicatorEls=[];
+    for(let ii=0;ii<MAX_ENEMIES;ii++){
+      const el=document.createElement('div');
+      el.className='enemy-indicator';
+      el.innerHTML='<div class="indicator-chevron"></div><span class="indicator-dist"></span>';
+      el.style.display='none';
+      document.body.appendChild(el);
+      indicatorEls[ii]=el;
+    }
     // Missile trail render buffer for GPU upload
     const _mtRenderBuf=new Float32Array(missileTrailMaxPts*3);
 
@@ -920,11 +931,71 @@
         '<div class="best-title">BEST</div>' +
         '<div class="stat-row"><span class="stat-label">HIGHEST WAVE</span><span class="stat-value">' + b.wavesSurvived + '</span></div>' +
         '<div class="stat-row"><span class="stat-label">MOST KILLS</span><span class="stat-value">' + b.enemiesKilled + '</span></div>';
+      // Hide indicators
+      hideAllIndicators();
       // Show overlay
       document.getElementById('game-over-screen').classList.add('visible');
     }
     function hideGameOverScreen() {
       document.getElementById('game-over-screen').classList.remove('visible');
+    }
+
+    /* ---- Off-screen enemy indicators ---- */
+    function hideAllIndicators(){for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].style.display='none';}
+    const _indicatorColors=['rgba(255,60,40,0.9)','rgba(60,255,140,0.9)','rgba(255,200,40,0.9)','rgba(140,60,255,0.9)','rgba(255,140,40,0.9)'];
+    function positionIndicator(el,x,y,angle,dist,enemyType){
+      el.style.display='block';
+      el.style.left=x+'px';
+      el.style.top=y+'px';
+      const rotDeg=(angle*180/Math.PI)+90;
+      el.querySelector('.indicator-chevron').style.transform='rotate('+rotDeg+'deg)';
+      el.querySelector('.indicator-dist').textContent=Math.floor(dist)+'u';
+      el.style.color=_indicatorColors[enemyType]||_indicatorColors[0];
+    }
+    function updateEnemyIndicators(){
+      const margin=40;
+      const cx=baseWidth/2,cy=baseHeight/2;
+      const mD=Math.min(baseWidth,baseHeight);
+      for(let i=0;i<MAX_ENEMIES;i++){
+        if(!enemies.alive[i]){indicatorEls[i].style.display='none';continue;}
+        const dx=enemies.posX[i]-flyPos[0],dz=enemies.posZ[i]-flyPos[2];
+        const dist=Math.sqrt(dx*dx+dz*dz);
+        if(dist>INDICATOR_RANGE){indicatorEls[i].style.display='none';continue;}
+        // Project using camera-vector dot-product method (same as lock reticles)
+        const eDx=enemies.posX[i]-_camP[0];
+        const eDy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
+        const eDz=enemies.posZ[i]-_camP[2];
+        const dp=eDx*_camF[0]+eDy*_camF[1]+eDz*_camF[2];
+        if(dp<=0.01){
+          // Behind camera: place indicator on opposite side
+          const sx0=eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2];
+          const sy0=-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2]);
+          const angle=Math.atan2(sy0,sx0);
+          const edgeX=cx+Math.cos(angle)*(cx-margin);
+          const edgeY=cy+Math.sin(angle)*(cy-margin);
+          positionIndicator(indicatorEls[i],edgeX,edgeY,angle,dist,enemies.type[i]);
+          continue;
+        }
+        const sx=baseWidth*0.5+(eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2])/dp*1.8*mD;
+        const sy=baseHeight*0.5-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2])/dp*1.8*mD;
+        // Check if on-screen
+        const onScreen=sx>=margin&&sx<=baseWidth-margin&&sy>=margin&&sy<=baseHeight-margin;
+        if(onScreen){indicatorEls[i].style.display='none';continue;}
+        // Off-screen: clamp to edge
+        const angle=Math.atan2(sy-cy,sx-cx);
+        const abscos=Math.abs(Math.cos(angle)),abssin=Math.abs(Math.sin(angle));
+        let edgeX,edgeY;
+        if(abscos*(baseHeight-2*margin)>abssin*(baseWidth-2*margin)){
+          edgeX=cx+Math.sign(Math.cos(angle))*(cx-margin);
+          edgeY=cy+Math.tan(angle)*Math.sign(Math.cos(angle))*(cx-margin);
+          edgeY=Math.max(margin,Math.min(baseHeight-margin,edgeY));
+        }else{
+          edgeY=cy+Math.sign(Math.sin(angle))*(cy-margin);
+          edgeX=cx+(1/Math.tan(angle))*Math.sign(Math.sin(angle))*(cy-margin);
+          edgeX=Math.max(margin,Math.min(baseWidth-margin,edgeX));
+        }
+        positionIndicator(indicatorEls[i],edgeX,edgeY,angle,dist,enemies.type[i]);
+      }
     }
 
     /* ---- Render loop ---- */
@@ -1611,6 +1682,9 @@
           lockReticlesContainer.style.display='none';
           for(let ri=0;ri<lockReticleDivs.length;ri++)lockReticleDivs[ri].style.display='none';
         }
+        // Off-screen enemy indicators
+        if(playerState.alive&&playerState.deathPhase===0){updateEnemyIndicators();}
+        else{hideAllIndicators();}
       }else{
         for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
           if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}
