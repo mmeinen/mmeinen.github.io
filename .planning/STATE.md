@@ -3,29 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-11T01:13:31.676Z"
-last_activity: 2026-03-10 -- Phase 4 Plan 03 missile rendering integration complete
+stopped_at: Completed 05-02-PLAN.md Task 1, awaiting checkpoint
+last_updated: "2026-03-11T01:44:49Z"
+last_activity: 2026-03-11 -- Phase 5 Plans 01-02 executed (enemy AI + impact particles)
 progress:
   total_phases: 9
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
----
-
----
-gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-11T00:41:42.192Z"
-last_activity: 2026-03-10 -- Phase 4 complete (missile systems & explosions)
-progress:
-  total_phases: 9
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -35,23 +20,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 4 complete. Ready for Phase 5: Enemy Behavior & Combat Feedback.
+**Current focus:** Phase 5 enemy behavior and combat feedback -- Plans 01-02 complete, awaiting visual verification.
 
 ## Current Position
 
-Phase: 4 of 9 (Missile Systems & Explosions) -- COMPLETE
-Plan: 3 of 3 in current phase (complete)
-Status: Phase 4 complete. All missile systems functional. Ready for Phase 5 planning.
-Last activity: 2026-03-10 -- Phase 4 Plan 03 missile rendering integration complete
+Phase: 5 of 9 (Enemy Behavior & Combat Feedback)
+Plan: 2 of 2 in current phase (awaiting checkpoint verification)
+Status: Enemy AI state machine + impact particles implemented. Checkpoint: visual verification pending.
+Last activity: 2026-03-11 -- Phase 5 Plans 01-02 executed
 
-Progress: [██████████] 100% (10/10 plans)
+Progress: [████████████] 100% (12/12 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 12
 - Average duration: ~6 min
-- Total execution time: ~1.0 hours
+- Total execution time: ~1.1 hours
 
 **By Phase:**
 
@@ -61,9 +46,10 @@ Progress: [██████████] 100% (10/10 plans)
 | 2 | 3 | 55 min | 18 min |
 | 3 | 2 | 7 min | 3.5 min |
 | 4 | 3 | 21 min | 7 min |
+| 5 | 2 | 8 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 4min (03-01), 3min (03-02), 13min (04-01), 3min (04-02), 5min (04-03)
+- Last 5 plans: 13min (04-01), 3min (04-02), 5min (04-03), 5min (05-01), 3min (05-02)
 - Trend: fast execution when plan is well-researched
 
 *Updated after each plan completion*
@@ -117,6 +103,16 @@ Recent decisions affecting current work:
 - [04-03]: Trail ring buffer alpha decay (simDt * 3.0) for ~0.33s fade
 - [04-03]: Lock reticle DOM pool of 6 elements with 3D-to-screen projection
 - [04-03]: CSS lock-reticle rotated diamond (45deg) with counter-rotated count text
+- [05-01]: Instance buffer stride is 10 floats (pos.xyz + heading + color.rgba + scale + flash)
+- [05-01]: Enemy AI 6-state machine: idle->alert->transfer->attack->disengage->reorbit
+- [05-01]: Enemy kinetic speed 60 (vs player 80) for reaction time
+- [05-01]: Station-keeping 3.0 units above planet surface with phase offset
+- [05-01]: 8 enemies total: 2 on Jupiter, 1 on each other planet
+- [05-01]: Flash decay at simDt/0.2 for ~0.2s white-out effect
+- [05-01]: checkMissileBlastHits for area damage from detonation (5.0 regular, 15.0 nuke radius)
+- [05-02]: Impact particles 256-slot SoA with 0.3s lifetime, 5-8 per hit
+- [05-02]: Particle rendering via GL_POINTS with additive blending, lazy GL buffer
+- [05-02]: typeof guard for spawnImpactParticles handles script load order
 
 ### Pending Todos
 
@@ -128,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T01:13:31.673Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-enemy-behavior-combat-feedback/05-CONTEXT.md
+Last session: 2026-03-11T01:44:49Z
+Stopped at: Completed 05-02-PLAN.md Task 1, checkpoint:human-verify pending
+Resume file: .planning/phases/05-enemy-behavior-combat-feedback/05-02-PLAN.md
