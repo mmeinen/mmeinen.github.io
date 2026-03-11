@@ -114,7 +114,7 @@ Plans:
   3. When hull integrity reaches zero, the ship is destroyed with a visible explosion
   4. A game over screen appears showing combat stats (waves survived, enemies killed) with a restart option
   5. Off-screen enemy indicators (chevrons at screen edge) point toward enemies outside the viewport
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md -- Player state (250 HP), shield SoA (10 pieces), shield rendering, damage wiring with shield-before-hull collision, vignette overlay, HP bar, stat tracking hooks
@@ -180,7 +180,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 3. Direct-Fire Weapons | 2/2 | Complete   | 2026-03-10 |
 | 4. Missile Systems & Explosions | 3/3 | Complete   | 2026-03-11 |
 | 5. Enemy Behavior & Combat Feedback | 2/2 | Complete   | 2026-03-11 |
-| 6. Player Defense & Survival | 0/3 | Not started | - |
+| 6. Player Defense & Survival | 2/3 | In Progress|  |
 | 7. Wave Progression & Enemy Variety | 0/3 | Not started | - |
 | 8. Combat HUD | 0/2 | Not started | - |
 | 9. Tactical Targeting System | 0/2 | Not started | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-11T15:54:20.478Z"
-last_activity: 2026-03-11 -- Phase 6 Plan 01 complete (player HP + shield wall)
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-11T16:06:00Z"
+last_activity: 2026-03-11 -- Phase 6 Plan 02 complete (death sequence + game over)
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 ---
@@ -51,23 +51,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 6: Player Defense & Survival -- Plan 01 complete (HP, shields, damage wiring).
+**Current focus:** Phase 6: Player Defense & Survival -- Plan 02 complete (death sequence, game over, restart).
 
 ## Current Position
 
 Phase: 6 of 9 (Player Defense & Survival)
-Plan: 1 of 3 in current phase (complete)
-Status: Plan 01 complete. Player HP, shield wall, damage vignette, stat tracking all implemented.
-Last activity: 2026-03-11 -- Phase 6 Plan 01 complete (player HP + shield wall)
+Plan: 2 of 3 in current phase (complete)
+Status: Plan 02 complete. Death sequence, game over screen, stats, high scores, restart flow.
+Last activity: 2026-03-11 -- Phase 6 Plan 02 complete (death sequence + game over)
 
-Progress: [█████████░] 87% (13/15 plans)
+Progress: [█████████░] 93% (14/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 14
 - Average duration: ~6 min
-- Total execution time: ~1.1 hours
+- Total execution time: ~1.3 hours
 
 **By Phase:**
 
@@ -87,6 +87,7 @@ Progress: [█████████░] 87% (13/15 plans)
 | Phase 05 P01 | 8min | 2 tasks | 6 files |
 | Phase 05 P02 | 3min | 2 tasks | 2 files |
 | Phase 06 P01 | 5min | 2 tasks | 5 files |
+| Phase 06 P02 | 9min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Shield pieces use ship-relative offsets (offFwd/offRight) converted to world each frame
 - [Phase 06]: Enemy AI stops entirely when player dies (playerState.alive gates updateEnemyAI)
 - [Phase 06]: HP bar uses 3 color thresholds: blue >50%, orange 25-50%, red <25%
+- [Phase 06]: Camera freezes on deathPos during breakup/detonation (not live flyPos)
+- [Phase 06]: Free slot lists rebuilt during resetCombat to prevent pool exhaustion
+- [Phase 06]: Death phase state machine: 0=alive, 1=flicker(1s), 2=breakup(1.5s), 3=detonation(3.5s), 4=gameOver
 
 ### Pending Todos
 
@@ -161,6 +165,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T15:54:20.476Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-11T16:06:00Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
