@@ -279,6 +279,7 @@
       aInstHeading:gl.getAttribLocation(enemyPg,'a_instHeading'),
       aInstColor:gl.getAttribLocation(enemyPg,'a_instColor'),
       aInstScale:gl.getAttribLocation(enemyPg,'a_instScale'),
+      aInstFlash:gl.getAttribLocation(enemyPg,'a_instFlash'),
       uViewProj:gl.getUniformLocation(enemyPg,'u_viewProj'),
       uLightDir:gl.getUniformLocation(enemyPg,'u_lightDir'),
       uBhPos:gl.getUniformLocation(enemyPg,'u_bhPos'),
@@ -312,7 +313,7 @@
     const enemyIdxCount=gruntGeo.indices.length;
     // Enemy instance buffer (pre-allocated for MAX_ENEMIES)
     const enemyInstBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,MAX_ENEMIES*9*4,gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER,MAX_ENEMIES*ENEMY_INST_FLOATS*4,gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER,bf);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
     gl.useProgram(pg);
@@ -809,7 +810,7 @@
 
         // --- Enemy instanced rendering ---
         if(enemyCount>0){
-          const liveCount=updateInstanceBuffer();
+          const liveCount=updateInstanceBuffer(simTime);
           if(liveCount>0){
             gl.useProgram(enemyPg);
             gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
@@ -826,8 +827,8 @@
             gl.vertexAttribPointer(enemyLocs.aNorm,3,gl.FLOAT,false,0,0);
             // Per-instance attributes (divisor 1) -- interleaved in single buffer
             gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,liveCount*9));
-            const INST_STRIDE=9*4;
+            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,liveCount*10));
+            const INST_STRIDE=10*4;
             gl.enableVertexAttribArray(enemyLocs.aInstPos);
             gl.vertexAttribPointer(enemyLocs.aInstPos,3,gl.FLOAT,false,INST_STRIDE,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,1);
@@ -840,6 +841,9 @@
             gl.enableVertexAttribArray(enemyLocs.aInstScale);
             gl.vertexAttribPointer(enemyLocs.aInstScale,1,gl.FLOAT,false,INST_STRIDE,32);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,1);
+            gl.enableVertexAttribArray(enemyLocs.aInstFlash);
+            gl.vertexAttribPointer(enemyLocs.aInstFlash,1,gl.FLOAT,false,INST_STRIDE,36);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,1);
             // Index buffer and instanced draw
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,enemyIdxBuf);
             iExt.drawElementsInstancedANGLE(gl.TRIANGLES,enemyIdxCount,gl.UNSIGNED_SHORT,0,liveCount);
@@ -848,6 +852,7 @@
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,0);
+            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,0);
             // Disable all enemy attributes
             gl.disableVertexAttribArray(enemyLocs.aPos);
             gl.disableVertexAttribArray(enemyLocs.aNorm);
@@ -855,6 +860,7 @@
             gl.disableVertexAttribArray(enemyLocs.aInstHeading);
             gl.disableVertexAttribArray(enemyLocs.aInstColor);
             gl.disableVertexAttribArray(enemyLocs.aInstScale);
+            gl.disableVertexAttribArray(enemyLocs.aInstFlash);
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
           }
         }

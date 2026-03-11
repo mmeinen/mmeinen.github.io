@@ -775,6 +775,7 @@ attribute vec3 a_instPos;
 attribute float a_instHeading;
 attribute vec4 a_instColor;
 attribute float a_instScale;
+attribute float a_instFlash;
 uniform mat4 u_viewProj;
 uniform vec3 u_lightDir;
 uniform vec3 u_bhPos;
@@ -783,6 +784,7 @@ varying vec3 v_normal;
 varying vec3 v_worldPos;
 varying vec4 v_color;
 varying float v_rimFactor;
+varying float v_flash;
 void main(){
   float c=cos(a_instHeading);
   float s=sin(a_instHeading);
@@ -806,6 +808,7 @@ void main(){
   v_worldPos=worldPos;
   v_color=a_instColor;
   v_rimFactor=diskProximity;
+  v_flash=a_instFlash;
   gl_Position=u_viewProj*vec4(worldPos,1.0);
 }`;
 const enemyFS=`precision mediump float;
@@ -815,6 +818,7 @@ varying vec3 v_normal;
 varying vec3 v_worldPos;
 varying vec4 v_color;
 varying float v_rimFactor;
+varying float v_flash;
 void main(){
   vec3 n=normalize(v_normal);
   float diff=max(dot(n,u_lightDir),0.0);
@@ -827,6 +831,7 @@ void main(){
   col+=vec3(1.0,0.6,0.2)*v_rimFactor*0.3;
   float engineGlow=max(-dot(n,vec3(0.0,0.0,1.0)),0.0)*0.4;
   col+=v_color.rgb*engineGlow;
+  col=mix(col,vec3(3.0),v_flash);
   gl_FragColor=vec4(col,1.0);
 }`;
 
