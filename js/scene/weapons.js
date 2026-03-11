@@ -477,11 +477,26 @@ function checkProjectileHits() {
     if (!proj.alive[i]) continue;
 
     if (proj.type[i] === 2) {
-      // Enemy kinetic: check against player position
+      // Enemy kinetic: check shields first, then hull
+      let shieldAbsorbed = false;
+      for (let si = 0; si < MAX_SHIELD_PIECES; si++) {
+        if (!shield.alive[si]) continue;
+        const sdx = proj.posX[i] - shield.posX[si];
+        const sdz = proj.posZ[i] - shield.posZ[si];
+        if (sdx * sdx + sdz * sdz < SHIELD_HIT_RADIUS_SQ) {
+          shieldAbsorbed = true;
+          destroyShieldPiece(si);
+          removeProjectile(i);
+          break;
+        }
+      }
+      if (shieldAbsorbed) continue;
+      // Then check hull
       const dx = proj.posX[i] - flyPos[0];
       const dz = proj.posZ[i] - flyPos[2];
       if (dx * dx + dz * dz < HIT_RADIUS_KINETIC * HIT_RADIUS_KINETIC) {
-        // Hit player (damage deferred to Phase 6 player HP system)
+        applyPlayerDamage(ENEMY_KINETIC_DAMAGE);
+        if (typeof spawnImpactParticles === 'function') spawnImpactParticles(flyPos[0], flyPos[2], 0);
         removeProjectile(i);
       }
       continue;
