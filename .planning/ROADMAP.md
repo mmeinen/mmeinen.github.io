@@ -114,12 +114,12 @@ Plans:
   3. When hull integrity reaches zero, the ship is destroyed with a visible explosion
   4. A game over screen appears showing combat stats (waves survived, enemies killed) with a restart option
   5. Off-screen enemy indicators (chevrons at screen edge) point toward enemies outside the viewport
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
-- [ ] 06-03: TBD
+- [ ] 06-01-PLAN.md -- Player state (250 HP), shield SoA (10 pieces), shield rendering, damage wiring with shield-before-hull collision, vignette overlay, HP bar, stat tracking hooks
+- [ ] 06-02-PLAN.md -- Multi-stage death sequence (flicker/breakup/detonation), camera pull-out, game over screen with stats and localStorage high scores, restart flow (R key), exit flow (Escape)
+- [ ] 06-03-PLAN.md -- Off-screen enemy indicators (DOM chevrons at viewport edges with distance readout), visual verification of complete Phase 6
 
 ### Phase 7: Wave Progression & Enemy Variety
 **Goal**: Combat is a wave-based survival challenge with 5 distinct enemy archetypes, boss encounters, and scaling difficulty that keeps every wave interesting
