@@ -75,7 +75,7 @@ function spawnEnemy(x, y, z, type, assignBody, stationPhase) {
   enemies.hasFired[idx] = 0;
   enemies.stationPhase[idx] = stationPhase || 0;
   enemies.flash[idx] = 0;
-  enemies.auxTimer[idx] = 0;
+  enemies.auxTimer[idx] = 10.0; // high initial value so first archetype trigger fires immediately
   enemyCount++;
   return idx;
 }
@@ -220,11 +220,18 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
     // Increment AI timer
     enemies.aiTimer[i] += simDt;
 
+    // Increment auxTimer (used by Swarm ram cooldown, Bomber salvo reload)
+    enemies.auxTimer[i] += simDt;
+
     // Distance to player
     const dpx = playerPos[0] - enemies.posX[i];
     const dpz = playerPos[2] - enemies.posZ[i];
     const distSq = dpx * dpx + dpz * dpz;
     const dist = Math.sqrt(distSq);
+
+    // Get wave-scaled archetype stats
+    const stats = (typeof getArchetypeStats === 'function') ? getArchetypeStats(enemies.type[i], waveNumber) : null;
+    const eType = enemies.type[i];
 
     switch (enemies.aiState[i]) {
       case AI_IDLE: {
@@ -247,8 +254,9 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           const spd = Math.sqrt(bv[0] * bv[0] + bv[2] * bv[2]);
           if (spd > 0.01) enemies.heading[i] = Math.atan2(bv[0], bv[2]);
         }
-        // Detect player proximity
-        if (distSq < DETECT_RADIUS_SQ) {
+        // Detect player proximity (wave-scaled detect radius)
+        const detectR = stats ? stats.detectRadius : DETECT_RADIUS;
+        if (distSq < detectR * detectR) {
           enemies.aiState[i] = AI_ALERT;
           enemies.aiTimer[i] = 0;
         }
@@ -256,8 +264,9 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       }
 
       case AI_ALERT: {
-        // Brief pause before engaging
-        if (enemies.aiTimer[i] >= ALERT_PAUSE) {
+        // Brief pause before engaging (Swarm reacts faster: 0.2s vs 0.5s)
+        const alertTime = (eType === ETYPE.SWARM) ? 0.2 : ALERT_PAUSE;
+        if (enemies.aiTimer[i] >= alertTime) {
           // Determine target body (use player's current body or nearest planet)
           enemies.targetBody[i] = playerBody >= 0 ? playerBody : -1;
           // Compute transfer: vis-viva based impulse
@@ -294,8 +303,17 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
             const evdx = enemies.velX[i] / espd, evdz = enemies.velZ[i] / espd;
             const dot = evdx * tdx + evdz * tdz;
             const offCourse = Math.max(0, 1 - dot);
-            gx = tdx * offCourse * GUIDANCE_ACCEL_ENEMY;
-            gz = tdz * offCourse * GUIDANCE_ACCEL_ENEMY;
+            // Swarm: 2x guidance for aggressive convergence; Bomber: 0.5x for slow approach
+            let guidanceMul = 1.0;
+            if (eType === ETYPE.SWARM) guidanceMul = 2.0;
+            else if (eType === ETYPE.BOMBER) guidanceMul = 0.5;
+            gx = tdx * offCourse * GUIDANCE_ACCEL_ENEMY * guidanceMul;
+            gz = tdz * offCourse * GUIDANCE_ACCEL_ENEMY * guidanceMul;
+          }
+          // Swarm: continuous thrust toward player for higher approach speed
+          if (eType === ETYPE.SWARM) {
+            gx += tdx * 2.0;
+            gz += tdz * 2.0;
           }
         }
         // Leapfrog integration
@@ -307,44 +325,135 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         // Update heading from velocity
         const tspd = Math.sqrt(enemies.velX[i] * enemies.velX[i] + enemies.velZ[i] * enemies.velZ[i]);
         if (tspd > 0.01) enemies.heading[i] = Math.atan2(enemies.velX[i], enemies.velZ[i]);
-        // Transition to attack when close enough
-        if (dist < ATTACK_RANGE) {
-          enemies.aiState[i] = AI_ATTACK;
-          enemies.aiTimer[i] = 0;
+        // Transition: Swarm stays in transfer until very close (dist < 3.0)
+        // Bomber transitions at stats.attackRange (medium range)
+        // Default (Grunt/others) at ATTACK_RANGE
+        if (eType === ETYPE.SWARM) {
+          if (dist < 3.0) {
+            enemies.aiState[i] = AI_ATTACK;
+            enemies.aiTimer[i] = 0;
+          }
+        } else {
+          const atkRange = (eType === ETYPE.BOMBER && stats) ? stats.attackRange : ATTACK_RANGE;
+          if (dist < atkRange) {
+            enemies.aiState[i] = AI_ATTACK;
+            enemies.aiTimer[i] = 0;
+          }
         }
         break;
       }
 
       case AI_ATTACK: {
-        // Continue physics (gravity + leapfrog, no guidance)
-        _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-        const ga2 = computeGravAccel(_aiScratch);
-        enemies.velX[i] += ga2[0] * simDt;
-        enemies.velZ[i] += ga2[2] * simDt;
-        enemies.posX[i] += enemies.velX[i] * simDt;
-        enemies.posZ[i] += enemies.velZ[i] * simDt;
-        enemies.posY[i] = 0;
-        // Update heading toward player
-        if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
-        // Fire if close enough and hasn't fired yet
-        if (!enemies.hasFired[i] && dist < FIRE_RANGE) {
-          enemyFireAt(i, playerPos, playerVel);
-          enemies.hasFired[i] = 1;
-          spawnExplosion(enemies.posX[i], 0, enemies.posZ[i], 0.6); // muzzle flash
-        }
-        // Disengage condition
-        if (dist < DISENGAGE_DIST || (enemies.hasFired[i] && enemies.aiTimer[i] > 1.0)) {
-          enemies.aiState[i] = AI_DISENGAGE;
-          enemies.aiTimer[i] = 0;
+        if (eType === ETYPE.SWARM) {
+          // ---- SWARM ATTACK: ram damage, no ranged weapons ----
+          // Continue physics with gravity + thrust toward player
+          _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
+          const gaS = computeGravAccel(_aiScratch);
+          // Always accelerate toward player (rush behavior)
+          let rushX = 0, rushZ = 0;
+          if (dist > 0.1) {
+            rushX = (dpx / dist) * 2.0;
+            rushZ = (dpz / dist) * 2.0;
+          }
+          enemies.velX[i] += (gaS[0] + rushX) * simDt;
+          enemies.velZ[i] += (gaS[2] + rushZ) * simDt;
+          enemies.posX[i] += enemies.velX[i] * simDt;
+          enemies.posZ[i] += enemies.velZ[i] * simDt;
+          enemies.posY[i] = 0;
+          // Update heading toward player
+          if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+          // Ram damage on close proximity
+          if (dist < 2.0) {
+            const ramCooldown = stats ? stats.attackCooldown : 0.5;
+            if (enemies.auxTimer[i] >= ramCooldown) {
+              if (typeof applyPlayerDamage === 'function') applyPlayerDamage(15);
+              enemies.auxTimer[i] = 0;
+              enemies.flash[i] = 0.5;
+              if (typeof spawnImpactParticles === 'function') spawnImpactParticles(enemies.posX[i], enemies.posZ[i], ETYPE.SWARM);
+            }
+          }
+          // Disengage: player moved away after ram, or timeout without ram
+          if (dist > 8.0 || (enemies.aiTimer[i] > 3.0 && enemies.auxTimer[i] > 0.5)) {
+            enemies.aiState[i] = AI_DISENGAGE;
+            enemies.aiTimer[i] = 0;
+          }
+        } else if (eType === ETYPE.BOMBER) {
+          // ---- BOMBER ATTACK: hold position, fire missile salvos ----
+          // Gravity + braking to hold position at medium range
+          _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
+          const gaB = computeGravAccel(_aiScratch);
+          enemies.velX[i] *= 0.98; // braking force
+          enemies.velZ[i] *= 0.98;
+          enemies.velX[i] += gaB[0] * simDt;
+          enemies.velZ[i] += gaB[2] * simDt;
+          enemies.posX[i] += enemies.velX[i] * simDt;
+          enemies.posZ[i] += enemies.velZ[i] * simDt;
+          enemies.posY[i] = 0;
+          // Update heading toward player
+          if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+          // Fire missile salvo when cooldown is met
+          const salvoCooldown = stats ? stats.attackCooldown : 3.0;
+          if (enemies.auxTimer[i] >= salvoCooldown) {
+            // Fire 3-missile salvo with angular spread
+            if (typeof enemyFireMissile === 'function') {
+              for (let m = 0; m < 3; m++) {
+                const mIdx = enemyFireMissile(i);
+                if (mIdx >= 0) {
+                  // Add angular spread: -5, 0, +5 degrees
+                  const spreadAngle = (m - 1) * (5.0 * Math.PI / 180.0);
+                  if (spreadAngle !== 0) {
+                    const cosA = Math.cos(spreadAngle), sinA = Math.sin(spreadAngle);
+                    const ovx = missile.velX[mIdx], ovz = missile.velZ[mIdx];
+                    missile.velX[mIdx] = ovx * cosA - ovz * sinA;
+                    missile.velZ[mIdx] = ovx * sinA + ovz * cosA;
+                  }
+                }
+              }
+            }
+            enemies.auxTimer[i] = 0;
+            enemies.hasFired[i] = 1;
+            if (typeof spawnExplosion === 'function') spawnExplosion(enemies.posX[i], 0, enemies.posZ[i], 0.8);
+          }
+          // Disengage: player closing in, or after firing + timeout
+          if (dist < 10.0 || (enemies.hasFired[i] && enemies.aiTimer[i] > 3.0)) {
+            enemies.aiState[i] = AI_DISENGAGE;
+            enemies.aiTimer[i] = 0;
+          }
+        } else {
+          // ---- GRUNT / SNIPER / CAPITAL: default attack behavior ----
+          // Continue physics (gravity + leapfrog, no guidance)
+          _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
+          const ga2 = computeGravAccel(_aiScratch);
+          enemies.velX[i] += ga2[0] * simDt;
+          enemies.velZ[i] += ga2[2] * simDt;
+          enemies.posX[i] += enemies.velX[i] * simDt;
+          enemies.posZ[i] += enemies.velZ[i] * simDt;
+          enemies.posY[i] = 0;
+          // Update heading toward player
+          if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+          // Fire if close enough and hasn't fired yet
+          const fRange = stats ? stats.fireRange : FIRE_RANGE;
+          if (!enemies.hasFired[i] && dist < fRange) {
+            enemyFireAt(i, playerPos, playerVel);
+            enemies.hasFired[i] = 1;
+            spawnExplosion(enemies.posX[i], 0, enemies.posZ[i], 0.6); // muzzle flash
+          }
+          // Disengage condition
+          if (dist < DISENGAGE_DIST || (enemies.hasFired[i] && enemies.aiTimer[i] > 1.0)) {
+            enemies.aiState[i] = AI_DISENGAGE;
+            enemies.aiTimer[i] = 0;
+          }
         }
         break;
       }
 
       case AI_DISENGAGE: {
-        // First frame: reduce speed by ~20% to raise apoapsis (retrograde impulse)
+        // First frame: reduce speed (retrograde impulse)
         if (enemies.aiTimer[i] < simDt * 1.5) {
-          enemies.velX[i] *= 0.8;
-          enemies.velZ[i] *= 0.8;
+          // Bomber flees faster (0.6x), others normal (0.8x)
+          const retro = (eType === ETYPE.BOMBER) ? 0.6 : 0.8;
+          enemies.velX[i] *= retro;
+          enemies.velZ[i] *= retro;
         }
         // Continue physics
         _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
@@ -357,8 +466,9 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         // Update heading
         const dspd = Math.sqrt(enemies.velX[i] * enemies.velX[i] + enemies.velZ[i] * enemies.velZ[i]);
         if (dspd > 0.01) enemies.heading[i] = Math.atan2(enemies.velX[i], enemies.velZ[i]);
-        // Transition to reorbit when far enough or timeout
-        if (dist > REORBIT_DIST || enemies.aiTimer[i] > 3.0) {
+        // Transition to reorbit: Bomber needs more distance (30), others at REORBIT_DIST (20)
+        const reorbitR = (eType === ETYPE.BOMBER) ? 30.0 : REORBIT_DIST;
+        if (dist > reorbitR || enemies.aiTimer[i] > 3.0) {
           enemies.aiState[i] = AI_REORBIT;
           enemies.aiTimer[i] = 0;
         }
