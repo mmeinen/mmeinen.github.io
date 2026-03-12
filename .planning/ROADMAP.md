@@ -118,8 +118,8 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md -- Player state (250 HP), shield SoA (10 pieces), shield rendering, damage wiring with shield-before-hull collision, vignette overlay, HP bar, stat tracking hooks
-- [ ] 06-02-PLAN.md -- Multi-stage death sequence (flicker/breakup/detonation), camera pull-out, game over screen with stats and localStorage high scores, restart flow (R key), exit flow (Escape)
-- [ ] 06-03-PLAN.md -- Off-screen enemy indicators (DOM chevrons at viewport edges with distance readout), visual verification of complete Phase 6
+- [x] 06-02-PLAN.md -- Multi-stage death sequence (flicker/breakup/detonation), camera pull-out, game over screen with stats and localStorage high scores, restart flow (R key), exit flow (Escape)
+- [x] 06-03-PLAN.md -- Off-screen enemy indicators (DOM chevrons at viewport edges with distance readout), visual verification of complete Phase 6
 
 ### Phase 7: Wave Progression & Enemy Variety
 **Goal**: Combat is a wave-based survival challenge with 5 distinct enemy archetypes, boss encounters, and scaling difficulty that keeps every wave interesting
@@ -131,12 +131,12 @@ Plans:
   3. Boss waves appear every N waves as special encounters with distinct challenge
   4. Each successive wave increases in difficulty: more enemies, higher accuracy, greater aggression, and more archetype variety
   5. Capital enemies spawn Grunt minions as a mini-boss mechanic
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
-- [ ] 07-03: TBD
+- [ ] 07-01-PLAN.md -- Wave system foundation: ETYPE extension (5 archetypes), 4 new geometry functions, multi-geometry instanced rendering, wave state machine (waves.js), wave announcement, indicator colors
+- [ ] 07-02-PLAN.md -- Swarm and Bomber archetypes: converging rush + ram damage AI, missile salvo AI, enemy-fired missiles in missiles.js
+- [ ] 07-03-PLAN.md -- Sniper and Capital archetypes: burst fire AI, minion-spawning AI, boss wave logic, Capital warp-in VFX, visual verification
 
 ### Phase 8: Combat HUD
 **Goal**: Player has full situational awareness through a combat HUD showing weapon readiness, wave status, hull condition, and current orbit
