@@ -29,7 +29,8 @@ const missile = {
   age:       new Float32Array(MAX_MISSILES_ACTIVE),
   initFuel:  new Float32Array(MAX_MISSILES_ACTIVE),
   targetIdx: new Int16Array(MAX_MISSILES_ACTIVE),
-  type:      new Uint8Array(MAX_MISSILES_ACTIVE)
+  type:      new Uint8Array(MAX_MISSILES_ACTIVE),
+  source:    new Uint8Array(MAX_MISSILES_ACTIVE)   // 0 = player, 1 = enemy
 };
 
 const missileFreeSlots = [];
@@ -150,6 +151,7 @@ function spawnMissile(type, targetIdx) {
   missile.age[idx] = 0;
   missile.targetIdx[idx] = targetIdx;
   missile.type[idx] = type;
+  missile.source[idx] = 0; // player missile
   missileCount++;
   return idx;
 }
@@ -158,8 +160,41 @@ function spawnMissile(type, targetIdx) {
 function removeMissile(idx) {
   if (!missile.alive[idx]) return;
   missile.alive[idx] = 0;
+  missile.source[idx] = 0;
   missileFreeSlots.push(idx);
   missileCount--;
+}
+
+/**
+ * Fire an enemy missile targeting the player.
+ * @param {number} enemyIdx - index of the firing enemy
+ * @returns {number} missile slot index, or -1 if pool is full
+ */
+function enemyFireMissile(enemyIdx) {
+  if (missileFreeSlots.length === 0) return -1;
+  const idx = missileFreeSlots.pop();
+  const ex = enemies.posX[enemyIdx], ez = enemies.posZ[enemyIdx];
+  // Aim toward player
+  let dx = flyPos[0] - ex, dz = flyPos[2] - ez;
+  const d = Math.sqrt(dx * dx + dz * dz);
+  if (d > 0.01) { dx /= d; dz /= d; } else { dx = 0; dz = 1; }
+  const enemySpd = MISSILE_SPEED * 0.7;
+  missile.alive[idx] = 1;
+  missile.posX[idx] = ex;
+  missile.posZ[idx] = ez;
+  missile.velX[idx] = enemies.velX[enemyIdx] + dx * enemySpd;
+  missile.velZ[idx] = enemies.velZ[enemyIdx] + dz * enemySpd;
+  const spd = Math.sqrt(missile.velX[idx] * missile.velX[idx] + missile.velZ[idx] * missile.velZ[idx]);
+  missile.fwdX[idx] = spd > 0.01 ? missile.velX[idx] / spd : 0;
+  missile.fwdZ[idx] = spd > 0.01 ? missile.velZ[idx] / spd : 1;
+  missile.fuel[idx] = 5.0;
+  missile.initFuel[idx] = 5.0;
+  missile.age[idx] = 0;
+  missile.targetIdx[idx] = -1; // special: target is player
+  missile.type[idx] = 0;       // regular (not nuke)
+  missile.source[idx] = 1;     // enemy missile
+  missileCount++;
+  return idx;
 }
 
 /* Fire a salvo of all locked targets */
@@ -221,22 +256,51 @@ function updateMissiles(simDt) {
     if (!missile.alive[i]) continue;
     missile.age[i] += simDt;
 
-    // Validate target
+    // Validate target and read live position
     const ti = missile.targetIdx[i];
-    if (ti < 0 || !enemies.alive[ti]) {
+    let tX, tZ;
+    if (ti === -1) {
+      // Enemy missile targeting player
+      if (typeof playerState !== 'undefined' && !playerState.alive) {
+        removeMissile(i); continue;
+      }
+      tX = flyPos[0]; tZ = flyPos[2];
+    } else if (ti < 0 || !enemies.alive[ti]) {
       // Target dead/invalid: remove silently (fizzle)
       removeMissile(i);
       continue;
+    } else {
+      tX = enemies.posX[ti]; tZ = enemies.posZ[ti];
     }
 
-    // Read live target position
-    const tX = enemies.posX[ti], tZ = enemies.posZ[ti];
     let dx = tX - missile.posX[i], dz = tZ - missile.posZ[i];
     let dist = Math.sqrt(dx * dx + dz * dz);
 
     // Proximity check
     if (dist < MISSILE_DET_RADIUS) {
-      if (missile.type[i] === 1) {
+      if (missile.source[i] === 1) {
+        // Enemy missile detonation: check shields first, then hull
+        const mx = missile.posX[i], mz = missile.posZ[i];
+        let shieldAbsorbed = false;
+        if (typeof shield !== 'undefined' && typeof destroyShieldPiece === 'function') {
+          for (let si = 0; si < MAX_SHIELD_PIECES; si++) {
+            if (!shield.alive[si]) continue;
+            const sdx = mx - shield.posX[si];
+            const sdz = mz - shield.posZ[si];
+            if (sdx * sdx + sdz * sdz < SHIELD_HIT_RADIUS_SQ) {
+              shieldAbsorbed = true;
+              destroyShieldPiece(si);
+              break;
+            }
+          }
+        }
+        if (typeof spawnExplosion === 'function') spawnExplosion(mx, 0, mz, EXPLOSION_BASE_SIZE);
+        if (!shieldAbsorbed) {
+          if (typeof applyPlayerDamage === 'function') applyPlayerDamage(40);
+          if (typeof spawnImpactParticles === 'function') spawnImpactParticles(mx, mz, 0);
+        }
+        removeMissile(i);
+      } else if (missile.type[i] === 1) {
         detonateMissileNuke(i);
       } else {
         onMissileDetonate(i);
