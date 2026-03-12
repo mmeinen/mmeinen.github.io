@@ -33,8 +33,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Enemies
 
 - [x] **ENM-01**: Grunt enemy archetype — medium speed, low HP, fires at player when in range (introduced wave 1)
-- [ ] **ENM-02**: Swarm enemy archetype — fast, fragile, attacks in groups of 5-8 (introduced wave 3)
-- [ ] **ENM-03**: Bomber enemy archetype — slow approach, fires high-damage missiles, dangerous if ignored (introduced wave 5)
+- [x] **ENM-02**: Swarm enemy archetype — fast, fragile, attacks in groups of 5-8 (introduced wave 3)
+- [x] **ENM-03**: Bomber enemy archetype — slow approach, fires high-damage missiles, dangerous if ignored (introduced wave 5)
 - [ ] **ENM-04**: Sniper enemy archetype — stays at extreme range, fires accurate shots, low HP (introduced wave 8)
 - [ ] **ENM-05**: Capital enemy archetype — large, slow, high HP, spawns Grunt minions as mini-boss (introduced wave 10+)
 - [x] **ENM-06**: Enemies orbit bodies using orbital mechanics (not just flying straight at player)
@@ -137,8 +137,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WPN-10 | Phase 4 | Complete |
 | WPN-11 | Phase 3 | Complete |
 | ENM-01 | Phase 5 | Complete |
-| ENM-02 | Phase 7 | Pending |
-| ENM-03 | Phase 7 | Pending |
+| ENM-02 | Phase 7 | Complete |
+| ENM-03 | Phase 7 | Complete |
 | ENM-04 | Phase 7 | Pending |
 | ENM-05 | Phase 7 | Pending |
 | ENM-06 | Phase 5 | Complete |

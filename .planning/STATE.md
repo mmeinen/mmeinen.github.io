@@ -3,11 +3,42 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-12T17:51:18.896Z"
+last_activity: 2026-03-12 -- Phase 7 Plan 02 complete (Swarm and Bomber archetype AI)
+progress:
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 18
+  completed_plans: 17
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-12T17:50:01.258Z"
+last_activity: 2026-03-12 -- Phase 7 Plan 01 complete (wave foundation & archetypes)
+progress:
+  total_phases: 9
+  completed_phases: 6
+  total_plans: 18
+  completed_plans: 17
+  percent: 94
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
 stopped_at: Phase 7 context gathered
 last_updated: "2026-03-12T15:57:07.947Z"
 last_activity: 2026-03-11 -- Phase 6 Plan 03 complete (off-screen enemy indicators)
 progress:
-  total_phases: 9
+  [█████████░] 94%
   completed_phases: 6
   total_plans: 15
   completed_plans: 15
@@ -66,16 +97,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 7: Wave Progression & Enemy Variety -- Plan 01 complete (wave foundation, 5 archetypes, multi-geo rendering).
+**Current focus:** Phase 7: Wave Progression & Enemy Variety -- Plan 02 complete (Swarm rush AI, Bomber missile salvo AI).
 
 ## Current Position
 
 Phase: 7 of 9 (Wave Progression & Enemy Variety)
-Plan: 1 of 3 in current phase (complete)
-Status: Plan 01 complete. Wave state machine, 5 enemy archetypes, multi-geometry rendering pipeline.
-Last activity: 2026-03-12 -- Phase 7 Plan 01 complete (wave foundation & archetypes)
+Plan: 2 of 3 in current phase (complete)
+Status: Plan 02 complete. Swarm rush AI with ram damage, Bomber missile salvo AI with enemy-fired missiles.
+Last activity: 2026-03-12 -- Phase 7 Plan 02 complete (Swarm and Bomber archetype AI)
 
-Progress: [████████████████] 88% (16/18 plans)
+Progress: [█████████░] 94% (17/18 plans)
 
 ## Performance Metrics
 
@@ -105,6 +136,7 @@ Progress: [████████████████] 88% (16/18 plans)
 | Phase 06 P02 | 9min | 2 tasks | 3 files |
 | Phase 06 P03 | 4min | 1 tasks | 3 files |
 | Phase 07 P01 | 10min | 2 tasks | 6 files |
+| Phase 07 P02 | 7min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -179,6 +211,12 @@ Recent decisions affecting current work:
 - [Phase 07]: Boss waves every 10th wave with Capital ships + hardest unlocked support cast
 - [Phase 07]: getArchetypeStats() returns per-archetype tuning that scales independently over 50 waves
 - [Phase 07]: Enemy Capital uses hexagonal hull (vs player octagonal) for visual distinction
+- [Phase 07]: Swarm uses continuous thrust toward player in TRANSFER and ATTACK for aggressive rushing
+- [Phase 07]: Swarm ram damage 15 HP per hit, gated by wave-scaled cooldown via auxTimer
+- [Phase 07]: Bomber fires 3-missile salvos with +/-5 degree angular spread
+- [Phase 07]: Enemy missiles use targetIdx=-1 convention and missile.source=1 for player-targeting
+- [Phase 07]: Enemy missile detonation: shields absorb first, then 40 HP hull damage
+- [Phase 07]: auxTimer initialized to 10.0 in spawnEnemy so first archetype trigger fires immediately
 
 ### Pending Todos
 
@@ -190,6 +228,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T17:37:29Z
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-wave-progression-enemy-variety/07-01-SUMMARY.md
+Last session: 2026-03-12T17:51:18.893Z
+Stopped at: Completed 07-02-PLAN.md
+Resume file: None
