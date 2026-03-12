@@ -66,16 +66,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 6: Player Defense & Survival -- Plan 03 complete (off-screen enemy indicators). Phase 6 complete pending visual verification.
+**Current focus:** Phase 7: Wave Progression & Enemy Variety -- Plan 01 complete (wave foundation, 5 archetypes, multi-geo rendering).
 
 ## Current Position
 
-Phase: 6 of 9 (Player Defense & Survival)
-Plan: 3 of 3 in current phase (complete)
-Status: Plan 03 complete. Off-screen enemy indicators with directional chevrons and distance readout. Phase 6 complete pending visual verification.
-Last activity: 2026-03-11 -- Phase 6 Plan 03 complete (off-screen enemy indicators)
+Phase: 7 of 9 (Wave Progression & Enemy Variety)
+Plan: 1 of 3 in current phase (complete)
+Status: Plan 01 complete. Wave state machine, 5 enemy archetypes, multi-geometry rendering pipeline.
+Last activity: 2026-03-12 -- Phase 7 Plan 01 complete (wave foundation & archetypes)
 
-Progress: [██████████] 100% (15/15 plans)
+Progress: [████████████████] 88% (16/18 plans)
 
 ## Performance Metrics
 
@@ -104,6 +104,7 @@ Progress: [██████████] 100% (15/15 plans)
 | Phase 06 P01 | 5min | 2 tasks | 5 files |
 | Phase 06 P02 | 9min | 2 tasks | 3 files |
 | Phase 06 P03 | 4min | 1 tasks | 3 files |
+| Phase 07 P01 | 10min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -172,6 +173,12 @@ Recent decisions affecting current work:
 - [Phase 06]: Death phase state machine: 0=alive, 1=flicker(1s), 2=breakup(1.5s), 3=detonation(3.5s), 4=gameOver
 - [Phase 06]: Off-screen indicators use camera-vector dot-product projection (not _mvp which includes model transform)
 - [Phase 06]: Indicator archetype colors indexed by enemy type (5-color array, extensible for Phase 7)
+- [Phase 07]: updateInstanceBuffer packs by type for per-archetype multi-geometry draw calls
+- [Phase 07]: Multi-geometry rendering uses shared instance buffer with byte offset per archetype
+- [Phase 07]: Wave breather 4.0s, enemy count formula min(MAX_ENEMIES-8, floor(6+wave*1.2))
+- [Phase 07]: Boss waves every 10th wave with Capital ships + hardest unlocked support cast
+- [Phase 07]: getArchetypeStats() returns per-archetype tuning that scales independently over 50 waves
+- [Phase 07]: Enemy Capital uses hexagonal hull (vs player octagonal) for visual distinction
 
 ### Pending Todos
 
@@ -183,6 +190,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T15:57:07.944Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-wave-progression-enemy-variety/07-CONTEXT.md
+Last session: 2026-03-12T17:37:29Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: .planning/phases/07-wave-progression-enemy-variety/07-01-SUMMARY.md

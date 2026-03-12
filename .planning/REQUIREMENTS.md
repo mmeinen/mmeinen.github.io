@@ -38,9 +38,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **ENM-04**: Sniper enemy archetype — stays at extreme range, fires accurate shots, low HP (introduced wave 8)
 - [ ] **ENM-05**: Capital enemy archetype — large, slow, high HP, spawns Grunt minions as mini-boss (introduced wave 10+)
 - [x] **ENM-06**: Enemies orbit bodies using orbital mechanics (not just flying straight at player)
-- [ ] **ENM-07**: Kill-triggered wave spawning — clearing current wave triggers next wave
+- [x] **ENM-07**: Kill-triggered wave spawning — clearing current wave triggers next wave
 - [ ] **ENM-08**: Boss waves appear every N waves as special encounters
-- [ ] **ENM-09**: Difficulty scales with wave number — increasing enemy count, aggression, accuracy, and archetype variety
+- [x] **ENM-09**: Difficulty scales with wave number — increasing enemy count, aggression, accuracy, and archetype variety
 - [x] **ENM-10**: Enemies fire projectiles at the player with accuracy that increases per wave
 - [x] **ENM-11**: Enemy ships have procedural shader geometry visuals (not sprites)
 
@@ -142,9 +142,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENM-04 | Phase 7 | Pending |
 | ENM-05 | Phase 7 | Pending |
 | ENM-06 | Phase 5 | Complete |
-| ENM-07 | Phase 7 | Pending |
+| ENM-07 | Phase 7 | Complete |
 | ENM-08 | Phase 7 | Pending |
-| ENM-09 | Phase 7 | Pending |
+| ENM-09 | Phase 7 | Complete |
 | ENM-10 | Phase 5 | Complete |
 | ENM-11 | Phase 1 | Complete |
 | DEF-01 | Phase 6 | Complete |
