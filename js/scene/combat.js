@@ -1,10 +1,16 @@
 /* ---- Combat Entity System ---- */
 
 /* Archetype definitions */
-const ETYPE = { GRUNT: 0 };
-const ARCHETYPE_COLORS = [[1.0, 0.314, 0.235, 1.0]]; // Grunt red (255,80,60) normalized, alpha=glow
-const ARCHETYPE_SCALES = [1.0]; // Grunt baseline
-const ARCHETYPE_HP = [100];
+const ETYPE = { GRUNT: 0, SWARM: 1, BOMBER: 2, SNIPER: 3, CAPITAL: 4 };
+const ARCHETYPE_COLORS = [
+  [1.0, 0.314, 0.235, 1.0],  // Grunt: red (255,80,60)
+  [1.0, 0.78, 0.15, 1.0],    // Swarm: yellow/amber
+  [0.7, 0.2, 0.85, 1.0],     // Bomber: purple/magenta
+  [0.0, 0.82, 0.82, 1.0],    // Sniper: cyan/teal
+  [0.9, 0.9, 0.95, 1.0],     // Capital: white/silver
+];
+const ARCHETYPE_SCALES = [1.0, 0.6, 1.3, 0.8, 4.5]; // Capital is 4.5x Grunt
+const ARCHETYPE_HP = [100, 30, 200, 60, 800]; // Swarm fragile, Capital beefy
 
 /* Entity Store (Structure of Arrays) */
 const MAX_ENEMIES = 64;
@@ -27,7 +33,8 @@ const enemies = {
   targetBody:   new Int8Array(MAX_ENEMIES),     // transfer destination
   hasFired:     new Uint8Array(MAX_ENEMIES),    // fired this attack pass?
   stationPhase: new Float32Array(MAX_ENEMIES),  // angle offset for station-keeping
-  flash:        new Float32Array(MAX_ENEMIES)   // flash intensity [0-1]
+  flash:        new Float32Array(MAX_ENEMIES),  // flash intensity [0-1]
+  auxTimer:     new Float32Array(MAX_ENEMIES)   // archetype-specific timing
 };
 
 /* AI state constants */
@@ -68,6 +75,7 @@ function spawnEnemy(x, y, z, type, assignBody, stationPhase) {
   enemies.hasFired[idx] = 0;
   enemies.stationPhase[idx] = stationPhase || 0;
   enemies.flash[idx] = 0;
+  enemies.auxTimer[idx] = 0;
   enemyCount++;
   return idx;
 }
@@ -85,6 +93,7 @@ function removeEnemy(idx) {
   enemies.hasFired[idx] = 0;
   enemies.stationPhase[idx] = 0;
   enemies.flash[idx] = 0;
+  enemies.auxTimer[idx] = 0;
   freeSlots.push(idx);
   enemyCount--;
 }
@@ -92,37 +101,43 @@ function removeEnemy(idx) {
 /* ---- Instance Buffer Packing ---- */
 
 /**
- * Pack live entity data into instanceData for GPU upload.
+ * Pack live entity data into instanceData for GPU upload, grouped by archetype type.
  * Layout per instance (10 floats): posX, posY, posZ, heading, colorR, colorG, colorB, colorA, scale, flash
+ * Packs all Grunts first, then Swarms, Bombers, Snipers, Capitals.
  * @param {number} simTime - current simulation time (for low-HP flicker)
- * Returns the number of live instances packed.
+ * Returns {typeCounts: [gruntCount, swarmCount, bomberCount, sniperCount, capitalCount], totalCount}.
  */
+const _typeCounts = [0, 0, 0, 0, 0];
 function updateInstanceBuffer(simTime) {
-  let liveCount = 0;
-  for (let i = 0; i < MAX_ENEMIES; i++) {
-    if (!enemies.alive[i]) continue;
-    const base = liveCount * ENEMY_INST_FLOATS;
-    instanceData[base]     = enemies.posX[i];
-    instanceData[base + 1] = enemies.posY[i];
-    instanceData[base + 2] = enemies.posZ[i];
-    instanceData[base + 3] = enemies.heading[i];
-    const c = ARCHETYPE_COLORS[enemies.type[i]];
-    instanceData[base + 4] = c[0];
-    instanceData[base + 5] = c[1];
-    instanceData[base + 6] = c[2];
-    // Low-HP flicker: below 30% HP, irregular alpha flicker
-    let alpha = c[3];
-    const hpRatio = enemies.hp[i] / ARCHETYPE_HP[enemies.type[i]];
-    if (hpRatio < 0.3) {
-      const flicker = Math.sin(simTime * 15 + i * 7.3) * Math.sin(simTime * 23 + i * 13.1);
-      alpha *= 0.3 + 0.7 * Math.max(0, flicker);
+  let offset = 0;
+  _typeCounts[0] = _typeCounts[1] = _typeCounts[2] = _typeCounts[3] = _typeCounts[4] = 0;
+  for (let t = 0; t < 5; t++) {
+    for (let i = 0; i < MAX_ENEMIES; i++) {
+      if (!enemies.alive[i] || enemies.type[i] !== t) continue;
+      const base = offset * ENEMY_INST_FLOATS;
+      instanceData[base]     = enemies.posX[i];
+      instanceData[base + 1] = enemies.posY[i];
+      instanceData[base + 2] = enemies.posZ[i];
+      instanceData[base + 3] = enemies.heading[i];
+      const c = ARCHETYPE_COLORS[t];
+      instanceData[base + 4] = c[0];
+      instanceData[base + 5] = c[1];
+      instanceData[base + 6] = c[2];
+      // Low-HP flicker: below 30% HP, irregular alpha flicker
+      let alpha = c[3];
+      const hpRatio = enemies.hp[i] / ARCHETYPE_HP[t];
+      if (hpRatio < 0.3) {
+        const flicker = Math.sin(simTime * 15 + i * 7.3) * Math.sin(simTime * 23 + i * 13.1);
+        alpha *= 0.3 + 0.7 * Math.max(0, flicker);
+      }
+      instanceData[base + 7] = alpha;
+      instanceData[base + 8] = enemies.scale[i];
+      instanceData[base + 9] = enemies.flash[i];
+      offset++;
+      _typeCounts[t]++;
     }
-    instanceData[base + 7] = alpha;
-    instanceData[base + 8] = enemies.scale[i];
-    instanceData[base + 9] = enemies.flash[i];
-    liveCount++;
   }
-  return liveCount;
+  return { typeCounts: _typeCounts, totalCount: offset };
 }
 
 /* ---- Radial Bin Collision Structure ---- */
