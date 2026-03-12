@@ -100,6 +100,7 @@
        </button>
        <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
        <div class="hp-bar-container" id="hp-bar-container"><div class="hp-bar" id="hp-bar"></div><span class="hp-text" id="hp-text">250</span></div>
+       <div id="wave-announce" class="wave-announce"></div>
      </div>
      <div class="damage-vignette" id="damage-vignette"></div>
      <div id="lock-reticles" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25;"></div>
@@ -333,6 +334,7 @@
    <script src="js/scene/orbital.js"></script>
    <script src="js/scene/nav.js"></script>
    <script src="js/scene/combat.js"></script>
+   <script src="js/scene/waves.js"></script>
    <script src="js/scene/weapons.js"></script>
    <script src="js/scene/explosions.js"></script>
    <script src="js/scene/particles.js"></script>
@@ -572,15 +574,23 @@
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
       }
     }
-    // Enemy geometry buffers
-    const gruntGeo=createGruntGeometry();
-    const enemyPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyPosBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,gruntGeo.positions,gl.STATIC_DRAW);
-    const enemyNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyNrmBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,gruntGeo.normals,gl.STATIC_DRAW);
-    const enemyIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,enemyIdxBuf);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,gruntGeo.indices,gl.STATIC_DRAW);
-    const enemyIdxCount=gruntGeo.indices.length;
+    // Enemy geometry buffers (multi-archetype)
+    function createGeoBuffers(gl,geo){
+      const posBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER,geo.positions,gl.STATIC_DRAW);
+      const nrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,nrmBuf);
+      gl.bufferData(gl.ARRAY_BUFFER,geo.normals,gl.STATIC_DRAW);
+      const idxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,idxBuf);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,geo.indices,gl.STATIC_DRAW);
+      return{posBuf,nrmBuf,idxBuf,idxCount:geo.indices.length};
+    }
+    const archetypeGeo=[
+      createGeoBuffers(gl,createGruntGeometry()),
+      createGeoBuffers(gl,createSwarmGeometry()),
+      createGeoBuffers(gl,createBomberGeometry()),
+      createGeoBuffers(gl,createSniperGeometry()),
+      createGeoBuffers(gl,createEnemyCapitalGeometry()),
+    ];
     // Enemy instance buffer (pre-allocated for MAX_ENEMIES)
     const enemyInstBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER,MAX_ENEMIES*ENEMY_INST_FLOATS*4,gl.DYNAMIC_DRAW);
@@ -776,7 +786,11 @@
       if(hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href}tId=null}}});
 
 
+    let _cheatBuf='';
     window.addEventListener('keydown',e=>{
+      // Cheat: type 999 to spawn 20 close enemies
+      if(e.key>='0'&&e.key<='9'){_cheatBuf+=e.key;if(_cheatBuf.length>3)_cheatBuf=_cheatBuf.slice(-3);
+        if(_cheatBuf==='999'&&flyMode&&playerState.alive){_cheatBuf='';for(let ci=0;ci<20;ci++){const a=Math.random()*Math.PI*2,d=8+Math.random()*12;spawnEnemy(flyPos[0]+Math.cos(a)*d,0,flyPos[2]+Math.sin(a)*d,0,-1,0);}}}
       // Game over screen: R to restart, Escape to exit
       if(playerState.deathPhase===4){
         if(e.key==='r'||e.key==='R'){
@@ -883,28 +897,11 @@
       }
     });
 
-    /* ---- Enemy spawning ---- */
+    /* ---- Enemy spawning (wave system) ---- */
     let enemiesSpawned=false;
     function spawnTestEnemies(){
-      // Distribute enemies among planets (1-2 per planet, 8 total)
-      const planetIndices=[0,1,2,3,4,5,6];
-      let spawned=0;
-      for(let pi=0;pi<planetIndices.length&&spawned<8;pi++){
-        const pIdx=planetIndices[pi];
-        const count=pi<1?2:1; // 2 on Jupiter, 1 on each other planet
-        for(let c=0;c<count&&spawned<8;c++){
-          const stPh=Math.random()*Math.PI*2;
-          const bodyPos=getBodyPosition(pIdx);
-          const bodyR=getBodyRadius(pIdx);
-          const stR=bodyR+3.0;
-          const planetAngle=Math.atan2(bodyPos[0],bodyPos[2]);
-          const angle=planetAngle+stPh;
-          const x=bodyPos[0]+stR*Math.sin(angle);
-          const z=bodyPos[2]+stR*Math.cos(angle);
-          spawnEnemy(x,0,z,ETYPE.GRUNT,pIdx,stPh);
-          spawned++;
-        }
-      }
+      // Delegate to wave system
+      startWaveSystem();
     }
 
     /* ---- Init explosion system ---- */
@@ -942,7 +939,13 @@
 
     /* ---- Off-screen enemy indicators ---- */
     function hideAllIndicators(){for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].style.display='none';}
-    const _indicatorColors=['rgba(255,60,40,0.9)','rgba(60,255,140,0.9)','rgba(255,200,40,0.9)','rgba(140,60,255,0.9)','rgba(255,140,40,0.9)'];
+    const _indicatorColors=[
+      'rgba(255,80,60,0.9)',    // Grunt: red
+      'rgba(255,200,40,0.9)',   // Swarm: yellow/amber
+      'rgba(180,50,217,0.9)',   // Bomber: purple/magenta
+      'rgba(0,210,210,0.9)',    // Sniper: cyan/teal
+      'rgba(230,230,242,0.9)',  // Capital: white/silver
+    ];
     function positionIndicator(el,x,y,angle,dist,enemyType){
       el.style.display='block';
       el.style.left=x+'px';
@@ -1058,6 +1061,8 @@
       if(flyMode&&shieldCount>0&&playerState.alive)updateShieldPositions();
       // Track time survived -- only when not in death sequence
       if(flyMode&&playerState.deathPhase===0)playerState.stats.timeSurvived+=simDtSec;
+      // Update wave system (before AI so new spawns get first AI tick)
+      if(flyMode&&playerState.alive)updateWaveSystem(simDtSec);
       // Update enemy AI state machine (only when player alive)
       if(enemyCount>0&&playerState.alive){
         updateEnemyAI(simDtSec,simTime,flyPos,flyVel,orbitBody);
@@ -1246,52 +1251,62 @@
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
 
-        // --- Enemy instanced rendering ---
+        // --- Enemy instanced rendering (multi-geometry per archetype) ---
         if(enemyCount>0){
-          const liveCount=updateInstanceBuffer(simTime);
-          if(liveCount>0){
+          const instResult=updateInstanceBuffer(simTime);
+          if(instResult.totalCount>0){
             gl.useProgram(enemyPg);
             gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
             gl.uniform3f(enemyLocs.uLightDir,_toLV[0],_toLV[1],_toLV[2]);
             gl.uniform3f(enemyLocs.uBhPos,0,0,0);
             gl.uniform1f(enemyLocs.uTime,simTime);
             gl.disableVertexAttribArray(aP);
-            // Per-vertex attributes (divisor 0)
-            gl.bindBuffer(gl.ARRAY_BUFFER,enemyPosBuf);
-            gl.enableVertexAttribArray(enemyLocs.aPos);
-            gl.vertexAttribPointer(enemyLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.bindBuffer(gl.ARRAY_BUFFER,enemyNrmBuf);
-            gl.enableVertexAttribArray(enemyLocs.aNorm);
-            gl.vertexAttribPointer(enemyLocs.aNorm,3,gl.FLOAT,false,0,0);
-            // Per-instance attributes (divisor 1) -- interleaved in single buffer
+            // Upload full instance data once
             gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,liveCount*10));
-            const INST_STRIDE=10*4;
-            gl.enableVertexAttribArray(enemyLocs.aInstPos);
-            gl.vertexAttribPointer(enemyLocs.aInstPos,3,gl.FLOAT,false,INST_STRIDE,0);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,1);
-            gl.enableVertexAttribArray(enemyLocs.aInstHeading);
-            gl.vertexAttribPointer(enemyLocs.aInstHeading,1,gl.FLOAT,false,INST_STRIDE,12);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,1);
-            gl.enableVertexAttribArray(enemyLocs.aInstColor);
-            gl.vertexAttribPointer(enemyLocs.aInstColor,4,gl.FLOAT,false,INST_STRIDE,16);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,1);
-            gl.enableVertexAttribArray(enemyLocs.aInstScale);
-            gl.vertexAttribPointer(enemyLocs.aInstScale,1,gl.FLOAT,false,INST_STRIDE,32);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,1);
-            gl.enableVertexAttribArray(enemyLocs.aInstFlash);
-            gl.vertexAttribPointer(enemyLocs.aInstFlash,1,gl.FLOAT,false,INST_STRIDE,36);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,1);
-            // Index buffer and instanced draw
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,enemyIdxBuf);
-            iExt.drawElementsInstancedANGLE(gl.TRIANGLES,enemyIdxCount,gl.UNSIGNED_SHORT,0,liveCount);
-            // Reset divisors to prevent state leak to shipPg/trajPg
+            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,instResult.totalCount*ENEMY_INST_FLOATS));
+            const INST_STRIDE=ENEMY_INST_FLOATS*4;
+            // Draw each archetype type with its own geometry
+            let instOffset=0;
+            for(let at=0;at<5;at++){
+              const typeCount=instResult.typeCounts[at];
+              if(typeCount===0){continue;}
+              const geo=archetypeGeo[at];
+              // Per-vertex attributes (divisor 0)
+              gl.bindBuffer(gl.ARRAY_BUFFER,geo.posBuf);
+              gl.enableVertexAttribArray(enemyLocs.aPos);
+              gl.vertexAttribPointer(enemyLocs.aPos,3,gl.FLOAT,false,0,0);
+              gl.bindBuffer(gl.ARRAY_BUFFER,geo.nrmBuf);
+              gl.enableVertexAttribArray(enemyLocs.aNorm);
+              gl.vertexAttribPointer(enemyLocs.aNorm,3,gl.FLOAT,false,0,0);
+              // Per-instance attributes from instance buffer at offset
+              gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
+              const byteOff=instOffset*INST_STRIDE;
+              gl.enableVertexAttribArray(enemyLocs.aInstPos);
+              gl.vertexAttribPointer(enemyLocs.aInstPos,3,gl.FLOAT,false,INST_STRIDE,byteOff);
+              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,1);
+              gl.enableVertexAttribArray(enemyLocs.aInstHeading);
+              gl.vertexAttribPointer(enemyLocs.aInstHeading,1,gl.FLOAT,false,INST_STRIDE,byteOff+12);
+              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,1);
+              gl.enableVertexAttribArray(enemyLocs.aInstColor);
+              gl.vertexAttribPointer(enemyLocs.aInstColor,4,gl.FLOAT,false,INST_STRIDE,byteOff+16);
+              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,1);
+              gl.enableVertexAttribArray(enemyLocs.aInstScale);
+              gl.vertexAttribPointer(enemyLocs.aInstScale,1,gl.FLOAT,false,INST_STRIDE,byteOff+32);
+              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,1);
+              gl.enableVertexAttribArray(enemyLocs.aInstFlash);
+              gl.vertexAttribPointer(enemyLocs.aInstFlash,1,gl.FLOAT,false,INST_STRIDE,byteOff+36);
+              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,1);
+              // Draw this archetype
+              gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,geo.idxBuf);
+              iExt.drawElementsInstancedANGLE(gl.TRIANGLES,geo.idxCount,gl.UNSIGNED_SHORT,0,typeCount);
+              instOffset+=typeCount;
+            }
+            // Reset divisors once after loop
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,0);
             iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,0);
-            // Disable all enemy attributes
             gl.disableVertexAttribArray(enemyLocs.aPos);
             gl.disableVertexAttribArray(enemyLocs.aNorm);
             gl.disableVertexAttribArray(enemyLocs.aInstPos);

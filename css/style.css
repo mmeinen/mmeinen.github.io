@@ -561,6 +561,43 @@ body {
 }
 
 /* ============================================
+   WAVE ANNOUNCEMENT
+   ============================================ */
+
+.wave-announce {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 28;
+  pointer-events: none;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 700;
+  font-size: 2.5em;
+  letter-spacing: 0.3em;
+  color: rgba(60, 140, 255, 0.95);
+  text-shadow: 0 0 20px rgba(60, 140, 255, 0.6), 0 0 40px rgba(60, 140, 255, 0.3);
+  opacity: 0;
+}
+
+.wave-announce.boss {
+  color: rgba(255, 80, 60, 0.95);
+  text-shadow: 0 0 20px rgba(255, 80, 60, 0.6), 0 0 40px rgba(255, 80, 60, 0.3);
+}
+
+.wave-announce.visible {
+  animation: waveAnnounce 3s ease-in-out forwards;
+}
+
+@keyframes waveAnnounce {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  10%  { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  15%  { transform: translateX(-50%) scale(1); }
+  70%  { opacity: 1; transform: translateX(-50%) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1); }
+}
+
+/* ============================================
    GAME OVER SCREEN
    ============================================ */
 
@@ -650,7 +687,8 @@ body {
   .damage-vignette,
   .hp-bar-container,
   .game-over-screen,
-  .enemy-indicator {
+  .enemy-indicator,
+  .wave-announce {
     display: none !important;
   }
 

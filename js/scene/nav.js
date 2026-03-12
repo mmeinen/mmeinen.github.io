@@ -600,7 +600,9 @@ function resetCombat() {
     flyFwd[0] = flyVel[0] / spd; flyFwd[1] = 0; flyFwd[2] = flyVel[2] / spd;
   }
   flyUp[0] = 0; flyUp[1] = 1; flyUp[2] = 0;
-  // Re-spawn enemies
+  // Reset wave system and re-spawn enemies
+  if (typeof resetWaveSystem === 'function') resetWaveSystem();
+  enemiesSpawned = false;
   spawnTestEnemies();
   // Reset combat mode
   combatMode = false;
