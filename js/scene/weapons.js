@@ -163,6 +163,57 @@ function enemyFireAt(enemyIdx, playerPos, playerVel) {
     enemies.velZ[enemyIdx] + aimZ * ENEMY_KINETIC_SPEED);
 }
 
+/**
+ * Fire a 3-round kinetic burst from a Sniper enemy toward the player.
+ * All 3 rounds fire in a single call with slight angular spread between rounds.
+ * @param {number} enemyIdx - enemy slot index
+ * @param {Float32Array} playerPos - player position [x,y,z]
+ * @param {Float32Array} playerVel - player velocity [x,y,z]
+ * @param {number} [accuracyOverride] - optional accuracy noise override (from getArchetypeStats)
+ */
+function enemySniperBurst(enemyIdx, playerPos, playerVel, accuracyOverride) {
+  const ex = enemies.posX[enemyIdx], ez = enemies.posZ[enemyIdx];
+  const dx = playerPos[0] - ex, dz = playerPos[2] - ez;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist < 0.1) return;
+  // Lead prediction: estimate time-of-flight
+  const tof = dist / ENEMY_KINETIC_SPEED;
+  // Predict player position
+  let predX = playerPos[0] + playerVel[0] * tof;
+  let predZ = playerPos[2] + playerVel[2] * tof;
+  // Add accuracy noise via Box-Muller (use override or default)
+  const noise = (accuracyOverride !== undefined) ? accuracyOverride : ACCURACY_NOISE;
+  const u1 = Math.random(), u2 = Math.random();
+  const mag = Math.sqrt(-2 * Math.log(Math.max(u1, 0.0001))) * noise;
+  const theta = u2 * 6.283185;
+  predX += Math.cos(theta) * mag;
+  predZ += Math.sin(theta) * mag;
+  // Base aim direction from enemy to predicted position
+  const adx = predX - ex, adz = predZ - ez;
+  const adist = Math.sqrt(adx * adx + adz * adz);
+  if (adist < 0.01) return;
+  const baseAimX = adx / adist, baseAimZ = adz / adist;
+  // Fire 3 rounds with angular spread
+  for (let round = 0; round < 3; round++) {
+    if (projFreeSlots.length === 0) break;
+    const spreadAngle = (round - 1) * 0.03; // -0.03, 0, +0.03 radians
+    let aimX, aimZ;
+    if (spreadAngle === 0) {
+      aimX = baseAimX;
+      aimZ = baseAimZ;
+    } else {
+      const cosA = Math.cos(spreadAngle), sinA = Math.sin(spreadAngle);
+      aimX = baseAimX * cosA - baseAimZ * sinA;
+      aimZ = baseAimX * sinA + baseAimZ * cosA;
+    }
+    spawnProjectile(2, ex, ez,
+      enemies.velX[enemyIdx] + aimX * ENEMY_KINETIC_SPEED,
+      enemies.velZ[enemyIdx] + aimZ * ENEMY_KINETIC_SPEED);
+  }
+  // Muzzle flash
+  if (typeof spawnExplosion === 'function') spawnExplosion(ex, 0, ez, 0.5);
+}
+
 /* ---- Trail buffer (shared ring buffer for all kinetic tracers) ---- */
 const TRAIL_MAX_POINTS = 512;
 const trailBuf = new Float32Array(TRAIL_MAX_POINTS * 3);  // xyz positions

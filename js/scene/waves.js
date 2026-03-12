@@ -27,25 +27,31 @@ function getWaveDefinition(waveNum) {
   const isBoss = waveNum >= 10 && waveNum % 10 === 0;
 
   if (isBoss) {
-    // Boss wave: 1+ Capital ships + supporting cast
-    const capitalCount = Math.max(1, Math.floor(waveNum / 10));
-    const supportCount = totalEnemies - capitalCount;
+    // Boss wave: Capital ships + supporting cast
+    // Wave 10: 1 Capital solo (introduction). Wave 20: 2 Capitals + support. Wave 30+: 3 Capitals max.
+    const capitalCount = Math.min(3, Math.floor(waveNum / 10));
     const result = [{ type: ETYPE.CAPITAL, count: capitalCount }];
 
-    // Fill support with hardest available archetypes
+    // Wave 10: solo Capital (no supporting cast)
+    if (waveNum === 10) {
+      return { enemies: result, isBoss: true };
+    }
+
+    // Fill support with hardest available archetypes (weighted toward Snipers and Bombers)
+    const supportCount = totalEnemies - capitalCount;
     let remaining = supportCount;
-    if (waveNum >= 8 && remaining > 0) {
-      const sniperCount = Math.min(Math.floor(remaining * 0.2), remaining);
+    if (remaining > 0) {
+      const sniperCount = Math.min(Math.floor(remaining * 0.3), remaining);
       if (sniperCount > 0) result.push({ type: ETYPE.SNIPER, count: sniperCount });
       remaining -= sniperCount;
     }
-    if (waveNum >= 5 && remaining > 0) {
-      const bomberCount = Math.min(Math.floor(remaining * 0.25), remaining);
+    if (remaining > 0) {
+      const bomberCount = Math.min(Math.floor(remaining * 0.3), remaining);
       if (bomberCount > 0) result.push({ type: ETYPE.BOMBER, count: bomberCount });
       remaining -= bomberCount;
     }
-    if (waveNum >= 3 && remaining > 0) {
-      const swarmCount = Math.min(Math.floor(remaining * 0.3), remaining);
+    if (remaining > 0) {
+      const swarmCount = Math.min(Math.floor(remaining * 0.25), remaining);
       if (swarmCount > 0) result.push({ type: ETYPE.SWARM, count: swarmCount });
       remaining -= swarmCount;
     }
@@ -120,7 +126,12 @@ function spawnWave(waveNum) {
       const angle = planetAngle + stPh;
       const x = bodyPos[0] + stR * Math.sin(angle);
       const z = bodyPos[2] + stR * Math.cos(angle);
-      spawnEnemy(x, 0, z, group.type, pIdx, stPh);
+      const spawnedIdx = spawnEnemy(x, 0, z, group.type, pIdx, stPh);
+      // Capital: set auxTimer to -1.0 for warp-in phase + spawn explosion flash
+      if (group.type === ETYPE.CAPITAL && spawnedIdx >= 0) {
+        enemies.auxTimer[spawnedIdx] = -1.0;
+        if (typeof spawnExplosion === 'function') spawnExplosion(x, 0, z, 3.0);
+      }
       totalSpawned++;
     }
   }

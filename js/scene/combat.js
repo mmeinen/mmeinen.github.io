@@ -131,7 +131,13 @@ function updateInstanceBuffer(simTime) {
         alpha *= 0.3 + 0.7 * Math.max(0, flicker);
       }
       instanceData[base + 7] = alpha;
-      instanceData[base + 8] = enemies.scale[i];
+      // Capital warp-in scale ramp: auxTimer from -1.0 to -0.5 maps scale 0 to 1
+      let finalScale = enemies.scale[i];
+      if (t === ETYPE.CAPITAL && enemies.auxTimer[i] < 0) {
+        const warpScale = Math.max(0, Math.min(1, (enemies.auxTimer[i] + 1.0) / 0.5));
+        finalScale *= warpScale;
+      }
+      instanceData[base + 8] = finalScale;
       instanceData[base + 9] = enemies.flash[i];
       offset++;
       _typeCounts[t]++;
@@ -220,7 +226,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
     // Increment AI timer
     enemies.aiTimer[i] += simDt;
 
-    // Increment auxTimer (used by Swarm ram cooldown, Bomber salvo reload)
+    // Increment auxTimer (Swarm ram cooldown, Bomber salvo reload, Sniper burst cooldown, Capital warp-in/spawn timer)
     enemies.auxTimer[i] += simDt;
 
     // Distance to player
@@ -264,9 +270,18 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       }
 
       case AI_ALERT: {
-        // Brief pause before engaging (Swarm reacts faster: 0.2s vs 0.5s)
-        const alertTime = (eType === ETYPE.SWARM) ? 0.2 : ALERT_PAUSE;
+        // Brief pause before engaging (Swarm: 0.2s, Capital: 1.0s, others: 0.5s)
+        let alertTime = ALERT_PAUSE;
+        if (eType === ETYPE.SWARM) alertTime = 0.2;
+        else if (eType === ETYPE.CAPITAL) alertTime = 1.0;
         if (enemies.aiTimer[i] >= alertTime) {
+          // Capital skips TRANSFER -- goes straight to ATTACK (station-keeping)
+          if (eType === ETYPE.CAPITAL) {
+            enemies.aiState[i] = AI_ATTACK;
+            enemies.aiTimer[i] = 0;
+            enemies.hasFired[i] = 0;
+            break;
+          }
           // Determine target body (use player's current body or nearest planet)
           enemies.targetBody[i] = playerBody >= 0 ? playerBody : -1;
           // Compute transfer: vis-viva based impulse
@@ -291,6 +306,18 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       }
 
       case AI_TRANSFER: {
+        // Capital should never be in TRANSFER -- redirect to ATTACK
+        if (eType === ETYPE.CAPITAL) {
+          enemies.aiState[i] = AI_ATTACK;
+          enemies.aiTimer[i] = 0;
+          break;
+        }
+        // Sniper: if already within 15 units, skip to DISENGAGE (flee close range)
+        if (eType === ETYPE.SNIPER && dist < 15) {
+          enemies.aiState[i] = AI_DISENGAGE;
+          enemies.aiTimer[i] = 0;
+          break;
+        }
         // Gravity
         _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
         const ga = computeGravAccel(_aiScratch);
@@ -303,10 +330,11 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
             const evdx = enemies.velX[i] / espd, evdz = enemies.velZ[i] / espd;
             const dot = evdx * tdx + evdz * tdz;
             const offCourse = Math.max(0, 1 - dot);
-            // Swarm: 2x guidance for aggressive convergence; Bomber: 0.5x for slow approach
+            // Swarm: 2x guidance; Bomber: 0.5x; Sniper: 0.3x (minimal approach)
             let guidanceMul = 1.0;
             if (eType === ETYPE.SWARM) guidanceMul = 2.0;
             else if (eType === ETYPE.BOMBER) guidanceMul = 0.5;
+            else if (eType === ETYPE.SNIPER) guidanceMul = 0.3;
             gx = tdx * offCourse * GUIDANCE_ACCEL_ENEMY * guidanceMul;
             gz = tdz * offCourse * GUIDANCE_ACCEL_ENEMY * guidanceMul;
           }
@@ -327,6 +355,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         if (tspd > 0.01) enemies.heading[i] = Math.atan2(enemies.velX[i], enemies.velZ[i]);
         // Transition: Swarm stays in transfer until very close (dist < 3.0)
         // Bomber transitions at stats.attackRange (medium range)
+        // Sniper transitions at stats.attackRange (extreme range)
         // Default (Grunt/others) at ATTACK_RANGE
         if (eType === ETYPE.SWARM) {
           if (dist < 3.0) {
@@ -334,7 +363,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
             enemies.aiTimer[i] = 0;
           }
         } else {
-          const atkRange = (eType === ETYPE.BOMBER && stats) ? stats.attackRange : ATTACK_RANGE;
+          const atkRange = ((eType === ETYPE.BOMBER || eType === ETYPE.SNIPER) && stats) ? stats.attackRange : ATTACK_RANGE;
           if (dist < atkRange) {
             enemies.aiState[i] = AI_ATTACK;
             enemies.aiTimer[i] = 0;
@@ -419,8 +448,111 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
             enemies.aiState[i] = AI_DISENGAGE;
             enemies.aiTimer[i] = 0;
           }
+        } else if (eType === ETYPE.SNIPER) {
+          // ---- SNIPER ATTACK: extreme range burst fire, maintain distance ----
+          // Continue physics (gravity + leapfrog)
+          _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
+          const gaSnp = computeGravAccel(_aiScratch);
+          enemies.velX[i] += gaSnp[0] * simDt;
+          enemies.velZ[i] += gaSnp[2] * simDt;
+          // Mild retrograde thrust to maintain distance if player closes in
+          if (dist < 30 && dist > 0.1) {
+            const awayX = -dpx / dist, awayZ = -dpz / dist;
+            enemies.velX[i] += awayX * 0.5 * simDt;
+            enemies.velZ[i] += awayZ * 0.5 * simDt;
+          }
+          enemies.posX[i] += enemies.velX[i] * simDt;
+          enemies.posZ[i] += enemies.velZ[i] * simDt;
+          enemies.posY[i] = 0;
+          // Keep heading aimed at player
+          if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+          // Burst fire on cooldown
+          const sniperCooldown = stats ? stats.attackCooldown : 2.0;
+          if (enemies.auxTimer[i] >= sniperCooldown) {
+            if (typeof enemySniperBurst === 'function') {
+              enemySniperBurst(i, playerPos, playerVel, stats ? stats.accuracyNoise : 2.0);
+            }
+            enemies.auxTimer[i] = 0;
+            enemies.hasFired[i] = 1;
+          }
+          // If player closes within fireRange, flee immediately
+          const sniperFleeR = stats ? stats.fireRange : 15;
+          if (dist < sniperFleeR) {
+            enemies.aiState[i] = AI_DISENGAGE;
+            enemies.aiTimer[i] = 0;
+          }
+        } else if (eType === ETYPE.CAPITAL) {
+          // ---- CAPITAL ATTACK: station-keep, spawn minions, heavy shots ----
+          // Store old auxTimer for threshold crossing detection
+          const oldAux = enemies.auxTimer[i] - simDt; // approximate previous value
+          // If auxTimer < 0: Capital is still warping in, do station-keeping only
+          if (enemies.auxTimer[i] < 0) {
+            // Station-keep at assigned body during warp-in
+            const capBody = enemies.assignBody[i];
+            if (capBody >= 0 && capBody < 7) {
+              const bodyP = getBodyPosition(capBody);
+              const bodyRc = getBodyRadius(capBody);
+              const stR = bodyRc + STATION_KEEP_ALT;
+              const pAngle = Math.atan2(bodyP[0], bodyP[2]);
+              const aangle = pAngle + enemies.stationPhase[i];
+              enemies.posX[i] = bodyP[0] + stR * Math.sin(aangle);
+              enemies.posZ[i] = bodyP[2] + stR * Math.cos(aangle);
+              enemies.posY[i] = 0;
+              const bvel = getBodyVelocity(capBody);
+              enemies.velX[i] = bvel[0];
+              enemies.velZ[i] = bvel[2];
+            }
+            // Aim at player during warp-in
+            if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+            break; // Skip all combat actions during warp-in
+          }
+          // auxTimer >= 0: Capital is fully materialized
+          // Station-keep at assigned body
+          const capBody2 = enemies.assignBody[i];
+          if (capBody2 >= 0 && capBody2 < 7) {
+            const bodyP2 = getBodyPosition(capBody2);
+            const bodyR2 = getBodyRadius(capBody2);
+            const stR2 = bodyR2 + STATION_KEEP_ALT;
+            const pAngle2 = Math.atan2(bodyP2[0], bodyP2[2]);
+            const aangle2 = pAngle2 + enemies.stationPhase[i];
+            enemies.posX[i] = bodyP2[0] + stR2 * Math.sin(aangle2);
+            enemies.posZ[i] = bodyP2[2] + stR2 * Math.cos(aangle2);
+            enemies.posY[i] = 0;
+            const bvel2 = getBodyVelocity(capBody2);
+            enemies.velX[i] = bvel2[0];
+            enemies.velZ[i] = bvel2[2];
+          }
+          // Aim at player
+          if (dist > 0.1) enemies.heading[i] = Math.atan2(dpx, dpz);
+          // Heavy shot: fire when auxTimer crosses 5.0 on its way to attackCooldown
+          const capCooldown = stats ? stats.attackCooldown : 5.0;
+          if (oldAux < capCooldown * 0.5 && enemies.auxTimer[i] >= capCooldown * 0.5) {
+            if (typeof enemyFireAt === 'function') {
+              enemyFireAt(i, playerPos, playerVel);
+              if (typeof spawnExplosion === 'function') spawnExplosion(enemies.posX[i], 0, enemies.posZ[i], 1.0);
+            }
+          }
+          // Minion spawning: when auxTimer >= attackCooldown
+          if (enemies.auxTimer[i] >= capCooldown) {
+            const minionCount = 2 + Math.floor(Math.random() * 2); // 2-3 minions
+            for (let m = 0; m < minionCount; m++) {
+              if (freeSlots.length === 0) break;
+              const mAngle = Math.random() * Math.PI * 2;
+              const mx = enemies.posX[i] + Math.cos(mAngle) * 3.0;
+              const mz = enemies.posZ[i] + Math.sin(mAngle) * 3.0;
+              const mIdx = spawnEnemy(mx, 0, mz, ETYPE.GRUNT, -1, 0);
+              if (mIdx >= 0) {
+                enemies.aiState[mIdx] = AI_ALERT;
+                enemies.aiTimer[mIdx] = 0.5;
+              }
+            }
+            enemies.auxTimer[i] = 0;
+            // Hangar bay launch flash
+            if (typeof spawnExplosion === 'function') spawnExplosion(enemies.posX[i], 0, enemies.posZ[i], 1.5);
+          }
+          // Capital does NOT disengage or reorbit -- stays in ATTACK until killed
         } else {
-          // ---- GRUNT / SNIPER / CAPITAL: default attack behavior ----
+          // ---- GRUNT: default attack behavior ----
           // Continue physics (gravity + leapfrog, no guidance)
           _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
           const ga2 = computeGravAccel(_aiScratch);
@@ -448,10 +580,18 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       }
 
       case AI_DISENGAGE: {
+        // Capital does not disengage; redirect to ATTACK
+        if (eType === ETYPE.CAPITAL) {
+          enemies.aiState[i] = AI_ATTACK;
+          enemies.aiTimer[i] = 0;
+          break;
+        }
         // First frame: reduce speed (retrograde impulse)
         if (enemies.aiTimer[i] < simDt * 1.5) {
-          // Bomber flees faster (0.6x), others normal (0.8x)
-          const retro = (eType === ETYPE.BOMBER) ? 0.6 : 0.8;
+          // Sniper flees fastest (0.5x), Bomber (0.6x), others normal (0.8x)
+          let retro = 0.8;
+          if (eType === ETYPE.SNIPER) retro = 0.5;
+          else if (eType === ETYPE.BOMBER) retro = 0.6;
           enemies.velX[i] *= retro;
           enemies.velZ[i] *= retro;
         }
@@ -466,8 +606,10 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         // Update heading
         const dspd = Math.sqrt(enemies.velX[i] * enemies.velX[i] + enemies.velZ[i] * enemies.velZ[i]);
         if (dspd > 0.01) enemies.heading[i] = Math.atan2(enemies.velX[i], enemies.velZ[i]);
-        // Transition to reorbit: Bomber needs more distance (30), others at REORBIT_DIST (20)
-        const reorbitR = (eType === ETYPE.BOMBER) ? 30.0 : REORBIT_DIST;
+        // Transition to reorbit: Sniper 35, Bomber 30, others at REORBIT_DIST (20)
+        let reorbitR = REORBIT_DIST;
+        if (eType === ETYPE.SNIPER) reorbitR = 35.0;
+        else if (eType === ETYPE.BOMBER) reorbitR = 30.0;
         if (dist > reorbitR || enemies.aiTimer[i] > 3.0) {
           enemies.aiState[i] = AI_REORBIT;
           enemies.aiTimer[i] = 0;

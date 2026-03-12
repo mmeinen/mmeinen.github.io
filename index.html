@@ -786,11 +786,21 @@
       if(hP>=0&&planetData[hP].href)window.location.href=planetData[hP].href}tId=null}}});
 
 
-    let _cheatBuf='';
+    let _cheatDigits=[];let _cheatTimes=[];
     window.addEventListener('keydown',e=>{
-      // Cheat: type 999 to spawn 20 close enemies
-      if(e.key>='0'&&e.key<='9'){_cheatBuf+=e.key;if(_cheatBuf.length>3)_cheatBuf=_cheatBuf.slice(-3);
-        if(_cheatBuf==='999'&&flyMode&&playerState.alive){_cheatBuf='';for(let ci=0;ci<20;ci++){const a=Math.random()*Math.PI*2,d=8+Math.random()*12;spawnEnemy(flyPos[0]+Math.cos(a)*d,0,flyPos[2]+Math.sin(a)*d,0,-1,0);}}}
+      // Wave skip cheat: type 999 rapidly (within 1s) to kill all enemies and advance wave
+      if(e.key>='0'&&e.key<='9'){
+        const now=performance.now();
+        _cheatDigits.push(e.key);_cheatTimes.push(now);
+        if(_cheatDigits.length>3){_cheatDigits.shift();_cheatTimes.shift();}
+        if(_cheatDigits.length===3&&_cheatDigits[0]==='9'&&_cheatDigits[1]==='9'&&_cheatDigits[2]==='9'&&(now-_cheatTimes[0])<1000){
+          _cheatDigits=[];_cheatTimes=[];
+          if(flyMode&&playerState.alive){
+            // Kill all current enemies to trigger wave progression
+            for(let ci=0;ci<MAX_ENEMIES;ci++){if(enemies.alive[ci])removeEnemy(ci);}
+          }
+        }
+      }
       // Game over screen: R to restart, Escape to exit
       if(playerState.deathPhase===4){
         if(e.key==='r'||e.key==='R'){
