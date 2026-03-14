@@ -3,14 +3,59 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-14T01:53:58.131Z"
-last_activity: 2026-03-14 -- Phase 7 Plan 03 complete (Sniper burst fire, Capital minion-spawning, boss waves)
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-14T15:10:54.011Z"
+last_activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
 progress:
   total_phases: 9
-  completed_phases: 7
-  total_plans: 18
-  completed_plans: 18
+  completed_phases: 8
+  total_plans: 19
+  completed_plans: 19
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-14T15:10:45.049Z"
+last_activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
+progress:
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 19
+  completed_plans: 19
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-14T15:10:30.050Z"
+last_activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
+progress:
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 19
+  completed_plans: 19
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-14T15:09:06Z"
+last_activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
+progress:
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 19
+  completed_plans: 19
 ---
 
 ---
@@ -116,12 +161,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Phase: 7 of 9 (Wave Progression & Enemy Variety) -- COMPLETE
-Plan: 3 of 3 in current phase (complete)
-Status: Phase 7 complete. All 5 archetypes (Grunt, Swarm, Bomber, Sniper, Capital), wave progression, boss waves, difficulty scaling.
-Last activity: 2026-03-14 -- Phase 7 Plan 03 complete (Sniper burst fire, Capital minion-spawning, boss waves)
+Phase: 8 of 9 (Combat HUD) -- COMPLETE
+Plan: 1 of 1 in current phase (complete)
+Status: Phase 8 complete. Unified bottom bar with weapon cooldown boxes, HP bar, wave counter, orbit info, mode toggle.
+Last activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
 
-Progress: [██████████] 100% (18/18 plans)
+Progress: [██████████] 100% (19/19 plans)
 
 ## Performance Metrics
 
@@ -153,6 +198,7 @@ Progress: [██████████] 100% (18/18 plans)
 | Phase 07 P01 | 10min | 2 tasks | 6 files |
 | Phase 07 P02 | 7min | 2 tasks | 2 files |
 | Phase 07 P03 | 5min | 2 tasks | 4 files |
+| Phase 08 P01 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -236,6 +282,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Sniper fires instant 3-round burst with 0.03 rad angular spread, 0.3x guidance for minimal pursuit
 - [Phase 07]: Capital auxTimer lifecycle: -1.0 to 0 = warp-in (no combat), 0+ = minion spawn timer with heavy shots at midpoint
 - [Phase 07]: Boss wave 10 = solo Capital intro, wave 20 = 2 Capitals + support, wave 30+ = 3 Capitals + full mix
+- [Phase 08]: Old HUD elements hidden via CSS rather than DOM removal for backward compatibility
+- [Phase 08]: Bottom bar z-index 26 (above planet labels 25, below wave announcement 28)
+- [Phase 08]: WPN_CD_DURATIONS array computed per-frame from constants, scoped inside render loop block
 
 ### Pending Todos
 
@@ -247,6 +296,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T01:53:58.128Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-combat-hud/08-CONTEXT.md
+Last session: 2026-03-14T15:10:54.007Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None

@@ -55,13 +55,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Targeting & HUD
 
-- [ ] **HUD-01**: Weapon status panel showing all 4 weapons with selected weapon highlighted
-- [ ] **HUD-02**: Wave counter displaying current wave number and enemies remaining
-- [ ] **HUD-03**: Hull integrity bar displayed prominently
+- [x] **HUD-01**: Weapon status panel showing all 4 weapons with selected weapon highlighted
+- [x] **HUD-02**: Wave counter displaying current wave number and enemies remaining
+- [x] **HUD-03**: Hull integrity bar displayed prominently
 - [ ] **HUD-04**: Tactical zoom — player can zoom out to see entire black hole system with all enemies highlighted
 - [ ] **HUD-05**: In tactical zoom, player can select targets on the orbital plane and assign weapons
 - [ ] **HUD-06**: In tactical zoom, player can preview weapon assignment then issue fire command to launch salvo
-- [ ] **HUD-07**: Orbit info display showing current orbital body, altitude, and transfer status
+- [x] **HUD-07**: Orbit info display showing current orbital body, altitude, and transfer status
 
 ### Visual Effects
 
@@ -153,13 +153,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEF-04 | Phase 6 | Complete |
 | DEF-05 | Phase 6 | Complete |
 | DEF-06 | Phase 6 | Complete |
-| HUD-01 | Phase 8 | Pending |
-| HUD-02 | Phase 8 | Pending |
-| HUD-03 | Phase 8 | Pending |
+| HUD-01 | Phase 8 | Complete |
+| HUD-02 | Phase 8 | Complete |
+| HUD-03 | Phase 8 | Complete |
 | HUD-04 | Phase 9 | Pending |
 | HUD-05 | Phase 9 | Pending |
 | HUD-06 | Phase 9 | Pending |
-| HUD-07 | Phase 8 | Pending |
+| HUD-07 | Phase 8 | Complete |
 | VFX-01 | Phase 5 | Complete |
 | VFX-02 | Phase 5 | Complete |
 | VFX-03 | Phase 4 | Complete |
