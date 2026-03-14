@@ -731,6 +731,7 @@
     const ringBuf=gl.createBuffer();
     const RING_SEGMENTS=64;
     const ringArray=new Float32Array(RING_SEGMENTS*3);
+    const _tacRingRadii=[30,50,70,90]; // Tactical range ring radii
     // L-point marker buffer
     const lPointBuf=gl.createBuffer();
     // Projectile render buffer (pre-allocated for MAX_PROJECTILES)
@@ -1736,6 +1737,26 @@
           gl.drawArrays(gl.POINTS,0,1);
         }
 
+        // Tactical range rings (Phase 9)
+        if(tacticalMode){
+          gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
+          gl.enableVertexAttribArray(trajLocs.aPos);
+          for(let rr=0;rr<_tacRingRadii.length;rr++){
+            const radius=_tacRingRadii[rr];
+            for(let s=0;s<RING_SEGMENTS;s++){
+              const angle=(s/RING_SEGMENTS)*Math.PI*2;
+              ringArray[s*3]=radius*Math.cos(angle);
+              ringArray[s*3+1]=0;
+              ringArray[s*3+2]=radius*Math.sin(angle);
+            }
+            gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.08);
+            gl.uniform1f(trajLocs.uPtSize,1.0);
+            gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
+          }
+        }
+
         gl.disableVertexAttribArray(trajLocs.aPos);
         gl.disable(gl.BLEND);
         gl.disable(gl.DEPTH_TEST);
@@ -1864,6 +1885,36 @@
         // Off-screen enemy indicators
         if(playerState.alive&&playerState.deathPhase===0){updateEnemyIndicators();}
         else{hideAllIndicators();}
+        // Tactical marker per-frame update
+        if(tacticalMode&&playerState.alive){
+          tacMarkerContainer.style.display='block';
+          const mDT=Math.min(baseWidth,baseHeight);
+          for(let i=0;i<MAX_ENEMIES;i++){
+            const mel=tacMarkerEls[i];
+            if(!enemies.alive[i]){mel.style.display='none';continue;}
+            const dx=enemies.posX[i]-_camP[0];
+            const dy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
+            const dz=enemies.posZ[i]-_camP[2];
+            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
+            if(dp<=0){mel.style.display='none';mel.classList.remove('on-screen');continue;}
+            const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mDT;
+            const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mDT;
+            const onScreen=sx>=0&&sx<=baseWidth&&sy>=0&&sy<=baseHeight;
+            if(!onScreen){mel.style.display='none';mel.classList.remove('on-screen');continue;}
+            mel.style.display='block';
+            mel.style.transform='translate('+(sx-20)+'px,'+(sy-20)+'px)';
+            if(!mel.classList.contains('on-screen'))mel.classList.add('on-screen');
+            const eType=enemies.type[i];
+            const edx=enemies.posX[i]-flyPos[0],edz=enemies.posZ[i]-flyPos[2];
+            const dist=Math.sqrt(edx*edx+edz*edz);
+            mel._typeSpan.textContent='['+ARCHETYPE_ABBREVS[eType]+']';
+            mel._distSpan.textContent=Math.floor(dist)+'u';
+            const ac=ARCHETYPE_COLORS[eType];
+            mel._typeSpan.style.color='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
+          }
+        }else if(!tacticalMode){
+          tacMarkerContainer.style.display='none';
+        }
       }else{
         for(let i=0;i<6;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
           if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}
