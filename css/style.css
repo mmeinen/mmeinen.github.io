@@ -876,10 +876,9 @@ body {
   display: none;
   -webkit-user-select: none;
   user-select: none;
-  cursor: pointer;
 }
 .tac-marker.on-screen {
-  pointer-events: auto;
+  pointer-events: none;
 }
 .tac-marker .tac-type {
   display: block;
@@ -954,14 +953,14 @@ body {
 }
 
 /* Hover-to-reveal: show distance, weapon badge, and info on hover or selected */
-.tac-marker:hover .tac-dist,
+.tac-marker.hovered .tac-dist,
 .tac-marker.selected .tac-dist {
   display: block;
 }
-.tac-marker:hover .tac-wpn {
+.tac-marker.hovered .tac-wpn {
   display: block;
 }
-.tac-marker:hover .tac-info,
+.tac-marker.hovered .tac-info,
 .tac-marker.selected .tac-info {
   display: block;
 }

@@ -825,19 +825,19 @@
               const existing=getTacEntry(hitIdx);
               if(existing){
                 removeTacTarget(hitIdx);
-              }else if(e.shiftKey){
-                addTacTarget(hitIdx,selectedWeapon);
               }else{
-                clearTacTargets();
+                if(!e.shiftKey)clearTacTargets();
                 addTacTarget(hitIdx,selectedWeapon);
+                // Missile/nuke mode: also add lock target for lock-on system
+                if(selectedWeapon>=2){addLockTarget(hitIdx);updateMissileUI();}
               }
-              return; // Enemy hit: handled as tactical selection
+              return; // Enemy hit: handled as tactical selection + missile lock
             }
             // Click empty space: clear selections, fall through to weapon fire
             clearTacTargets();
           }
           if(selectedWeapon>=2){
-            // Missile mode: left-click adds lock target
+            // Missile mode: left-click adds lock target (no enemy under cursor found by tactical check)
             if(aimDir&&dv){
               const _cpLk=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
               const _cfLk=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
@@ -1959,16 +1959,16 @@
           const _tacWpnColors=['rgba(255,255,255,0.9)','rgba(0,220,255,0.9)','rgba(255,160,80,0.9)','rgba(255,60,40,0.9)'];
           for(let i=0;i<MAX_ENEMIES;i++){
             const mel=tacMarkerEls[i];
-            if(!enemies.alive[i]){mel.style.display='none';mel.classList.remove('selected');continue;}
+            if(!enemies.alive[i]){mel.style.display='none';mel.classList.remove('selected','hovered');continue;}
             const dx=enemies.posX[i]-_camP[0];
             const dy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
             const dz=enemies.posZ[i]-_camP[2];
             const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
-            if(dp<=0){mel.style.display='none';mel.classList.remove('on-screen');continue;}
+            if(dp<=0){mel.style.display='none';mel.classList.remove('on-screen','hovered');continue;}
             const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mDT;
             const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mDT;
             const onScreen=sx>=0&&sx<=baseWidth&&sy>=0&&sy<=baseHeight;
-            if(!onScreen){mel.style.display='none';mel.classList.remove('on-screen');continue;}
+            if(!onScreen){mel.style.display='none';mel.classList.remove('on-screen','hovered');continue;}
             mel.style.display='block';
             mel.style.transform='translate('+(sx-20)+'px,'+(sy-20)+'px)';
             if(!mel.classList.contains('on-screen'))mel.classList.add('on-screen');
@@ -1979,6 +1979,10 @@
             mel._distSpan.textContent=Math.floor(dist)+'u';
             const ac=ARCHETYPE_COLORS[eType];
             mel._typeSpan.style.color='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
+            // JS-based hover detection (markers have pointer-events:none to allow canvas clicks)
+            const mHoverDx=mSX-sx,mHoverDy=mSY-sy;
+            if(mHoverDx*mHoverDx+mHoverDy*mHoverDy<625){if(!mel.classList.contains('hovered'))mel.classList.add('hovered');}
+            else{mel.classList.remove('hovered');}
             // Always populate HP for hover-to-reveal
             mel._hpSpan.textContent='HP '+Math.ceil(enemies.hp[i])+'/'+ARCHETYPE_HP[eType];
             // Selection state rendering
