@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Missile Systems & Explosions** - Guided regular missiles with fuel and proximity detonation, nuclear missiles, sprite billboard explosion renderer (completed 2026-03-11)
 - [x] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles (completed 2026-03-11)
 - [x] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators (completed 2026-03-11)
-- [ ] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling
+- [x] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling (completed 2026-03-14)
 - [ ] **Phase 8: Combat HUD** - Weapon status panel, wave counter, hull integrity bar, orbit info display
 - [ ] **Phase 9: Tactical Targeting System** - Zoomed-out strategic view with target selection, weapon assignment, and fire command
 
@@ -131,7 +131,7 @@ Plans:
   3. Boss waves appear every N waves as special encounters with distinct challenge
   4. Each successive wave increases in difficulty: more enemies, higher accuracy, greater aggression, and more archetype variety
   5. Capital enemies spawn Grunt minions as a mini-boss mechanic
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md -- Wave system foundation: ETYPE extension (5 archetypes), 4 new geometry functions, multi-geometry instanced rendering, wave state machine (waves.js), wave announcement, indicator colors
@@ -181,6 +181,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 4. Missile Systems & Explosions | 3/3 | Complete   | 2026-03-11 |
 | 5. Enemy Behavior & Combat Feedback | 2/2 | Complete   | 2026-03-11 |
 | 6. Player Defense & Survival | 3/3 | Complete   | 2026-03-11 |
-| 7. Wave Progression & Enemy Variety | 0/3 | Not started | - |
+| 7. Wave Progression & Enemy Variety | 3/3 | Complete   | 2026-03-14 |
 | 8. Combat HUD | 0/2 | Not started | - |
 | 9. Tactical Targeting System | 0/2 | Not started | - |

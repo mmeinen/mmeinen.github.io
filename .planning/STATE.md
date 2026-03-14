@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-12T17:51:18.896Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-03-14T01:16:05.019Z"
 last_activity: 2026-03-12 -- Phase 7 Plan 02 complete (Swarm and Bomber archetype AI)
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 ---
@@ -97,16 +97,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 7: Wave Progression & Enemy Variety -- Plan 02 complete (Swarm rush AI, Bomber missile salvo AI).
+**Current focus:** Phase 7 complete. All 5 enemy archetypes operational. Ready for Phase 8 (Combat HUD).
 
 ## Current Position
 
-Phase: 7 of 9 (Wave Progression & Enemy Variety)
-Plan: 2 of 3 in current phase (complete)
-Status: Plan 02 complete. Swarm rush AI with ram damage, Bomber missile salvo AI with enemy-fired missiles.
-Last activity: 2026-03-12 -- Phase 7 Plan 02 complete (Swarm and Bomber archetype AI)
+Phase: 7 of 9 (Wave Progression & Enemy Variety) -- COMPLETE
+Plan: 3 of 3 in current phase (complete)
+Status: Phase 7 complete. All 5 archetypes (Grunt, Swarm, Bomber, Sniper, Capital), wave progression, boss waves, difficulty scaling.
+Last activity: 2026-03-14 -- Phase 7 Plan 03 complete (Sniper burst fire, Capital minion-spawning, boss waves)
 
-Progress: [█████████░] 94% (17/18 plans)
+Progress: [██████████] 100% (18/18 plans)
 
 ## Performance Metrics
 
@@ -137,6 +137,7 @@ Progress: [█████████░] 94% (17/18 plans)
 | Phase 06 P03 | 4min | 1 tasks | 3 files |
 | Phase 07 P01 | 10min | 2 tasks | 6 files |
 | Phase 07 P02 | 7min | 2 tasks | 2 files |
+| Phase 07 P03 | 5min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -217,6 +218,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Enemy missiles use targetIdx=-1 convention and missile.source=1 for player-targeting
 - [Phase 07]: Enemy missile detonation: shields absorb first, then 40 HP hull damage
 - [Phase 07]: auxTimer initialized to 10.0 in spawnEnemy so first archetype trigger fires immediately
+- [Phase 07]: Sniper fires instant 3-round burst with 0.03 rad angular spread, 0.3x guidance for minimal pursuit
+- [Phase 07]: Capital auxTimer lifecycle: -1.0 to 0 = warp-in (no combat), 0+ = minion spawn timer with heavy shots at midpoint
+- [Phase 07]: Boss wave 10 = solo Capital intro, wave 20 = 2 Capitals + support, wave 30+ = 3 Capitals + full mix
 
 ### Pending Todos
 
@@ -228,6 +232,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T17:51:18.893Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-14T01:16:05.016Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
