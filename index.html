@@ -452,6 +452,44 @@
       document.body.appendChild(el);
       indicatorEls[ii]=el;
     }
+    // Tactical overlay state and DOM pool (Phase 9)
+    let tacticalMode=false;
+    const TAC_MAX_TARGETS=8;
+    const tacTargets=[]; // [{enemyIdx, weaponIdx}] - Plan 02 populates
+    const ARCHETYPE_ABBREVS=['G','S','B','N','C'];
+    const WEAPON_ABBREVS=['KIN','PLS','MSL','NUK'];
+    const tacMarkerContainer=document.createElement('div');
+    tacMarkerContainer.id='tac-markers';
+    tacMarkerContainer.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:25;display:none;';
+    document.querySelector('.hud-overlay').appendChild(tacMarkerContainer);
+    const tacMarkerEls=[];
+    for(let i=0;i<MAX_ENEMIES;i++){
+      const el=document.createElement('div');
+      el.className='tac-marker';
+      el.innerHTML='<div class="tac-ring"></div><span class="tac-type"></span><span class="tac-dist"></span><span class="tac-wpn"></span><div class="tac-info"><span class="tac-hp"></span></div>';
+      el.style.display='none';
+      el.dataset.enemyIdx=i;
+      el._typeSpan=el.querySelector('.tac-type');
+      el._distSpan=el.querySelector('.tac-dist');
+      el._wpnSpan=el.querySelector('.tac-wpn');
+      el._ringDiv=el.querySelector('.tac-ring');
+      el._infoDiv=el.querySelector('.tac-info');
+      el._hpSpan=el.querySelector('.tac-hp');
+      tacMarkerContainer.appendChild(el);
+      tacMarkerEls[i]=el;
+    }
+    function toggleTacticalMode(){
+      if(!combatMode)return; // Tactical requires combat mode
+      tacticalMode=!tacticalMode;
+      tacMarkerContainer.style.display=tacticalMode?'block':'none';
+      for(let i=0;i<MAX_ENEMIES;i++){
+        indicatorEls[i].classList.toggle('tac-hidden',tacticalMode);
+      }
+      if(!tacticalMode){
+        tacTargets.length=0;
+      }
+    }
+
     // Missile trail render buffer for GPU upload
     const _mtRenderBuf=new Float32Array(missileTrailMaxPts*3);
 
@@ -891,8 +929,10 @@
           playerState.deathPhase=0;
           playerState.deathTimer=0;
           combatMode=false;
+          tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;
           combatIndicatorEl.style.display='none';
           weaponIndicatorEl.style.display='none';
+          for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');
           // Reset vignette
           vignetteEl.style.setProperty('--vignette-alpha','0');
           // Reset enemiesSpawned so next enterNavMode will re-init
@@ -905,7 +945,7 @@
       if(e.key==='`'){
         if(!wf)return;
         if(playerState.deathPhase>0)return; // Can't exit during death
-        if(flyMode){exitNavMode();combatMode=false;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';}else enterNavMode();
+        if(flyMode){exitNavMode();combatMode=false;tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else enterNavMode();
         return;
       }
       if(flyMode){
@@ -913,8 +953,11 @@
         if(e.key==='b'||e.key==='B'){fastForward=!fastForward;}
         // Gate combat/navigation input on player alive
         if(!playerState.alive){return;}
+        if(e.key==='t'||e.key==='T'){toggleTacticalMode();}
         if(e.key==='f'||e.key==='F'){
           combatMode=!combatMode;
+          // Turn off tactical mode when exiting combat mode
+          if(!combatMode&&tacticalMode){tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}
           if(combatMode){
             canvas.style.cursor='crosshair';
             combatIndicatorEl.style.display='block';

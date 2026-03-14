@@ -861,6 +861,96 @@ body {
 }
 
 /* ============================================
+   TACTICAL MARKERS (Phase 9)
+   ============================================ */
+
+.tac-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  z-index: 25;
+  text-align: center;
+  display: none;
+}
+.tac-marker.on-screen {
+  pointer-events: auto;
+}
+.tac-marker .tac-type {
+  display: block;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(60, 140, 255, 0.9);
+  text-shadow: 0 0 6px rgba(60, 140, 255, 0.4);
+  line-height: 1;
+  margin-top: 4px;
+}
+.tac-marker .tac-dist {
+  display: block;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 9px;
+  color: rgba(60, 140, 255, 0.6);
+  line-height: 1.2;
+}
+.tac-marker .tac-ring {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
+  margin-left: -14px;
+  border: 2px solid rgba(60, 140, 255, 0.8);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.tac-marker.selected .tac-ring {
+  display: block;
+}
+.tac-marker .tac-wpn {
+  display: none;
+  position: absolute;
+  right: -28px;
+  top: 10px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(60, 140, 255, 0.9);
+  white-space: nowrap;
+  text-shadow: 0 0 4px rgba(60, 140, 255, 0.4);
+}
+.tac-marker.selected .tac-wpn {
+  display: block;
+}
+.tac-marker .tac-info {
+  display: none;
+  position: absolute;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(60, 140, 255, 0.3);
+  border-radius: 3px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.tac-marker.selected .tac-info {
+  display: block;
+}
+.tac-marker .tac-hp {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 9px;
+  color: rgba(60, 140, 255, 0.8);
+}
+
+/* Hide regular off-screen indicators when tactical mode is active */
+.nav-active .enemy-indicator.tac-hidden { display: none !important; }
+
+/* ============================================
    WAVE ANNOUNCEMENT
    ============================================ */
 
