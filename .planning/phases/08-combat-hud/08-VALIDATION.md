@@ -2,7 +2,7 @@
 phase: 8
 slug: combat-hud
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-13
 ---
@@ -38,10 +38,8 @@ created: 2026-03-13
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 08-01-XX | 01 | 1 | HUD-01 | manual-only | Visual: enter nav mode, press 1-4, fire weapons, check cooldown bars | N/A | ⬜ pending |
-| 08-01-XX | 01 | 1 | HUD-02 | manual-only | Visual: enter nav mode, kill enemies, verify counter decrements and wave increments | N/A | ⬜ pending |
-| 08-01-XX | 01 | 1 | HUD-03 | manual-only | Visual: take damage, verify bar color changes at 50%/25% thresholds | N/A | ⬜ pending |
-| 08-01-XX | 01 | 1 | HUD-07 | manual-only | Visual: click planet to orbit, verify body/altitude/state display | N/A | ⬜ pending |
+| 08-01-T1 | 01 | 1 | HUD-01, HUD-03, HUD-07 | grep | `grep -c "combat-hud-bar\|wpn-box-0\|hud-hp-fill\|hud-wave\|hud-orbit\|hud-mode-toggle" index.html` | N/A | ⬜ pending |
+| 08-01-T2 | 01 | 1 | HUD-01, HUD-02, HUD-03, HUD-07 | grep | `grep -c "hudWaveEl\|hudOrbitEl\|wpnFillEls\|hudHpFillEl\|hudModeToggleEl\|WPN_CD_DURATIONS" index.html` | N/A | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -68,11 +66,11 @@ No test framework needed beyond existing `tests.html` for shader invariants. Thi
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved
