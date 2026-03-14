@@ -1711,6 +1711,13 @@
           if(hpRatio<0.25){hpBarEl.className='hp-bar critical';}
           else if(hpRatio<0.5){hpBarEl.className='hp-bar warning';}
           else{hpBarEl.className='hp-bar';}
+          // Bottom bar HP
+          const hpPct=(hpRatio*100).toFixed(1)+'%';
+          hudHpFillEl.style.width=hpPct;
+          hudHpTextEl.textContent=Math.max(0,Math.round(playerState.hp));
+          if(hpRatio<0.25){hudHpFillEl.className='hud-hp-bar-fill critical';}
+          else if(hpRatio<0.5){hudHpFillEl.className='hud-hp-bar-fill warning';}
+          else{hudHpFillEl.className='hud-hp-bar-fill';}
         }
         // Altitude HUD readout
         if(orbitState===ORBIT_STATE.ORBITING){
@@ -1722,23 +1729,50 @@
         }else{
           altValEl.textContent='FREE';
         }
+        // Bottom bar orbit info
+        if(orbitState===ORBIT_STATE.ORBITING){
+          const bodyName=getTargetName(orbitBody).toUpperCase();
+          hudOrbitEl.textContent=bodyName+' \u00B7 '+orbitAltitude.toFixed(0)+'u \u00B7 ORBITING';
+        }else if(orbitState===ORBIT_STATE.TRANSFER){
+          const tgtName=getTargetName(transferTarget).toUpperCase();
+          hudOrbitEl.textContent=tgtName+' \u00B7 '+targetOrbitAlt.toFixed(0)+'u \u00B7 TRANSFER';
+        }else{
+          hudOrbitEl.textContent='FREE FLIGHT';
+        }
+        // Bottom bar wave counter
+        if(waveState===WAVE_BREATHER){
+          hudWaveEl.textContent='WAVE '+(waveNumber+1)+' \u00B7 INCOMING';
+        }else if(waveState===WAVE_IDLE){
+          hudWaveEl.textContent='';
+        }else{
+          hudWaveEl.textContent='WAVE '+waveNumber+' \u00B7 '+enemyCount+(enemyCount===1?' ENEMY':' ENEMIES');
+        }
+        // Bottom bar mode toggle text
+        hudModeToggleEl.textContent=combatMode?'COMBAT':'NAV';
         updateMissileUI();
-        // Combat mode HUD updates
+        // Bottom bar weapon boxes (always updated, not gated on combatMode)
+        {
+          const WPN_CD_DURATIONS=[KINETIC_COOLDOWN,PLASMA_COOLDOWN,MISSILE_COOLDOWN_REGULAR,MISSILE_COOLDOWN_NUKE];
+          for(let w=0;w<4;w++){
+            const cdEnd=weaponCooldownEnd[w];
+            const cdRemain=Math.max(0,cdEnd-simTime);
+            const fillPct=cdRemain>0?((1-cdRemain/WPN_CD_DURATIONS[w])*100):100;
+            wpnFillEls[w].style.width=fillPct.toFixed(1)+'%';
+            wpnCdEls[w].textContent=cdRemain>0?cdRemain.toFixed(1):'';
+            wpnBoxEls[w].classList.toggle('selected',w===selectedWeapon);
+            // Lock count for missile weapons when selected
+            if(w>=2&&w===selectedWeapon){
+              const lc=getLockCount();
+              wpnLockEls[w].textContent=lc>0?lc+'/'+lockState.maxTargets:'';
+            }else{
+              wpnLockEls[w].textContent='';
+            }
+          }
+        }
+        // Combat mode HUD updates (old indicators, hidden via CSS but kept for safety)
         if(combatMode){
           combatIndicatorEl.style.display='block';
           weaponIndicatorEl.style.display='block';
-          const wNames=['1 KINETIC','2 PLASMA','3 MISSILE','4 NUCLEAR'];
-          const wName=wNames[selectedWeapon]||'?';
-          const cdEnd=weaponCooldownEnd[selectedWeapon];
-          const cdRemain=cdEnd-simTime;
-          if(cdRemain>0){
-            weaponIndicatorEl.textContent=wName+' ['+cdRemain.toFixed(1)+'s]';
-          }else if(selectedWeapon>=2){
-            const lc=getLockCount();
-            weaponIndicatorEl.textContent=wName+(lc>0?' LOCKS:'+lc:' READY');
-          }else{
-            weaponIndicatorEl.textContent=wName+' READY';
-          }
         }else{
           combatIndicatorEl.style.display='none';
           weaponIndicatorEl.style.display='none';

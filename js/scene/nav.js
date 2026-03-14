@@ -619,6 +619,14 @@ function resetCombat() {
   if (typeof hpTextEl !== 'undefined' && hpTextEl) {
     hpTextEl.textContent = playerState.maxHp;
   }
+  // Reset bottom bar HP
+  if (typeof hudHpFillEl !== 'undefined' && hudHpFillEl) {
+    hudHpFillEl.style.width = '100%';
+    hudHpFillEl.className = 'hud-hp-bar-fill';
+  }
+  if (typeof hudHpTextEl !== 'undefined' && hudHpTextEl) {
+    hudHpTextEl.textContent = playerState.maxHp;
+  }
   // Update missile UI
   updateMissileUI();
 }
