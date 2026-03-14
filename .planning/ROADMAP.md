@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators (completed 2026-03-11)
 - [x] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling (completed 2026-03-14)
 - [x] **Phase 8: Combat HUD** - Weapon status panel, wave counter, hull integrity bar, orbit info display (completed 2026-03-14)
-- [ ] **Phase 9: Tactical Targeting System** - Tactical overlay with target selection, weapon assignment, and coordinated salvo fire
+- [x] **Phase 9: Tactical Targeting System** - Tactical overlay with target selection, weapon assignment, and coordinated salvo fire (completed 2026-03-14)
 
 ## Phase Details
 
@@ -161,11 +161,11 @@ Plans:
   2. In tactical mode, player can select individual enemies as targets on the orbital plane
   3. Player can assign specific weapons to selected targets and preview the predicted engagement
   4. Player can issue a fire command that launches the assigned weapons as a coordinated salvo
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 09-01-PLAN.md -- Tactical overlay foundation: T key toggle, DOM marker pool for all enemies (type + distance), per-frame screen projection, GL range rings
-- [ ] 09-02-PLAN.md -- Target selection (click/shift-click/deselect), weapon assignment with badges, mixed-weapon salvo fire via right-click, trajectory preview, visual verification
+- [x] 09-01-PLAN.md -- Tactical overlay foundation: T key toggle, DOM marker pool for all enemies (type + distance), per-frame screen projection, GL range rings
+- [x] 09-02-PLAN.md -- Target selection (click/shift-click/deselect), weapon assignment with badges, mixed-weapon salvo fire via right-click, trajectory preview, visual verification
 
 ## Progress
 
@@ -182,4 +182,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 6. Player Defense & Survival | 3/3 | Complete   | 2026-03-11 |
 | 7. Wave Progression & Enemy Variety | 3/3 | Complete   | 2026-03-14 |
 | 8. Combat HUD | 1/1 | Complete | 2026-03-14 |
-| 9. Tactical Targeting System | 0/2 | Not started | - |
+| 9. Tactical Targeting System | 2/2 | Complete | 2026-03-14 |
