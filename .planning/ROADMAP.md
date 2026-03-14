@@ -139,7 +139,7 @@ Plans:
 - [ ] 07-03-PLAN.md -- Sniper and Capital archetypes: burst fire AI, minion-spawning AI, boss wave logic, Capital warp-in VFX, visual verification
 
 ### Phase 8: Combat HUD
-**Goal**: Player has full situational awareness through a combat HUD showing weapon readiness, wave status, hull condition, and current orbit
+**Goal**: Player has full situational awareness through a unified bottom-bar HUD showing weapon readiness, wave status, hull condition, and current orbit
 **Depends on**: Phase 3, Phase 6, Phase 7
 **Requirements**: HUD-01, HUD-02, HUD-03, HUD-07
 **Success Criteria** (what must be TRUE):
@@ -147,11 +147,10 @@ Plans:
   2. A wave counter shows the current wave number and number of enemies remaining
   3. A hull integrity bar is prominently displayed and updates in real-time as the player takes damage
   4. Orbit info display shows the current orbital body, altitude, and transfer status
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
+- [ ] 08-01-PLAN.md -- Unified bottom bar: weapon boxes with cooldown fills, HP bar, wave counter, orbit info, mode toggle, per-frame render loop wiring, old HUD element cleanup
 
 ### Phase 9: Tactical Targeting System
 **Goal**: Player can zoom out to survey the entire battlefield, select targets on the orbital plane, assign weapons, and issue fire commands for coordinated salvos
@@ -182,5 +181,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 5. Enemy Behavior & Combat Feedback | 2/2 | Complete   | 2026-03-11 |
 | 6. Player Defense & Survival | 3/3 | Complete   | 2026-03-11 |
 | 7. Wave Progression & Enemy Variety | 3/3 | Complete   | 2026-03-14 |
-| 8. Combat HUD | 0/2 | Not started | - |
+| 8. Combat HUD | 0/1 | Not started | - |
 | 9. Tactical Targeting System | 0/2 | Not started | - |
