@@ -453,7 +453,7 @@
       indicatorEls[ii]=el;
     }
     // Tactical overlay state and DOM pool (Phase 9)
-    let tacticalMode=false;
+    // Tactical overlays are unified with combat mode (no separate toggle)
     const TAC_MAX_TARGETS=8;
     const tacTargets=[]; // [{enemyIdx, weaponIdx}] - Plan 02 populates
     const ARCHETYPE_ABBREVS=['G','S','B','N','C'];
@@ -495,17 +495,7 @@
       for(let i=0;i<tacTargets.length;i++){if(tacTargets[i].enemyIdx===enemyIdx)return tacTargets[i];}
       return null;
     }
-    function toggleTacticalMode(){
-      if(!combatMode)return; // Tactical requires combat mode
-      tacticalMode=!tacticalMode;
-      tacMarkerContainer.style.display=tacticalMode?'block':'none';
-      for(let i=0;i<MAX_ENEMIES;i++){
-        indicatorEls[i].classList.toggle('tac-hidden',tacticalMode);
-      }
-      if(!tacticalMode){
-        tacTargets.length=0;
-      }
-    }
+    // toggleTacticalMode removed: tactical is unified with combat mode
 
     // Missile trail render buffer for GPU upload
     const _mtRenderBuf=new Float32Array(missileTrailMaxPts*3);
@@ -788,8 +778,8 @@
       if(!flyMode||e.button!==2||!dv)return;
       e.preventDefault();
       if(!playerState.alive)return;
-      // Tactical mode: right-click fires coordinated salvo
-      if(tacticalMode&&tacTargets.length>0){
+      // Combat mode: right-click fires coordinated salvo if targets selected
+      if(combatMode&&tacTargets.length>0){
         fireTacticalSalvo(simTime);
         return;
       }
@@ -823,8 +813,8 @@
         if(!playerState.alive)return;
         // Combat mode: fire weapon or add missile lock (Pitfall 3)
         if(!dD&&combatMode){
-          // Tactical mode click: select/deselect targets
-          if(tacticalMode){
+          // Tactical target selection (integrated with combat mode)
+          {
             const _cpTac=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
             const _cfTac=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
             const _crTac=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
@@ -841,10 +831,10 @@
                 clearTacTargets();
                 addTacTarget(hitIdx,selectedWeapon);
               }
-            }else{
-              clearTacTargets();
+              return; // Enemy hit: handled as tactical selection
             }
-            return;
+            // Click empty space: clear selections, fall through to weapon fire
+            clearTacTargets();
           }
           if(selectedWeapon>=2){
             // Missile mode: left-click adds lock target
@@ -975,7 +965,7 @@
           playerState.deathPhase=0;
           playerState.deathTimer=0;
           combatMode=false;
-          tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;
+          tacMarkerContainer.style.display='none';tacTargets.length=0;
           combatIndicatorEl.style.display='none';
           weaponIndicatorEl.style.display='none';
           for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');
@@ -991,7 +981,7 @@
       if(e.key==='`'){
         if(!wf)return;
         if(playerState.deathPhase>0)return; // Can't exit during death
-        if(flyMode){exitNavMode();combatMode=false;tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else enterNavMode();
+        if(flyMode){exitNavMode();combatMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else enterNavMode();
         return;
       }
       if(flyMode){
@@ -999,19 +989,23 @@
         if(e.key==='b'||e.key==='B'){fastForward=!fastForward;}
         // Gate combat/navigation input on player alive
         if(!playerState.alive){return;}
-        if(e.key==='t'||e.key==='T'){toggleTacticalMode();}
         if(e.key==='f'||e.key==='F'){
           combatMode=!combatMode;
-          // Turn off tactical mode when exiting combat mode
-          if(!combatMode&&tacticalMode){tacticalMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}
           if(combatMode){
             canvas.style.cursor='crosshair';
             combatIndicatorEl.style.display='block';
             weaponIndicatorEl.style.display='block';
+            // Show tactical overlays with combat mode
+            tacMarkerContainer.style.display='block';
+            for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.add('tac-hidden');
           }else{
             canvas.style.cursor='crosshair';
             combatIndicatorEl.style.display='none';
             weaponIndicatorEl.style.display='none';
+            // Hide tactical overlays and clear targets
+            tacMarkerContainer.style.display='none';
+            tacTargets.length=0;
+            for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');
           }
         }
         if(combatMode){
@@ -1575,8 +1569,8 @@
         aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
 
         // Weapon preview + projectile rendering (combat mode)
-        // Tactical mode: override preview for most recently selected target
-        if(tacticalMode&&tacTargets.length>0){
+        // Override preview for most recently selected tactical target
+        if(combatMode&&tacTargets.length>0){
           const _lastTac=tacTargets[tacTargets.length-1];
           if(enemies.alive[_lastTac.enemyIdx]&&_lastTac.weaponIdx<2){
             const _savedAimT=aimDir;
@@ -1806,8 +1800,8 @@
           gl.drawArrays(gl.POINTS,0,1);
         }
 
-        // Tactical range rings (Phase 9)
-        if(tacticalMode){
+        // Tactical range rings (Phase 9) - shown in combat mode
+        if(combatMode){
           gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
           gl.enableVertexAttribArray(trajLocs.aPos);
           for(let rr=0;rr<_tacRingRadii.length;rr++){
@@ -1954,8 +1948,8 @@
         // Off-screen enemy indicators
         if(playerState.alive&&playerState.deathPhase===0){updateEnemyIndicators();}
         else{hideAllIndicators();}
-        // Tactical marker per-frame update
-        if(tacticalMode&&playerState.alive){
+        // Tactical marker per-frame update (unified with combat mode)
+        if(combatMode&&playerState.alive){
           tacMarkerContainer.style.display='block';
           const mDT=Math.min(baseWidth,baseHeight);
           // Dead target cleanup: remove dead enemies from tacTargets (iterate backward for safe splice)
@@ -2010,7 +2004,7 @@
               mel._wpnSpan.classList.remove('dimmed');
             }
           }
-        }else if(!tacticalMode){
+        }else if(!combatMode){
           tacMarkerContainer.style.display='none';
         }
       }else{

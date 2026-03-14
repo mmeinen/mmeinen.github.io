@@ -607,14 +607,11 @@ function resetCombat() {
   // Reset combat mode
   combatMode = false;
   selectedWeapon = 0;
-  // Reset tactical mode
-  if (typeof tacticalMode !== 'undefined') {
-    tacticalMode = false;
-    if (typeof tacMarkerContainer !== 'undefined' && tacMarkerContainer) tacMarkerContainer.style.display = 'none';
-    if (typeof tacTargets !== 'undefined') tacTargets.length = 0;
-    if (typeof indicatorEls !== 'undefined') {
-      for (let i = 0; i < MAX_ENEMIES; i++) indicatorEls[i].classList.remove('tac-hidden');
-    }
+  // Reset tactical overlay state (unified with combat mode)
+  if (typeof tacMarkerContainer !== 'undefined' && tacMarkerContainer) tacMarkerContainer.style.display = 'none';
+  if (typeof tacTargets !== 'undefined') tacTargets.length = 0;
+  if (typeof indicatorEls !== 'undefined') {
+    for (let i = 0; i < MAX_ENEMIES; i++) indicatorEls[i].classList.remove('tac-hidden');
   }
   // Reset vignette
   if (typeof vignetteEl !== 'undefined' && vignetteEl) {
