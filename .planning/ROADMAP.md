@@ -19,8 +19,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Enemy Behavior & Combat Feedback** - Grunt archetype with orbital AI, enemy weapons firing at player, hit flash and impact particles (completed 2026-03-11)
 - [x] **Phase 6: Player Defense & Survival** - Hull integrity, kinetic shields, ship destruction, game over with stats, restart flow, off-screen indicators (completed 2026-03-11)
 - [x] **Phase 7: Wave Progression & Enemy Variety** - Kill-triggered waves, 4 additional enemy archetypes, boss waves, difficulty scaling (completed 2026-03-14)
-- [ ] **Phase 8: Combat HUD** - Weapon status panel, wave counter, hull integrity bar, orbit info display
-- [ ] **Phase 9: Tactical Targeting System** - Zoomed-out strategic view with target selection, weapon assignment, and fire command
+- [x] **Phase 8: Combat HUD** - Weapon status panel, wave counter, hull integrity bar, orbit info display (completed 2026-03-14)
+- [ ] **Phase 9: Tactical Targeting System** - Tactical overlay with target selection, weapon assignment, and coordinated salvo fire
 
 ## Phase Details
 
@@ -53,9 +53,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Orbital mechanics module (orbital.js), capital ship geometry, engine glow shader
-- [ ] 02-02-PLAN.md -- Orbit state machine, transfer orbit execution, click-to-target, trajectory preview, altitude control
-- [ ] 02-03-PLAN.md -- Lagrange point markers and orbiting, CSS polish, regression tests, visual verification
+- [x] 02-01-PLAN.md -- Orbital mechanics module (orbital.js), capital ship geometry, engine glow shader
+- [x] 02-02-PLAN.md -- Orbit state machine, transfer orbit execution, click-to-target, trajectory preview, altitude control
+- [x] 02-03-PLAN.md -- Lagrange point markers and orbiting, CSS polish, regression tests, visual verification
 
 ### Phase 3: Direct-Fire Weapons
 **Goal**: Player can engage enemies with two distinct direct-fire weapons -- a gravity-affected kinetic cannon and a light-speed plasma gun -- and preview trajectories before firing
@@ -134,9 +134,9 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 07-01-PLAN.md -- Wave system foundation: ETYPE extension (5 archetypes), 4 new geometry functions, multi-geometry instanced rendering, wave state machine (waves.js), wave announcement, indicator colors
-- [ ] 07-02-PLAN.md -- Swarm and Bomber archetypes: converging rush + ram damage AI, missile salvo AI, enemy-fired missiles in missiles.js
-- [ ] 07-03-PLAN.md -- Sniper and Capital archetypes: burst fire AI, minion-spawning AI, boss wave logic, Capital warp-in VFX, visual verification
+- [x] 07-01-PLAN.md -- Wave system foundation: ETYPE extension (5 archetypes), 4 new geometry functions, multi-geometry instanced rendering, wave state machine (waves.js), wave announcement, indicator colors
+- [x] 07-02-PLAN.md -- Swarm and Bomber archetypes: converging rush + ram damage AI, missile salvo AI, enemy-fired missiles in missiles.js
+- [x] 07-03-PLAN.md -- Sniper and Capital archetypes: burst fire AI, minion-spawning AI, boss wave logic, Capital warp-in VFX, visual verification
 
 ### Phase 8: Combat HUD
 **Goal**: Player has full situational awareness through a unified bottom-bar HUD showing weapon readiness, wave status, hull condition, and current orbit
@@ -147,25 +147,25 @@ Plans:
   2. A wave counter shows the current wave number and number of enemies remaining
   3. A hull integrity bar is prominently displayed and updates in real-time as the player takes damage
   4. Orbit info display shows the current orbital body, altitude, and transfer status
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 08-01-PLAN.md -- Unified bottom bar: weapon boxes with cooldown fills, HP bar, wave counter, orbit info, mode toggle, per-frame render loop wiring, old HUD element cleanup
+- [x] 08-01-PLAN.md -- Unified bottom bar: weapon boxes with cooldown fills, HP bar, wave counter, orbit info, mode toggle, per-frame render loop wiring, old HUD element cleanup
 
 ### Phase 9: Tactical Targeting System
-**Goal**: Player can zoom out to survey the entire battlefield, select targets on the orbital plane, assign weapons, and issue fire commands for coordinated salvos
+**Goal**: Player can activate a tactical overlay on the combat view to select enemy targets, assign weapons, and issue coordinated fire commands as salvos
 **Depends on**: Phase 3, Phase 4, Phase 8
 **Requirements**: HUD-04, HUD-05, HUD-06
 **Success Criteria** (what must be TRUE):
-  1. Player can activate tactical zoom to see the entire black hole system with all enemies highlighted
-  2. In tactical zoom, player can select individual enemies as targets on the orbital plane
+  1. Player can activate tactical mode to see all enemies highlighted with type and distance markers
+  2. In tactical mode, player can select individual enemies as targets on the orbital plane
   3. Player can assign specific weapons to selected targets and preview the predicted engagement
   4. Player can issue a fire command that launches the assigned weapons as a coordinated salvo
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 09-01: TBD
-- [ ] 09-02: TBD
+- [ ] 09-01-PLAN.md -- Tactical overlay foundation: T key toggle, DOM marker pool for all enemies (type + distance), per-frame screen projection, GL range rings
+- [ ] 09-02-PLAN.md -- Target selection (click/shift-click/deselect), weapon assignment with badges, mixed-weapon salvo fire via right-click, trajectory preview, visual verification
 
 ## Progress
 
@@ -181,5 +181,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 5. Enemy Behavior & Combat Feedback | 2/2 | Complete   | 2026-03-11 |
 | 6. Player Defense & Survival | 3/3 | Complete   | 2026-03-11 |
 | 7. Wave Progression & Enemy Variety | 3/3 | Complete   | 2026-03-14 |
-| 8. Combat HUD | 0/1 | Not started | - |
+| 8. Combat HUD | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | 0/2 | Not started | - |
