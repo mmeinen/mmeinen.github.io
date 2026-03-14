@@ -1979,6 +1979,8 @@
             mel._distSpan.textContent=Math.floor(dist)+'u';
             const ac=ARCHETYPE_COLORS[eType];
             mel._typeSpan.style.color='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
+            // Always populate HP for hover-to-reveal
+            mel._hpSpan.textContent='HP '+Math.ceil(enemies.hp[i])+'/'+ARCHETYPE_HP[eType];
             // Selection state rendering
             const tacEntry=getTacEntry(i);
             if(tacEntry){
@@ -1996,8 +1998,6 @@
                 mel._wpnSpan.classList.remove('dimmed');
               }
               mel._wpnSpan.style.color=_tacWpnColors[wIdx];
-              // HP info panel
-              mel._hpSpan.textContent='HP '+Math.ceil(enemies.hp[i])+'/'+ARCHETYPE_HP[eType];
             }else{
               mel.classList.remove('selected');
               mel._wpnSpan.textContent='';
