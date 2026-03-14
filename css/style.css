@@ -926,6 +926,9 @@ body {
 .tac-marker.selected .tac-wpn {
   display: block;
 }
+.tac-marker .tac-wpn.dimmed {
+  opacity: 0.5;
+}
 .tac-marker .tac-info {
   display: none;
   position: absolute;

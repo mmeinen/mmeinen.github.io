@@ -625,3 +625,90 @@ function checkMissileBlastHits(x, z, damage, blastRadius) {
     }
   }
 }
+
+/**
+ * Fire a coordinated tactical salvo. Groups tacTargets by weapon type and
+ * fires each group using the appropriate fire function.
+ * @param {number} st - current simTime
+ */
+function fireTacticalSalvo(st) {
+  if (typeof tacTargets === 'undefined' || tacTargets.length === 0) return;
+
+  // Group targets by weapon type
+  const groups = [[], [], [], []]; // kinetic, plasma, missile, nuke
+  for (const t of tacTargets) {
+    if (!enemies.alive[t.enemyIdx]) continue;
+    groups[t.weaponIdx].push(t.enemyIdx);
+  }
+
+  // Save current weapon state
+  const savedWeapon = selectedWeapon;
+  const savedAimDir = aimDir ? [aimDir[0], aimDir[1], aimDir[2]] : null;
+
+  // Fire kinetic bursts at each target (subject to cooldown)
+  for (const enemyIdx of groups[0]) {
+    if (st < weaponCooldownEnd[0]) continue;
+    const dx = enemies.posX[enemyIdx] - flyPos[0];
+    const dy = (enemies.posY ? enemies.posY[enemyIdx] : 0) - flyPos[1];
+    const dz = enemies.posZ[enemyIdx] - flyPos[2];
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (len > 0.01) {
+      aimDir = [dx / len, dy / len, dz / len];
+      fireKineticBurst(st);
+    }
+  }
+
+  // Fire plasma bolts at each target (subject to cooldown)
+  for (const enemyIdx of groups[1]) {
+    if (st < weaponCooldownEnd[1]) continue;
+    const dx = enemies.posX[enemyIdx] - flyPos[0];
+    const dy = (enemies.posY ? enemies.posY[enemyIdx] : 0) - flyPos[1];
+    const dz = enemies.posZ[enemyIdx] - flyPos[2];
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (len > 0.01) {
+      aimDir = [dx / len, dy / len, dz / len];
+      firePlasma(st);
+    }
+  }
+
+  // Fire regular missiles: use lock-on system
+  if (groups[2].length > 0) {
+    const savedLocks = lockState.targets.map(t => ({enemyIdx: t.enemyIdx, count: t.count}));
+    clearLocks();
+    selectedWeapon = 2;
+    updateLockLimits();
+    for (const enemyIdx of groups[2]) {
+      addLockTarget(enemyIdx);
+    }
+    if (getLockCount() > 0) {
+      fireMissileSalvo(st);
+    }
+    clearLocks();
+    lockState.targets.length = 0;
+    for (const t of savedLocks) lockState.targets.push(t);
+  }
+
+  // Fire nuclear missiles: use lock-on system
+  if (groups[3].length > 0) {
+    const savedLocks = lockState.targets.map(t => ({enemyIdx: t.enemyIdx, count: t.count}));
+    clearLocks();
+    selectedWeapon = 3;
+    updateLockLimits();
+    for (const enemyIdx of groups[3]) {
+      addLockTarget(enemyIdx);
+    }
+    if (getLockCount() > 0) {
+      fireMissileSalvo(st);
+    }
+    clearLocks();
+    lockState.targets.length = 0;
+    for (const t of savedLocks) lockState.targets.push(t);
+  }
+
+  // Restore state
+  selectedWeapon = savedWeapon;
+  aimDir = savedAimDir;
+
+  // Clear tactical assignments after firing (mode stays active)
+  if (typeof clearTacTargets === 'function') clearTacTargets();
+}

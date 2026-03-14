@@ -478,6 +478,23 @@
       tacMarkerContainer.appendChild(el);
       tacMarkerEls[i]=el;
     }
+    function addTacTarget(enemyIdx,weaponIdx){
+      if(tacTargets.length>=TAC_MAX_TARGETS)return false;
+      for(let i=0;i<tacTargets.length;i++){if(tacTargets[i].enemyIdx===enemyIdx)return false;}
+      tacTargets.push({enemyIdx:enemyIdx,weaponIdx:weaponIdx});
+      return true;
+    }
+    function removeTacTarget(enemyIdx){
+      for(let i=0;i<tacTargets.length;i++){
+        if(tacTargets[i].enemyIdx===enemyIdx){tacTargets.splice(i,1);return true;}
+      }
+      return false;
+    }
+    function clearTacTargets(){tacTargets.length=0;}
+    function getTacEntry(enemyIdx){
+      for(let i=0;i<tacTargets.length;i++){if(tacTargets[i].enemyIdx===enemyIdx)return tacTargets[i];}
+      return null;
+    }
     function toggleTacticalMode(){
       if(!combatMode)return; // Tactical requires combat mode
       tacticalMode=!tacticalMode;
@@ -771,6 +788,11 @@
       if(!flyMode||e.button!==2||!dv)return;
       e.preventDefault();
       if(!playerState.alive)return;
+      // Tactical mode: right-click fires coordinated salvo
+      if(tacticalMode&&tacTargets.length>0){
+        fireTacticalSalvo(simTime);
+        return;
+      }
       // Right-click in missile mode: fire salvo if locks exist
       if(combatMode&&selectedWeapon>=2&&getLockCount()>0){
         fireMissileSalvo(simTime);
@@ -795,12 +817,35 @@
       }
       if(dr){camAz+=(e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>36)dD=true}
     });
-    canvas.addEventListener('click',()=>{
+    canvas.addEventListener('click',(e)=>{
       if(flyMode){
         // Block all clicks during death sequence or game over
         if(!playerState.alive)return;
         // Combat mode: fire weapon or add missile lock (Pitfall 3)
         if(!dD&&combatMode){
+          // Tactical mode click: select/deselect targets
+          if(tacticalMode){
+            const _cpTac=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
+            const _cfTac=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
+            const _crTac=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
+            const _cuTac=[dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true)];
+            const mDTac=Math.min(baseWidth,baseHeight);
+            const hitIdx=findLockTarget(mSX,mSY,_cpTac,_cfTac,_crTac,_cuTac,mDTac);
+            if(hitIdx>=0){
+              const existing=getTacEntry(hitIdx);
+              if(existing){
+                removeTacTarget(hitIdx);
+              }else if(e.shiftKey){
+                addTacTarget(hitIdx,selectedWeapon);
+              }else{
+                clearTacTargets();
+                addTacTarget(hitIdx,selectedWeapon);
+              }
+            }else{
+              clearTacTargets();
+            }
+            return;
+          }
           if(selectedWeapon>=2){
             // Missile mode: left-click adds lock target
             if(aimDir&&dv){
@@ -1530,7 +1575,31 @@
         aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
 
         // Weapon preview + projectile rendering (combat mode)
-        computeWeaponPreview(simTime);
+        // Tactical mode: override preview for most recently selected target
+        if(tacticalMode&&tacTargets.length>0){
+          const _lastTac=tacTargets[tacTargets.length-1];
+          if(enemies.alive[_lastTac.enemyIdx]&&_lastTac.weaponIdx<2){
+            const _savedAimT=aimDir;
+            const _savedWpnT=selectedWeapon;
+            const _tdx=enemies.posX[_lastTac.enemyIdx]-flyPos[0];
+            const _tdy=(enemies.posY?enemies.posY[_lastTac.enemyIdx]:0)-flyPos[1];
+            const _tdz=enemies.posZ[_lastTac.enemyIdx]-flyPos[2];
+            const _tlen=Math.sqrt(_tdx*_tdx+_tdy*_tdy+_tdz*_tdz);
+            if(_tlen>0.01){
+              aimDir=[_tdx/_tlen,_tdy/_tlen,_tdz/_tlen];
+              selectedWeapon=_lastTac.weaponIdx;
+              computeWeaponPreview(simTime);
+              aimDir=_savedAimT;
+              selectedWeapon=_savedWpnT;
+            }else{
+              computeWeaponPreview(simTime);
+            }
+          }else{
+            computeWeaponPreview(simTime);
+          }
+        }else{
+          computeWeaponPreview(simTime);
+        }
         renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf);
         renderParticles(gl,trajPg,trajLocs,_vpMat);
         renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf);
@@ -1889,9 +1958,14 @@
         if(tacticalMode&&playerState.alive){
           tacMarkerContainer.style.display='block';
           const mDT=Math.min(baseWidth,baseHeight);
+          // Dead target cleanup: remove dead enemies from tacTargets (iterate backward for safe splice)
+          for(let j=tacTargets.length-1;j>=0;j--){
+            if(!enemies.alive[tacTargets[j].enemyIdx])tacTargets.splice(j,1);
+          }
+          const _tacWpnColors=['rgba(255,255,255,0.9)','rgba(0,220,255,0.9)','rgba(255,160,80,0.9)','rgba(255,60,40,0.9)'];
           for(let i=0;i<MAX_ENEMIES;i++){
             const mel=tacMarkerEls[i];
-            if(!enemies.alive[i]){mel.style.display='none';continue;}
+            if(!enemies.alive[i]){mel.style.display='none';mel.classList.remove('selected');continue;}
             const dx=enemies.posX[i]-_camP[0];
             const dy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
             const dz=enemies.posZ[i]-_camP[2];
@@ -1911,6 +1985,30 @@
             mel._distSpan.textContent=Math.floor(dist)+'u';
             const ac=ARCHETYPE_COLORS[eType];
             mel._typeSpan.style.color='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
+            // Selection state rendering
+            const tacEntry=getTacEntry(i);
+            if(tacEntry){
+              if(!mel.classList.contains('selected'))mel.classList.add('selected');
+              mel._ringDiv.style.borderColor='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
+              // Weapon badge with cooldown check
+              const wIdx=tacEntry.weaponIdx;
+              const onCooldown=simTime<weaponCooldownEnd[wIdx];
+              if(onCooldown){
+                const remaining=(weaponCooldownEnd[wIdx]-simTime).toFixed(1);
+                mel._wpnSpan.textContent='['+WEAPON_ABBREVS[wIdx]+' '+remaining+'s]';
+                if(!mel._wpnSpan.classList.contains('dimmed'))mel._wpnSpan.classList.add('dimmed');
+              }else{
+                mel._wpnSpan.textContent='['+WEAPON_ABBREVS[wIdx]+']';
+                mel._wpnSpan.classList.remove('dimmed');
+              }
+              mel._wpnSpan.style.color=_tacWpnColors[wIdx];
+              // HP info panel
+              mel._hpSpan.textContent='HP '+Math.ceil(enemies.hp[i])+'/'+ARCHETYPE_HP[eType];
+            }else{
+              mel.classList.remove('selected');
+              mel._wpnSpan.textContent='';
+              mel._wpnSpan.classList.remove('dimmed');
+            }
           }
         }else if(!tacticalMode){
           tacMarkerContainer.style.display='none';
