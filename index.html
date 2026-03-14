@@ -101,6 +101,21 @@
        <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
        <div class="hp-bar-container" id="hp-bar-container"><div class="hp-bar" id="hp-bar"></div><span class="hp-text" id="hp-text">250</span></div>
        <div id="combat-hud-bar" class="combat-hud-bar">
+         <!-- Left wing: combat status -->
+         <div class="hud-wing hud-wing--left">
+           <button class="hud-mode-toggle" id="hud-mode-toggle">NAV</button>
+           <div class="hud-divider"></div>
+           <div class="hud-hp" id="hud-hp-section">
+             <span class="hud-hp-label">HP</span>
+             <div class="hud-hp-bar-bg">
+               <div class="hud-hp-bar-fill" id="hud-hp-fill"></div>
+             </div>
+             <span class="hud-hp-text" id="hud-hp-text">250</span>
+           </div>
+           <div class="hud-divider"></div>
+           <div class="hud-wave" id="hud-wave">WAVE 1 &middot; 8 ENEMIES</div>
+         </div>
+         <!-- Center: weapons -->
          <div class="hud-weapons" id="hud-weapons">
            <div class="weapon-box" data-weapon="0" id="wpn-box-0">
              <span class="wpn-key">1</span>
@@ -131,15 +146,10 @@
              <span class="wpn-locks" id="wpn-locks-3"></span>
            </div>
          </div>
-         <div class="hud-hp" id="hud-hp-section">
-           <div class="hud-hp-bar-bg">
-             <div class="hud-hp-bar-fill" id="hud-hp-fill"></div>
-           </div>
-           <span class="hud-hp-text" id="hud-hp-text">250</span>
+         <!-- Right wing: navigation info -->
+         <div class="hud-wing hud-wing--right">
+           <div class="hud-orbit" id="hud-orbit">FREE FLIGHT</div>
          </div>
-         <div class="hud-wave" id="hud-wave">WAVE 1 &middot; 8 ENEMIES</div>
-         <div class="hud-orbit" id="hud-orbit">FREE FLIGHT</div>
-         <button class="hud-mode-toggle" id="hud-mode-toggle">NAV</button>
        </div>
        <div id="wave-announce" class="wave-announce"></div>
      </div>
