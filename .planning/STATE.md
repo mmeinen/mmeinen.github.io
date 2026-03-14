@@ -3,14 +3,29 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-14T19:55:07.761Z"
+last_activity: 2026-03-14 -- Phase 9 Plan 01 complete (tactical overlay foundation)
+progress:
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 21
+  completed_plans: 20
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
 stopped_at: Phase 9 context gathered
-last_updated: "2026-03-14T19:24:30.435Z"
+last_updated: "2026-03-14T19:54:36.788Z"
 last_activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
 progress:
   total_phases: 9
   completed_phases: 8
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 21
+  completed_plans: 20
 ---
 
 ---
@@ -157,16 +172,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** Phase 7 complete. All 5 enemy archetypes operational. Ready for Phase 8 (Combat HUD).
+**Current focus:** Phase 9 in progress. Tactical overlay foundation complete (Plan 01). Ready for Plan 02 (target selection and fire).
 
 ## Current Position
 
-Phase: 8 of 9 (Combat HUD) -- COMPLETE
-Plan: 1 of 1 in current phase (complete)
-Status: Phase 8 complete. Unified bottom bar with weapon cooldown boxes, HP bar, wave counter, orbit info, mode toggle.
-Last activity: 2026-03-14 -- Phase 8 Plan 01 complete (combat HUD bottom bar)
+Phase: 9 of 9 (Tactical Targeting System)
+Plan: 1 of 2 in current phase (complete)
+Status: Plan 01 complete. Tactical overlay with DOM marker pool, T key toggle, per-frame positioning, GL range rings.
+Last activity: 2026-03-14 -- Phase 9 Plan 01 complete (tactical overlay foundation)
 
-Progress: [██████████] 100% (19/19 plans)
+Progress: [██████████] 95% (20/21 plans)
 
 ## Performance Metrics
 
@@ -199,6 +214,7 @@ Progress: [██████████] 100% (19/19 plans)
 | Phase 07 P02 | 7min | 2 tasks | 2 files |
 | Phase 07 P03 | 5min | 2 tasks | 4 files |
 | Phase 08 P01 | 4min | 2 tasks | 3 files |
+| Phase 09 P01 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -285,6 +301,10 @@ Recent decisions affecting current work:
 - [Phase 08]: Old HUD elements hidden via CSS rather than DOM removal for backward compatibility
 - [Phase 08]: Bottom bar z-index 26 (above planet labels 25, below wave announcement 28)
 - [Phase 08]: WPN_CD_DURATIONS array computed per-frame from constants, scoped inside render loop block
+- [Phase 09]: Tactical mode gated on combatMode -- T key ignored outside combat
+- [Phase 09]: Off-screen enemies hidden entirely in tactical mode (no edge markers per CONTEXT.md)
+- [Phase 09]: Reuse existing ringBuf/ringArray for tactical range rings (zero per-frame allocation)
+- [Phase 09]: Cached sub-element refs (el._typeSpan etc.) on tactical marker DOM elements for render loop performance
 
 ### Pending Todos
 
@@ -296,6 +316,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T19:24:30.431Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-tactical-targeting-system/09-CONTEXT.md
+Last session: 2026-03-14T19:55:07.758Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
