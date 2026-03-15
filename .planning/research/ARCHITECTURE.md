@@ -1,729 +1,669 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** Tactical orbital combat system layered on existing WebGL black hole scene
-**Researched:** 2026-03-09
+**Domain:** Tactical orbital combat — v1.1 Realistic Scale & Fleet Combat
+**Researched:** 2026-03-15
+**Confidence:** HIGH
 
-## Existing Architecture (What We Build On)
-
-Before defining the combat architecture, here is how the current system works. Every design decision must respect these constraints.
-
-### Current Render Pipeline (per frame)
-
-```
-requestAnimationFrame(render)
-  |
-  +-- Compute dt, simTime
-  +-- Write cam/mouse to WASM shared memory
-  +-- WASM frame(): planet positions, camera matrix, hover detection (planets 0-5)
-  +-- JS: planet 6 position (not in WASM)
-  +-- JS: updateNav(simDt) -- Verlet integration of ship physics
-  +-- JS: updateMissiles(simDt) -- PN guidance, trail recording
-  |
-  +-- GL Pass 1: Full-screen ray march (pg program)
-  |     - 250-iteration Verlet ray march per pixel
-  |     - Accretion disk, planets, Saturn rings, detonations
-  |     - THE bottleneck -- do not add anything here
-  |
-  +-- if (flyMode):
-  |     GL Pass 2: Ship geometry (shipPg program)
-  |       - Box geometry, MVP transform, Phong lighting
-  |     GL Pass 3: Each missile (shipPg reused, per-missile draw call)
-  |     GL Pass 4: Trajectory lines/points (trajPg program)
-  |       - Trajectory preview, aim line, missile trails, target markers
-  |       - Uses GL_POINTS and GL_LINES with alpha blend
-  |
-  +-- DOM updates: HUD text, planet labels, FPS counter
-```
-
-### Current GL Programs
-
-| Program | Purpose | Vertex Format | Draw Type |
-|---------|---------|---------------|-----------|
-| `pg` | Ray march background | 2D quad (a_pos) | TRIANGLE_STRIP, 4 verts |
-| `shipPg` | Ship + missiles | 3D box (a_shipPos, a_shipNormal) | ELEMENTS, 36 indices |
-| `trajPg` | Lines/points overlay | 3D position (a_trajPos) | POINTS + LINES |
-
-### Key Constraints Derived from Existing Code
-
-1. **WebGL 1.0 only** -- no WebGL 2 features natively, but extensions available
-2. **Single canvas, single GL context** -- all passes share one context
-3. **Ray march is pass 1** -- combat passes must come AFTER, compositing via depth buffer clear + re-enable
-4. **flyMode gate** -- all nav/combat rendering gated behind `if(flyMode)`
-5. **Bullet time** -- simDt is already scaled by `BULLET_TIME_SCALE` (0.03x), combat must use same simDt
-6. **Y=0 plane** -- ship and missiles are clamped to Y=0. Combat operates on the ecliptic plane (2.5D)
-7. **Pre-allocated scratch arrays** -- zero per-frame allocation pattern already established
-8. **WASM shared memory** -- planet positions read from DataView at known offsets
+This document supersedes the v1.0 architecture research. It covers the integration points for
+four new features — coordinate scale change, fleet system, radar UI, and warp speed — into the
+existing v1.0 codebase. Every existing module is examined. New vs. modified status is explicit
+for each. Build order accounts for the live game not breaking during the refactor.
 
 ---
 
-## Recommended Architecture
+## Standard Architecture
 
 ### System Overview
 
 ```
-                    INPUT
-                      |
-          +-----------+-----------+
-          |                       |
-    Mouse/Keyboard          Game Clock (simDt)
-          |                       |
-          v                       v
-  +---------------+     +------------------+
-  | Input Router  |     | Wave Spawner     |
-  | (mode-aware)  |     | (kill-triggered) |
-  +-------+-------+     +--------+---------+
-          |                       |
-          v                       v
-  +---------------+     +------------------+
-  | Targeting     |     | Entity Store     |
-  | System        |<--->| (SoA arrays)     |
-  +-------+-------+     +--------+---------+
-          |                       |
-          v                       v
-  +---------------+     +------------------+
-  | Weapon        |     | Physics System   |
-  | Controller    |     | (gravity+motion) |
-  +-------+-------+     +--------+---------+
-          |                       |
-          +----------+------------+
-                     |
-                     v
-          +----------+----------+
-          | Collision System    |
-          | (radial bins)       |
-          +----------+----------+
-                     |
-          +----------+----------+
-          | Damage / Death      |
-          | System              |
-          +----------+----------+
-                     |
-        +------------+------------+
-        |            |            |
-        v            v            v
-  +-----------+ +-----------+ +---------+
-  | Enemy     | | Projectile| | Sprite  |
-  | Renderer  | | Renderer  | | Renderer|
-  | (instanced| | (instanced| | (explo- |
-  |  boxes)   | |  lines)   | |  sions) |
-  +-----------+ +-----------+ +---------+
-        |            |            |
-        +------------+------------+
-                     |
-                     v
-              +------+------+
-              | HUD Update  |
-              | (DOM manip) |
-              +-------------+
+┌─────────────────────────────────────────────────────────────────────┐
+│                         index.html (game host)                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
+│  │  WebGL ctx   │  │  WASM module │  │  DOM / HUD elements      │   │
+│  │  (single)    │  │  (planets    │  │  hull, weapons, wave,    │   │
+│  │              │  │   0-5 pos)   │  │  radar canvas, warp btn  │   │
+│  └──────┬───────┘  └──────┬───────┘  └───────────┬──────────────┘   │
+│         │                 │                       │                   │
+│         ▼                 ▼                       ▼                   │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                    Coordinate Layer                             │  │
+│  │  SCALE_KM constant, worldToRender(), renderToWorld()          │  │
+│  │  Camera-relative transform before every GL upload             │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│         │                                         │                   │
+│         ▼                                         ▼                   │
+│  ┌─────────────────────────────┐   ┌──────────────────────────────┐  │
+│  │   Simulation Layer (km)     │   │   Render Layer (render units)│  │
+│  │                             │   │                              │  │
+│  │  orbital.js  — transfers    │   │  shaders.js — GLSL sources   │  │
+│  │  combat.js   — enemy SoA    │   │  enemy/ship/traj programs    │  │
+│  │  weapons.js  — projectile   │   │  billboard explosions        │  │
+│  │  missiles.js — PN guidance  │   │                              │  │
+│  │  waves.js    — fleet spawn  │   │  [NEW] radar.js — 2D canvas  │  │
+│  │  particles.js— FX           │   │  overlay on separate element │  │
+│  │  math.js     — shared math  │   │                              │  │
+│  └─────────────────────────────┘   └──────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Boundaries
+### Component Responsibilities
 
-| Component | Responsibility | Communicates With | File |
-|-----------|---------------|-------------------|------|
-| **Entity Store** | SoA arrays for all combat entities (enemies, projectiles, shields) | Everything reads/writes | `js/scene/entities.js` |
-| **Wave Spawner** | Decides when/where/what to spawn, difficulty scaling | Entity Store, Game State | `js/scene/waves.js` |
-| **Input Router** | Extends existing keydown/mouse handlers for combat keybinds | Targeting, Weapon Controller | `js/scene/combat-input.js` |
-| **Targeting System** | Tactical zoom-out view, enemy selection, target queue | Entity Store, Input, Weapon Controller | `js/scene/targeting.js` |
-| **Weapon Controller** | Weapon selection, ammo/cooldown tracking, fire commands | Entity Store, Targeting | `js/scene/weapons.js` |
-| **Physics System** | Gravity + velocity integration for enemies/projectiles | Entity Store, existing `computeGravAccel()` | `js/scene/combat-physics.js` |
-| **Collision System** | Radial bin spatial partitioning, hit detection | Entity Store, Damage System | `js/scene/collision.js` |
-| **Damage System** | Apply damage, track hull/shield, trigger death/explosion | Entity Store, Sprite Renderer, Wave Spawner | `js/scene/damage.js` |
-| **Enemy Renderer** | Instanced draw call for all enemies | Entity Store, GL context | `js/scene/enemy-renderer.js` |
-| **Projectile Renderer** | Instanced draw call for all projectiles | Entity Store, GL context | `js/scene/projectile-renderer.js` |
-| **Sprite Renderer** | Billboard quads for small explosions | Entity Store, GL context | `js/scene/sprite-renderer.js` |
-| **Combat HUD** | DOM-based hull/shield/ammo/wave display | Game State, DOM | `js/scene/combat-hud.js` |
+All components live in `js/scene/`. Global scope, no module system. Script load order
+determines dependency resolution.
 
-### Why Not a Full ECS Framework
+| Component | File | v1.1 Status | Responsibility |
+|-----------|------|-------------|----------------|
+| Coordinate helper | `js/scene/scale.js` | **NEW** | SCALE_KM, worldToRender, renderToWorld, collision thresholds |
+| Orbital mechanics | `orbital.js` | **MODIFY** | SOI radii, Hohmann DV, body helpers — all distances become km |
+| Enemy entity store | `combat.js` | **MODIFY** | SoA arrays, AI state machine, radial bins — all constants become km |
+| Weapon physics | `weapons.js` | **MODIFY** | Muzzle speeds, hit radii, lifetime — all become km/s and km |
+| Missile guidance | `missiles.js` | **MODIFY** | Speeds, fuel, detonation radius — become km/s and km |
+| Wave/fleet spawner | `waves.js` | **MODIFY** | Wave composition replaced by fleet composition; 3 fleets max per wave |
+| Impact particles | `particles.js` | **MODIFY** | Particle speed in km/s, particle size adjusted for new scale |
+| Math helpers | `math.js` | **NO CHANGE** | Pure geometry, scale-independent |
+| Shader strings | `shaders.js` | **MODIFY** | Planet/BH uniform scale, warp distortion pass, LOD thresholds |
+| Radar mini-map | `js/scene/radar.js` | **NEW** | 2D canvas overlay, bodies + ships, expandable side panel |
+| Warp speed | `js/scene/warp.js` | **NEW** | Spacebar toggle, time scale ramp, HUD indicator |
+| Fleet definitions | `js/scene/fleets.js` | **NEW** | Fleet archetype tables, composition by difficulty |
+| index.html | inline `<script>` | **MODIFY** | planetData orbit radii, BH event horizon, camera near/far |
 
-A formal ECS library (ape-ecs, bitecs, etc.) adds complexity and dependency for a system with only 3-4 entity types and ~10 components. Instead, use the **Structure of Arrays (SoA) pattern** -- the performance benefit of ECS (cache-friendly iteration) without the framework overhead. This is the right tradeoff for a no-npm, no-build-tools project with a bounded entity count (50-100 entities max).
+---
+
+## Recommended Project Structure
+
+```
+js/scene/
+  math.js             — unchanged (pure geometry)
+  shaders.js          — modify: scale uniforms, warp pass
+  orbital.js          — modify: km distances throughout
+  combat.js           — modify: km constants, AI detection radii
+  weapons.js          — modify: km/s speeds, km hit radii
+  missiles.js         — modify: km/s speeds, km detonation radius
+  waves.js            — modify: fleet-structured wave definitions
+  particles.js        — modify: km/s particle speeds
+
+  scale.js            — NEW: coordinate helpers, SCALE_KM
+  radar.js            — NEW: radar/orbital-chart rendering
+  warp.js             — NEW: warp speed state and HUD
+  fleets.js           — NEW: fleet archetype compositions
+
+index.html
+  planetData          — modify: oR and radius to km values
+  BH_GM, BH_R         — modify: km-scale gravitational constant
+  Camera near/far     — modify: km-scale clipping planes
+  <canvas id="radar"> — NEW: separate 2D canvas for radar
+  Script load order   — add scale.js before other scene files
+```
+
+### Structure Rationale
+
+- **scale.js first in load order**: Every other module references `SCALE_KM` and the transform
+  helpers. It must exist before any module that positions entities.
+- **fleets.js before waves.js**: Fleet definitions are pure data tables; waves.js reads them.
+- **radar.js independent of main GL context**: Radar uses a separate `<canvas>` with a 2D
+  context to avoid contaminating WebGL state. It reads world positions and draws 2D circles.
+- **warp.js independent of physics modules**: Warp only modifies the `simDt` multiplier. It
+  touches nothing except the time scale and the HUD element. No physics code changes.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Camera-Relative Rendering
+
+**What:** Simulation runs in km. The GPU receives positions relative to the camera, not absolute
+world positions. Before uploading any position buffer, subtract the camera world position.
+
+**When to use:** Every GL position upload in render passes 2-8 (everything after the ray march).
+The ray march shader already works in its own unitless coordinate space and is unaffected.
+
+**Why this is necessary:** A float32 has ~7 significant decimal digits. At 350,000 km scene
+extent with ships positioned 1 km apart, absolute positions lose sub-km precision. Camera-relative
+coordinates keep values in the 0-10,000 range where float32 is more than adequate.
+
+**Trade-offs:** Every render function must receive or read `camWorldPos`. The instance buffer
+packing functions must apply the subtraction. If forgotten, ships flicker or disappear.
+
+**Example:**
+```javascript
+// In updateInstanceBuffer():
+instanceData[base]     = enemies.posX[i] - camWorldX;  // camera-relative
+instanceData[base + 1] = enemies.posY[i] - camWorldY;
+instanceData[base + 2] = enemies.posZ[i] - camWorldZ;
+```
+
+### Pattern 2: Single SCALE_KM Constant, Never Inline Numbers
+
+**What:** All scale-dependent constants in every module are derived from one root constant
+(`SCALE_KM` in `scale.js`), not hardcoded inline.
+
+**When to use:** Every distance constant, every speed constant, every radius constant, every
+collision threshold. If it was `10.0` (abstract units) and should become `50000.0` (km), it
+must become `SCALE_KM * SOME_RATIO` where `SOME_RATIO` is a named constant that documents the
+physical meaning.
+
+**Why:** Enables re-tuning without hunting through six files. The ratio documents intent
+("Jupiter orbit in seconds → velocity in km/s"). Inline magic numbers make the next
+refactor a grep exercise.
+
+**Example:**
+```javascript
+// scale.js
+const SCALE_KM = 1.0;           // 1 simulation unit = 1 km
+const BH_RADIUS_KM = 10000;     // 20,000 km diameter
+const JUPITER_ORBIT_KM = 50000; // first planet orbit
+const PLAYER_SHIP_LENGTH_KM = 10;
+const GRUNT_LENGTH_KM = 0.5;
+
+// combat.js — derived, not hardcoded
+const DETECT_RADIUS = JUPITER_ORBIT_KM * 0.5; // half an orbit spacing
+const BH_DESPAWN_R2 = BH_RADIUS_KM * BH_RADIUS_KM;
+```
+
+### Pattern 3: Fleet as Structured Spawn Group
+
+**What:** Replace individual enemy spawns with fleet-level spawn events. A fleet has a
+commander (Capital), a role (escort, siege, raid), and a fixed composition. Fleets dock at
+planets; individual fleet members have station-keeping offsets within the fleet formation.
+
+**When to use:** Wave spawning only. Individual enemy AI still operates per-enemy after spawn.
+
+**Trade-offs:** Adds one level of indirection (fleet → members) but makes wave design
+readable and makes the tactical layer legible to the player (see a fleet, understand threat).
+The existing `assignBody` field in the enemy SoA already provides the anchor for fleet
+station-keeping — no new SoA fields needed for basic fleet support.
+
+**Example:**
+```javascript
+// fleets.js
+const FLEET_TYPES = {
+  RAID:  { capital: 0, grunts: 3, swarms: 2, bombers: 0, snipers: 0 },
+  SIEGE: { capital: 1, grunts: 1, swarms: 0, bombers: 3, snipers: 1 },
+  WOLF:  { capital: 0, grunts: 2, swarms: 4, bombers: 0, snipers: 0 },
+};
+
+function spawnFleet(fleetType, anchorBodyIdx, difficulty) {
+  const def = FLEET_TYPES[fleetType];
+  // spawn capital first (gets assignBody = anchorBodyIdx)
+  // spawn each subordinate with staggered stationPhase offsets
+  // each subordinate gets assignBody = anchorBodyIdx (same planet)
+}
+```
+
+### Pattern 4: Radar as Read-Only Consumer of World State
+
+**What:** The radar module reads from `enemies`, `flyPos`, `planetData`, and `getBodyPosition()`
+but never writes to simulation state. It draws to its own `<canvas>` element using a 2D context.
+
+**When to use:** Every frame, after the main GL frame. The 2D canvas is independent — no
+state contamination with the WebGL context.
+
+**Trade-offs:** Two canvas elements in the DOM. The radar canvas must be positioned over or
+beside the main canvas via CSS. This is CSS positioning only, no performance concern.
+
+**Example:**
+```javascript
+// radar.js
+function renderRadar(radarCtx, worldToPx, bodies, enemies, flyPos) {
+  radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
+  // draw BH circle at center
+  // draw each planet orbit ring
+  // draw each planet dot
+  // draw each enemy dot (colored by archetype)
+  // draw player dot (white)
+  // no writes to enemies, flyPos, bodies
+}
+```
 
 ---
 
 ## Data Flow
 
-### Per-Frame Update Order
+### Coordinate Transform Chain
 
-This is the critical ordering. Each step depends on outputs from the previous step.
+```
+Simulation state (km)
+  posX, posZ in enemies SoA
+  flyPos[0,2] for player
+  WASM planet positions (already in doubled-oR units — must rescale)
+       |
+       | worldToRender(x, y, z)  (in scale.js)
+       | applied PER FRAME at instance buffer pack time
+       |
+Camera-relative render coords
+  Uploaded to GPU as instance attributes / uniforms
+       |
+       | GPU vertex shader applies viewProj matrix
+       |
+Clip space → NDC → screen pixels
+```
+
+The ray march shader does NOT receive simulation km values. It receives camera position,
+forward vector, and planet uniforms all in its own internal "abstract units" that drive the
+Verlet integrator. Planets must be passed to the ray march shader in its coordinate system,
+not in km. This requires two sets of planet position values:
+
+1. **Simulation positions (km)**: Used by orbital.js, combat.js, collision detection, AI
+2. **Shader positions (abstract units)**: Passed as `u_planet0` through `u_planet6` uniforms,
+   computed from `planetPosAtTime()` with the existing oR/ph/sp parameterization
+
+These are the SAME data source (planetData array) evaluated two different ways. The scale
+refactor must preserve this dual evaluation — it only changes how km-scale simulation uses them.
+
+### Per-Frame Update Order (v1.1)
 
 ```
 1. INPUT PHASE
-   - Process queued input events (already handled by DOM event listeners)
-   - Update targeting state (selected targets, weapon selection)
+   Spacebar → warp.js toggleWarp()
+   O key    → radar.js toggleExpanded()
+   F key    → combat mode toggle (existing)
+   Mouse/keyboard → nav input (existing)
 
-2. SPAWN PHASE
-   - Wave spawner checks: all enemies dead? -> spawn next wave
-   - Create new entities in Entity Store
+2. TIME SCALE PHASE  [NEW]
+   warp.js computeWarpDt(rawDt) → simDt
+   If warp active: simDt *= WARP_SCALE (up to 30x)
+   Physics, AI, weapons all consume this scaled simDt
 
-3. AI PHASE
-   - Enemy decision: choose target, choose weapon, fire
-   - Updates enemy intent (desired velocity, fire flag)
+3. WASM FRAME
+   planet positions 0-5 (in shader units)
+   camera matrix, hover detection (existing)
 
-4. PHYSICS PHASE
-   - For all entities with velocity: Verlet integration with gravity
-   - Clamp to Y=0 plane
-   - Update forward vectors from velocity
+4. PLANET POSITION SYNC  [MODIFIED]
+   JS reads WASM positions → converts to km for simulation
+   planet 6 (Mars) computed in JS (existing, now also km-scaled)
 
-5. COLLISION PHASE
-   - Rebuild radial bins from entity positions
-   - Check projectile-vs-enemy hits
-   - Check projectile-vs-player hits
-   - Check projectile-vs-shield hits
-   - Emit hit events (damage amount, position)
+5. SHIP PHYSICS  (existing updateNav)
+   Verlet integration with gravity (now in km/s²)
+   Body collision: if flyPos within planet radius → redirect
+   World boundary: if flyPos > MAX_ORBIT_KM → clamp
 
-6. DAMAGE PHASE
-   - Apply damage from collision hits
-   - Destroy entities at 0 hull
-   - Spawn explosion sprites at death positions
-   - Update wave spawner kill count
+6. COMBAT UPDATES  (existing, now in km)
+   updateEnemyAI(simDt)   — detection radii in km
+   updateProjectiles(simDt)
+   updateMissiles(simDt)
+   checkProjectileHits()
+   updateParticles(simDt)
+   updateWaveSystem(simDt) — now spawns fleets
 
-7. CLEANUP PHASE
-   - Remove dead entities (swap-remove from SoA arrays)
-   - Remove expired explosion sprites
-   - Remove out-of-bounds projectiles
-
-8. RENDER PHASE (GL calls)
-   - [existing] Ray march pass
-   - [existing] Player ship pass
-   - [new] Enemy instanced pass
-   - [new] Projectile instanced pass
-   - [existing] Trajectory/line pass
-   - [new] Sprite billboard pass (explosions)
-   - [existing+new] HUD DOM update
+7. RENDER PHASE
+   GL Pass 1: Ray march (existing, unaffected)
+   GL Pass 2: Player ship (camera-relative km coords)
+   GL Pass 3: Enemies instanced (camera-relative km coords)
+   GL Pass 4: Projectiles/trails (camera-relative km coords)
+   GL Pass 5: Missiles/explosions (camera-relative km coords)
+   [2D] radar.js renderRadar() → radar <canvas>
+   DOM: HUD updates (existing + warp indicator)
 ```
 
-### Data Flow Diagram
+### Key Data Flows
 
-```
-Player Input -----> Targeting System ----> Weapon Controller ----> Entity Store
-                         |                      |                  (new projectile)
-                         |                      |
-                    [target list]           [fire command]
-                         |                      |
-                         v                      v
-                    Combat HUD            Physics System
-                    (highlight              (integrate all
-                     targets)                entities)
-                                               |
-                                               v
-                                         Collision System
-                                         (radial bins)
-                                               |
-                                          +----+----+
-                                          |         |
-                                          v         v
-                                     Damage      Sprite
-                                     System      Renderer
-                                          |    (explosion)
-                                          v
-                                     Wave Spawner
-                                     (check if
-                                      wave clear)
-```
+1. **Scale change cascade**: `SCALE_KM` in scale.js → distance constants in every module →
+   velocity constants derived from km/s → collision radii in km. One constant drives all.
+
+2. **Warp speed flow**: `warp.js toggleWarp()` sets `warpActive` flag → `computeWarpDt(rawDt)`
+   returns scaled simDt → all physics/AI consume scaled time → renders at higher simTime per
+   real second → HUD shows warp indicator. Camera is not moved; only simulation time advances.
+
+3. **Fleet spawn flow**: `waves.js spawnWave()` calls `fleets.js getFleetComposition()` →
+   returns array of `{type, count}` groups → `spawnFleet()` places each member at
+   `bodyPos + stationKeepOffset(stationPhase)` → members get `assignBody` set to fleet anchor.
+   After spawn, individual AI takes over (existing AI code unchanged).
+
+4. **Radar data flow**: Every frame, `radar.js renderRadar()` reads (does not write):
+   `getBodyPosition(i)` for each planet, `enemies.posX/Z[i]` for all alive enemies,
+   `flyPos[0,2]` for player. Maps world km coordinates to radar pixel coordinates.
+   Separate 2D canvas → zero interference with WebGL state.
+
+5. **Body collision flow** [NEW]: Every frame during ship physics, check if
+   `dist(flyPos, bodyPos) < bodyRadius + PLAYER_SHIP_LENGTH_KM`. If true, apply elastic
+   deflection or hard stop. Enemy collision with bodies: `dist(enemyPos, bodyPos) < bodyRadius`
+   → `removeEnemy(i)`. Projectiles: `dist(projPos, bodyPos) < bodyRadius` → `removeProjectile(i)`.
 
 ---
 
-## Entity Store: Structure of Arrays (SoA)
+## Integration Points: New vs Modified
 
-Use typed arrays for all entity data. This avoids GC pressure and enables cache-friendly iteration.
+### Files Modified
 
-### Entity Types
+**`index.html` (inline `<script>` block)**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `planetData` array oR/radius values | Must become km | Jupiter oR: 38→50000, radius: 2.5→2000 |
+| `BH_GM` constant | Gravitational parameter in km³/s² | Derived from Jupiter 60s orbit period |
+| Camera near/far clipping planes | km-scale depth range | near: 0.1→1, far: 500→600000 |
+| `enterNavMode()` doubles oR | Was 2x abstract units, now km | Remove the 2x or adjust to km |
+| `initOrbitalData()` hardcoded alts | Per-planet orbit alts in km | Scale from abstract to km |
+| Script load order | Add scale.js first | `<script src="js/scene/scale.js"></script>` first |
+
+**`js/scene/combat.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `BIN_WIDTH`, `NUM_BINS` | Bins must cover 350,000 km range | BIN_WIDTH=20000, NUM_BINS=20 |
+| `DETECT_RADIUS`, `ATTACK_RANGE`, `FIRE_RANGE` | All distances in km | Scale proportionally |
+| `STATION_KEEP_ALT` | Offset from planet surface in km | Was 3.0 → now ~3000 (3 ship lengths) |
+| `GUIDANCE_ACCEL_ENEMY` | Acceleration in km/s² | Rescale from abstract |
+| `ACCURACY_NOISE` | Lead prediction scatter in km | Rescale |
+| BH despawn check `er < 4.0` | BH radius now 10000 km | `er < BH_RADIUS_KM * BH_RADIUS_KM` |
+| `updateInstanceBuffer()` | Camera-relative subtraction | Subtract camWorldPos from positions |
+
+**`js/scene/orbital.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `BODY_SOI`, `DEFAULT_ORBIT_ALT` arrays | Distances in km | Scale all values |
+| `getBodyRadius()` BH event horizon `2.0` | Must become 10000 km | Return `BH_RADIUS_KM` |
+| `getBodySOI()` computed values | km-scale Hill sphere | computeSOI() inputs are already km once oR is km |
+| `initOrbitalData()` hardcoded alts | km-scale per-planet values | Replace with km values |
+| `computeSOI()` | Works if oR is already km | No logic change, inputs change |
+
+**`js/scene/weapons.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `KINETIC_SPEED` (80 abstract/s) | Must be km/s | ~8000 km/s (hypervelocity rounds) |
+| `KINETIC_LIFETIME` (3s) | Governs range | Increase to cover km-scale ranges |
+| `PLASMA_SPEED` (200 abstract/s) | km/s | ~40000 km/s (near-lightspeed) |
+| `PLASMA_MAX_RANGE`, `PLASMA_FADE_START` | km | Proportional scale |
+| `HIT_RADIUS_KINETIC`, `HIT_RADIUS_PLASMA` | km | ~2 km for kinetic, ~5 km for plasma |
+| `KINETIC_DAMAGE`, `PLASMA_DAMAGE` | Unchanged (HP is abstract) | No change |
+| `ENEMY_KINETIC_SPEED` | km/s | Proportional scale |
+
+**`js/scene/missiles.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `MISSILE_THRUST` (12 abstract/s²) | km/s² | Scale proportionally |
+| `MISSILE_SPEED` (15 abstract/s) | km/s | Scale proportionally |
+| `MISSILE_DET_RADIUS` (1.5 abstract) | km | ~3 km |
+| `MISSILE_BLAST_RADIUS` (5 abstract) | km | ~5000 km |
+| BH despawn `r2 < 4.0` | km² | `r2 < BH_RADIUS_KM * BH_RADIUS_KM` |
+
+**`js/scene/particles.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| Particle speed `15 + Math.random() * 25` | km/s | Scale to km/s |
+| Particle render point size | Unchanged (screen pixels) | No change |
+
+**`js/scene/waves.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| `spawnWave()` entire function | Now spawns fleets, not individuals | Replace with fleet-based spawn |
+| `getWaveDefinition()` | Fleet composition per wave | Delegate to `fleets.js` |
+| Max 3 fleets per wave | New constraint | `getWaveDefinition()` caps at 3 fleet objects |
+
+**`js/scene/shaders.js`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| Enemy vertex shader BH warp thresholds | `smoothstep(8.0, 2.0, ...)` in abstract units | Scale to km |
+| Enemy vertex shader disk proximity | `smoothstep(14.0, 4.0, ...)` | Scale to km |
+| Fragment shader (the main ray march `fsSource`) | Planet uniforms already in abstract units | No change |
+| `escapeR` in main shader loop | Already computed from camera distance | No change |
+
+**`css/style.css`**
+
+| What changes | Why | How |
+|-------------|-----|-----|
+| Radar panel element styles | New radar UI | Add `.radar-panel`, `.radar-canvas` classes |
+| Warp indicator element | New warp HUD | Add `.warp-indicator` class |
+
+### Files Created
+
+**`js/scene/scale.js`** — Coordinate and scale constants
 
 ```javascript
-// Maximum entity counts (pre-allocated)
-const MAX_ENEMIES = 64;
-const MAX_PROJECTILES = 256;  // player + enemy projectiles combined
-const MAX_EXPLOSIONS = 32;
-const MAX_SHIELDS = 8;        // kinetic shield debris pieces
+// Canonical scale: 1 simulation unit = 1 km
+const SCALE_KM = 1.0;
 
-// Enemy SoA
-const enemyCount = { value: 0 };
-const enemyPosX   = new Float32Array(MAX_ENEMIES);
-const enemyPosZ   = new Float32Array(MAX_ENEMIES);
-const enemyVelX   = new Float32Array(MAX_ENEMIES);
-const enemyVelZ   = new Float32Array(MAX_ENEMIES);
-const enemyFwdX   = new Float32Array(MAX_ENEMIES);
-const enemyFwdZ   = new Float32Array(MAX_ENEMIES);
-const enemyHull   = new Float32Array(MAX_ENEMIES);  // hit points
-const enemyType   = new Uint8Array(MAX_ENEMIES);    // 0=grunt, 1=fast, 2=heavy, 3=boss
-const enemyState  = new Uint8Array(MAX_ENEMIES);    // 0=orbit, 1=attack, 2=flee
-const enemyCooldown = new Float32Array(MAX_ENEMIES); // weapon cooldown timer
-const enemyOrbitBody = new Int8Array(MAX_ENEMIES);   // -1=BH, 0-6=planet index
-const enemyOrbitR = new Float32Array(MAX_ENEMIES);   // current orbit radius
-const enemyOrbitPh = new Float32Array(MAX_ENEMIES);  // current orbit phase
+// Physical body sizes
+const BH_RADIUS_KM      = 10000;   // 20,000 km diameter
+const JUPITER_RADIUS_KM = 2000;    // 4,000 km diameter / 2
+const PLAYER_SHIP_KM    = 10;      // player ship length
+const CAPITAL_SHIP_KM   = 8;       // enemy capital length
+const GRUNT_SHIP_KM     = 0.5;     // grunt ship length
 
-// Projectile SoA
-const projCount = { value: 0 };
-const projPosX   = new Float32Array(MAX_PROJECTILES);
-const projPosZ   = new Float32Array(MAX_PROJECTILES);
-const projVelX   = new Float32Array(MAX_PROJECTILES);
-const projVelZ   = new Float32Array(MAX_PROJECTILES);
-const projType   = new Uint8Array(MAX_PROJECTILES);  // 0=kinetic, 1=plasma, 2=missile, 3=enemy
-const projOwner  = new Int8Array(MAX_PROJECTILES);   // -1=player, 0-63=enemy index
-const projLife   = new Float32Array(MAX_PROJECTILES); // remaining lifetime/fuel
-const projDamage = new Float32Array(MAX_PROJECTILES);
+// Orbit radii (km from BH center)
+const ORBIT_JUPITER_KM  = 50000;
+const ORBIT_SPACING_KM  = 50000;   // each planet ~50,000 km further out
 
-// Explosion SoA (sprite billboard)
-const exploCount = { value: 0 };
-const exploPosX  = new Float32Array(MAX_EXPLOSIONS);
-const exploPosZ  = new Float32Array(MAX_EXPLOSIONS);
-const exploAge   = new Float32Array(MAX_EXPLOSIONS);
-const exploSize  = new Float32Array(MAX_EXPLOSIONS);  // max radius
-const exploType  = new Uint8Array(MAX_EXPLOSIONS);    // 0=small, 1=medium
-```
+// Time scale anchor: Jupiter orbit period = 60s
+// Circular velocity at ORBIT_JUPITER_KM: v = 2π * r / T
+// BH_GM derived from: v² = BH_GM / r → BH_GM = v² * r
+const JUPITER_PERIOD_S  = 60.0;
+const JUPITER_CIRC_V    = (2 * Math.PI * ORBIT_JUPITER_KM) / JUPITER_PERIOD_S; // ~5236 km/s
+const BH_GM_KM          = JUPITER_CIRC_V * JUPITER_CIRC_V * ORBIT_JUPITER_KM; // km³/s²
 
-### Why SoA Instead of AoS
+// World boundary
+const MAX_ORBIT_KM       = 400000; // fence beyond outermost orbit
 
-- **Cache lines**: Iterating `enemyPosX[0..n]` loads contiguous memory. An array of objects scatters position data across heap allocations.
-- **SIMD-friendly**: Typed arrays can be uploaded directly to GL buffers.
-- **Zero GC**: No object creation/destruction per frame. Swap-remove to "delete" entities.
-- **Matches GL instanced rendering**: The position arrays can feed directly into vertex attribute buffers.
-
----
-
-## Collision System: Radial Bins
-
-The orbital structure of the game provides a natural spatial partitioning scheme. Instead of a 2D grid, use **radial bins** based on distance from the black hole.
-
-### Why Radial Bins
-
-All entities orbit the black hole. Their positions cluster along radial shells. A radial bin scheme exploits this by dividing space into concentric rings:
-
-```
-        +---------+
-       /   bin 5   \      r > 80
-      /  +---------+ \
-     /  /   bin 4   \ \   60 < r < 80
-    /  /  +-------+  \ \
-   /  /  /  bin 3  \  \ \  40 < r < 60
-  /  /  / +------+  \  \ \
- /  /  / / bin 2  \  \  \ \ 20 < r < 40
-|  |  | | bin 1  | |  |  |  10 < r < 20
-|  |  | |  BH    | |  |  |  r < 10 (death zone)
- \  \  \ \       /  /  / /
-  \  \  \ +------+ /  / /
-   \  \  +--------+  / /
-    \  +-----------+ / /
-     +---------------+
-```
-
-### Implementation
-
-```javascript
-const RADIAL_BIN_COUNT = 8;
-const RADIAL_BIN_WIDTH = 15.0;  // each bin covers 15 world units of radius
-const RADIAL_BIN_MIN = 5.0;     // bin 0 starts at r=5
-
-// Each bin stores indices into entity arrays
-const binEnemies = new Array(RADIAL_BIN_COUNT);  // arrays of indices
-const binProjectiles = new Array(RADIAL_BIN_COUNT);
-
-function getBin(x, z) {
-  const r = Math.sqrt(x * x + z * z);
-  const bin = Math.floor((r - RADIAL_BIN_MIN) / RADIAL_BIN_WIDTH);
-  return Math.max(0, Math.min(RADIAL_BIN_COUNT - 1, bin));
-}
-
-// Collision check: only test entities in same bin and adjacent bins
-function checkCollisions() {
-  rebuildBins();
-  for (let b = 0; b < RADIAL_BIN_COUNT; b++) {
-    const projInBin = binProjectiles[b];
-    // Check against enemies in bins b-1, b, b+1
-    for (let db = -1; db <= 1; db++) {
-      const eb = b + db;
-      if (eb < 0 || eb >= RADIAL_BIN_COUNT) continue;
-      const enemiesInBin = binEnemies[eb];
-      // Pairwise check within these small sets
-      testProjectilesVsEnemies(projInBin, enemiesInBin);
-    }
-  }
-}
-```
-
-### Complexity
-
-With 50 enemies and 100 projectiles spread across 8 bins, average per-bin count is ~6 enemies and ~12 projectiles. Pairwise checks within adjacent bins: ~18 enemies x ~36 projectiles = ~648 checks per frame, versus 5000 for brute-force O(n^2). The overhead of bin rebuild is O(n) which is negligible.
-
----
-
-## Rendering Architecture
-
-### Enemy Renderer: Instanced Drawing
-
-Use `ANGLE_instanced_arrays` extension for WebGL 1.0 to render all enemies in a single draw call.
-
-```
-Setup:
-  1. Get ANGLE_instanced_arrays extension
-  2. Create enemy shader program (enemyPg)
-  3. Create shared box geometry buffers (reuse createBoxGeometry)
-  4. Create instance data buffer (positions + colors + scales)
-
-Per frame:
-  1. Pack enemy positions into Float32Array instance buffer
-  2. Upload to GPU via gl.bufferSubData
-  3. Set vertex attribute divisors (1 = per-instance)
-  4. Call drawElementsInstancedANGLE(gl.TRIANGLES, 36, type, 0, enemyCount)
-```
-
-**LOD System** (from PROJECT.md constraints):
-- Distance < 50 units from camera: Full box geometry (instanced)
-- Distance 50-200: Billboard quad (instanced, different program)
-- Distance > 200: Skip rendering entirely
-
-This means two instanced draw calls per frame at most: one for nearby enemies (boxes), one for distant enemies (billboards). Both are single draw calls regardless of enemy count.
-
-### Projectile Renderer: Instanced Points/Lines
-
-Kinetic cannon rounds and plasma bolts are small enough to render as GL_POINTS with the trajectory shader program (`trajPg`), extended with instancing:
-
-```
-- Kinetic rounds: GL_POINTS, size 3-4px, white/gray
-- Plasma bolts: GL_POINTS, size 6-8px, with glow color
-- Missile trails: GL_LINES (existing pattern)
-```
-
-Since projectiles are tiny, no box geometry needed. Points are sufficient and extremely cheap.
-
-### Sprite Renderer: Billboard Explosions
-
-Small explosions use screen-space billboards -- textured quads that always face the camera.
-
-```
-Per explosion:
-  1. Compute screen position from world position (same VP matrix)
-  2. Generate billboard quad vertices (4 verts, 2 tris)
-  3. Texture from procedural animation (age-based UV or color shift)
-
-Alternative (simpler, recommended for v1):
-  - Use GL_POINTS with large gl_PointSize
-  - Fragment shader draws a radial gradient that fades with age
-  - No texture atlas needed initially
-  - Upgrade to textured billboards later if needed
-```
-
-### GL Program Summary (After Combat)
-
-| Program | Purpose | New? | Draw Type |
-|---------|---------|------|-----------|
-| `pg` | Ray march background | Existing | fullscreen quad |
-| `shipPg` | Player ship | Existing | elements, box |
-| `enemyPg` | All enemies (instanced) | **New** | instanced elements |
-| `trajPg` | Trajectories + projectiles | Extended | points + lines |
-| `spritePg` | Explosion billboards | **New** | instanced points or quads |
-
-### Render Order Within Frame
-
-```
-1. pg (ray march) -- fullscreen quad, no depth test
-2. gl.clear(DEPTH_BUFFER_BIT) + gl.enable(DEPTH_TEST)
-3. shipPg -- player ship (single draw)
-4. enemyPg -- all enemies (1-2 instanced draws)
-5. shipPg reused -- each player missile (existing per-missile loop)
-6. trajPg -- trajectory preview, aim line, missile trails
-7. trajPg extended -- projectile points (instanced or batched)
-8. gl.enable(BLEND) + spritePg -- explosion sprites
-9. gl.disable(BLEND) + gl.disable(DEPTH_TEST)
-10. Restore pg state for next frame
-```
-
----
-
-## Game Loop Integration
-
-The combat system integrates into the existing `render()` function. The existing pattern uses variable timestep with Verlet integration. Combat should use the same `simDt` that already accounts for bullet time scaling.
-
-### Modified render() Structure
-
-```javascript
-function render() {
-  // ... existing dt calculation ...
-  const simDtSec = (flyMode && bulletTime) ? dtSec * BULLET_TIME_SCALE : dtSec;
-  simTime += simDtSec;
-
-  // ... existing WASM frame, camera setup ...
-
-  updateNav(simDtSec);          // existing
-  updateMissiles(simDtSec);     // existing
-
-  if (combatActive) {
-    updateEnemyAI(simDtSec);    // NEW: enemy decisions
-    updateCombatPhysics(simDtSec); // NEW: all entity motion
-    updateCollisions();          // NEW: hit detection
-    updateDamage();              // NEW: apply hits, deaths
-    updateWaveSpawner();         // NEW: check wave clear
-    updateExplosions(simDtSec);  // NEW: age explosion sprites
-    cleanupEntities();           // NEW: remove dead entities
-  }
-
-  // ... existing ray march draw ...
-
-  if (flyMode) {
-    // ... existing ship, missile rendering ...
-
-    if (combatActive) {
-      renderEnemies();           // NEW: instanced draw
-      renderProjectiles();       // NEW: instanced points
-      renderExplosions();        // NEW: billboard sprites
-    }
-
-    // ... existing trajectory rendering ...
-  }
-
-  if (combatActive) {
-    updateCombatHUD();           // NEW: DOM updates
-  }
-
-  // ... existing HUD updates, FPS counter ...
-  requestAnimationFrame(render);
+// Camera-relative transform (subtract before GL upload)
+function worldToRenderPos(wx, wy, wz, camX, camY, camZ, out) {
+  out[0] = wx - camX;
+  out[1] = wy - camY;
+  out[2] = wz - camZ;
 }
 ```
 
-### Combat Mode Activation
+**`js/scene/radar.js`** — Radar/orbital-chart mini-map
 
-Combat mode is a sub-mode of nav mode. You must be in nav mode (flyMode=true) to enter combat:
+Key responsibilities:
+- Holds reference to a separate `<canvas id="radar-canvas">` element
+- Mini-map mode (bottom-left, ~200px): always visible during combat
+- Expanded mode (side panel, ~400px, O key): full orbital chart
+- `renderRadar(simTime)`: clear canvas, draw bodies, enemy dots, player dot
+- `toggleRadarExpanded()`: toggle between mini/panel
+- No writes to simulation state
 
-```
-Normal mode (planet browsing)
-  |
-  ` key --> Nav mode (flyMode=true)
-              |
-              C key --> Combat mode (combatActive=true)
-                          |
-                          ESC --> Back to nav mode
-```
+**`js/scene/warp.js`** — Warp speed time dilation
 
----
+Key responsibilities:
+- `warpActive` boolean flag
+- `WARP_SCALE` = 30 (max 30x time acceleration)
+- `WARP_RAMP_TIME` = 1.0s (smooth acceleration to avoid physics explosion)
+- `toggleWarp()`: spacebar handler
+- `computeWarpDt(rawDt)`: returns simDt (ramped warpScale × rawDt, or rawDt if inactive)
+- `updateWarpHUD()`: update DOM element showing warp factor
+- Constraint: warp disables when combat active (enemies present), or provide visual-only warp warning
 
-## Patterns to Follow
+**`js/scene/fleets.js`** — Fleet composition tables
 
-### Pattern 1: Swap-Remove for Entity Deletion
-
-**What:** When an entity dies, swap it with the last entity in the array and decrement count. O(1) deletion with no holes.
-
-**When:** Every time an entity is removed (death, out of bounds, expired).
-
-**Example:**
-```javascript
-function removeEnemy(index) {
-  const last = enemyCount.value - 1;
-  if (index !== last) {
-    enemyPosX[index] = enemyPosX[last];
-    enemyPosZ[index] = enemyPosZ[last];
-    enemyVelX[index] = enemyVelX[last];
-    enemyVelZ[index] = enemyVelZ[last];
-    // ... all other arrays ...
-  }
-  enemyCount.value--;
-}
-```
-
-### Pattern 2: Pre-allocated Instance Buffers
-
-**What:** Allocate GL buffers for maximum entity count at init time. Use `bufferSubData` to update, never `bufferData` with new size.
-
-**When:** All instanced rendering.
-
-**Example:**
-```javascript
-// At init time:
-const enemyInstanceBuf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, enemyInstanceBuf);
-gl.bufferData(gl.ARRAY_BUFFER, MAX_ENEMIES * BYTES_PER_INSTANCE, gl.DYNAMIC_DRAW);
-
-// Per frame (only upload active count):
-gl.bindBuffer(gl.ARRAY_BUFFER, enemyInstanceBuf);
-gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData.subarray(0, enemyCount.value * FLOATS_PER_INSTANCE));
-```
-
-### Pattern 3: Reuse Existing Gravity
-
-**What:** Use `computeGravAccel()` from nav.js for all entity physics. Do not duplicate gravity code.
-
-**When:** Enemy and projectile motion.
-
-**Why:** Gravity consistency. If gravity constants change, everything stays in sync.
-
-### Pattern 4: Event-less Communication
-
-**What:** Instead of event emitters or observer patterns, use simple flag arrays and direct function calls between systems.
-
-**When:** All inter-system communication. This is a single-file-origin project with global scope -- embrace it.
-
-**Example:** Collision system writes hit indices into a scratch array. Damage system reads that array. No events, no callbacks, no indirection.
+Key responsibilities:
+- `FLEET_ARCHETYPES` data table: `{name, roles, composition{type,count}[], formationRadius}`
+- `getFleetComposition(waveNum, difficulty)`: returns array of fleet specs for this wave
+- `spawnFleet(fleetSpec, anchorBodyIdx)`: places all members using staggered station phases
+- Max 3 fleets per wave (hard cap at `FLEET_MAX_PER_WAVE = 3`)
 
 ---
 
-## Anti-Patterns to Avoid
+## Build Order
 
-### Anti-Pattern 1: Object-per-Entity
+Dependencies flow downward. Later phases must not break earlier phases while in progress.
 
-**What:** Creating a JavaScript object for each enemy/projectile.
+```
+PHASE A: Scale Foundation  [prerequisite for everything]
+  1. Write scale.js with all constants (BH_RADIUS_KM, BH_GM_KM, etc.)
+  2. Update index.html: add scale.js first in script load order
+  3. Update BH_GM in inline script to use BH_GM_KM from scale.js
+  4. Update planetData oR/radius to km values
+  5. Update camera near/far clipping planes
+  RESULT: Scene still works (existing combat uses old constants until later)
 
-**Why bad:** GC pressure on entity creation/destruction. Cache-unfriendly. The existing missile system already suffers from this (each missile is an object with trail array) -- do not replicate for 50+ enemies.
+PHASE B: Simulation Layer Rescale  [modify existing modules]
+  1. orbital.js: update all distance/velocity constants to km
+  2. combat.js: update BIN_WIDTH, detection radii, despawn checks
+  3. weapons.js: update speeds, ranges, hit radii
+  4. missiles.js: update speeds, thrust, detonation radii
+  5. particles.js: update particle speeds
+  CRITICAL: Run visual tests after each file. Combat must remain functional.
+  Each file is independent after scale.js exists.
 
-**Instead:** SoA typed arrays as described above.
+PHASE C: Instance Buffer Camera-Relative Transform
+  1. Identify all GL position uploads (combat.js updateInstanceBuffer,
+     weapons.js renderProjectiles, missiles.js render, particles.js renderParticles)
+  2. Thread camWorldPos to each render function
+  3. Apply worldToRenderPos subtraction at each upload site
+  RESULT: Rendering correct at km scale. This is the main visual correctness phase.
 
-### Anti-Pattern 2: Per-Entity Draw Calls
+PHASE D: Body Collision  [new behavior, no existing code to break]
+  1. Add body collision check to ship physics loop (index.html updateNav)
+  2. Add enemy vs body check at end of updateEnemyAI loop
+  3. Add projectile vs body check in checkProjectileHits()
+  4. World boundary fence in updateNav
 
-**What:** Looping through enemies and issuing one `drawElements` per enemy (like the current missile rendering does).
+PHASE E: Fleet System  [replaces wave spawning logic only]
+  1. Write fleets.js with FLEET_ARCHETYPES table
+  2. Write spawnFleet() using existing spawnEnemy()
+  3. Modify waves.js spawnWave() to call spawnFleet() instead of direct spawnEnemy()
+  4. Keep wave state machine (WAVE_IDLE/ACTIVE/BREATHER) intact
+  RESULT: Enemies spawn in formation groups. All AI/weapons/collisions unchanged.
 
-**Why bad:** 50 draw calls with state changes. GPU driver overhead dominates.
+PHASE F: Warp Speed  [additive, no existing code changes]
+  1. Write warp.js with warpActive flag and computeWarpDt()
+  2. Replace direct rawDt usage in render() with computeWarpDt(rawDt)
+  3. Add warp spacebar handler
+  4. Add warp HUD element to index.html
+  5. Add warp indicator style to css/style.css
+  RESULT: Spacebar toggles 30x time acceleration. All existing combat unaffected.
 
-**Instead:** Instanced rendering. One draw call for all enemies.
+PHASE G: Radar  [additive, no existing code changes]
+  1. Write radar.js
+  2. Add `<canvas id="radar-canvas">` to index.html
+  3. Add radar CSS layout
+  4. Add renderRadar() call after main GL frame in render()
+  5. Add O key handler for expand/collapse
+  6. Remove orbit circle rendering from main 3D viewport (optional cleanup)
+  RESULT: Bottom-left mini-map. Navigation fully moved to radar.
 
-### Anti-Pattern 3: Adding Combat to the Ray March Shader
+PHASE H: LOD and Visual Tuning  [optional, last]
+  1. Update LOD thresholds in enemy shader to km values
+  2. Tune BH disk shader for close-up dominance at new scale
+  3. Add planet LOD: 2D billboard shader for distant planets
+  4. Visual polish: warp distortion overlay, fleet formation visuals
+```
 
-**What:** Adding enemy sphere intersections or projectile glow inside the 250-iteration ray march loop.
+### Critical Path
 
-**Why bad:** Every per-pixel instruction inside that loop is multiplied by 250 iterations x every pixel. Adding even 1 sphere test per iteration would cost ~250 sphere tests per pixel x ~2M pixels = 500M extra operations per frame.
+The critical path through the refactor is **A → B → C**. Phase A (scale.js + planetData) is
+the prerequisite. Phase B (module rescaling) can proceed file by file — each file is independent
+once scale.js exists. Phase C (camera-relative rendering) is the make-or-break visual step.
 
-**Instead:** Separate GL passes with their own shaders, composited via depth buffer.
+Phases D-H are independent of each other once A-C are complete. They can proceed in any order
+or in parallel if multiple sessions are available.
 
-### Anti-Pattern 4: DOM-based Entity Rendering
+### What Cannot Break During Refactor
 
-**What:** Using HTML elements (divs) positioned via CSS transforms for enemies.
+The following must remain functional throughout all phases:
 
-**Why bad:** DOM layout thrashing with 50+ elements repositioned every frame. GPU compositing layer limits.
+- The ray march shader (phases A-H do not touch `fsSource` or `pg` program)
+- Normal navigation mode (the `flyMode` gate protects it)
+- Planet hover detection via WASM (WASM offsets are unchanged)
+- Existing HUD elements (hull, shields, wave counter, weapon status)
+- `tests.html` shader invariants (the ray march is untouched)
 
-**Instead:** All combat entities rendered via GL draw calls. Only the HUD uses DOM.
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Changing the Ray March Shader for Scale
+
+**What people do:** Pass km-scale planet positions directly as `u_planet0` through `u_planet6`
+uniforms to the ray march shader.
+
+**Why it's wrong:** The ray march shader uses its own coordinate system tuned to its 250-step
+Verlet integrator. The `escapeR`, `r_h`, step size `0.08*(r-r_h)`, and disk shading function
+all expect positions in "abstract units" where the event horizon is ~2.0. Passing km values
+(10000.0 for BH radius) would break every threshold in the shader and produce garbage output.
+
+**Do this instead:** Maintain two separate position representations. The ray march shader
+receives positions from `planetPosAtTime()` in abstract units (existing system, unchanged).
+The simulation uses km positions derived from the same `planetData` parameters.
+
+### Anti-Pattern 2: Global Scale Factor Applied to Shader Uniforms
+
+**What people do:** Multiply all shader uniforms by a global `SCALE` factor at upload time.
+
+**Why it's wrong:** Some shader uniforms are in abstract units (planet positions for the ray
+march), some are already in screen space (point sizes), some are in render units (enemy
+positions after camera-relative transform). A blanket multiplier creates inconsistency and
+makes debugging impossible.
+
+**Do this instead:** Each uniform has a documented coordinate space. Transform at the source
+(worldToRenderPos for entity positions), not at a global middleware layer.
+
+### Anti-Pattern 3: Warp Speed Affects Camera or Rendering Time
+
+**What people do:** Advance `simTime` faster than `realTime` for warp, causing the ray march
+shader time uniform (`u_time`) to advance faster too.
+
+**Why it's wrong:** `u_time` drives accretion disk rotation, planet shader animations, and
+detonation aging. Accelerating it distorts visual fidelity in unexpected ways (disk spins 30x
+faster, explosions flash and die instantly).
+
+**Do this instead:** Warp speed advances only the *physics simulation time* (`simTime` for
+entity positions). The shader's `u_time` continues to track real wall-clock time. These are
+already separate if `u_time` uses `performance.now()` and `simTime` uses the accumulated
+simDt. Confirm they are separate before implementing warp.
+
+### Anti-Pattern 4: Fleet System Replaces AI State Machine
+
+**What people do:** Add fleet-level coordination logic into the enemy AI update loop,
+making each enemy aware of its fleet.
+
+**Why it's wrong:** The existing AI state machine (6 states, per-archetype behaviors) works
+correctly and is tested across 9 phases of development. Embedding fleet awareness there adds
+coupling that must be debugged every time AI behavior changes.
+
+**Do this instead:** Fleets are a *spawn-time* concept only. `spawnFleet()` places enemies
+at formation positions with the correct `assignBody` and `stationPhase`. After spawn, each
+enemy runs its individual AI independently. Fleet coherence emerges from all members being
+anchored to the same planet — no runtime fleet tracking needed.
 
 ---
 
 ## Scalability Considerations
 
-| Concern | 10 enemies | 30 enemies | 50 enemies |
-|---------|------------|------------|------------|
-| Physics | <0.1ms | ~0.3ms | ~0.5ms |
-| Collision (radial bins) | <0.1ms | ~0.2ms | ~0.3ms |
-| Enemy instanced draw | 1 draw call | 1 draw call | 1 draw call |
-| Projectile rendering | ~20 points | ~60 points | ~100 points |
-| JS update budget (at 30fps) | 33ms total | 33ms total | 33ms total |
-| Estimated combat JS overhead | <1ms | ~2ms | ~3ms |
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| Current (0-50 enemies) | Everything fits in existing typed arrays. No changes needed. |
+| km-scale scene | Camera-relative rendering prevents float32 precision loss. Required. |
+| 3 fleets, 30 enemies | Existing MAX_ENEMIES=64 is sufficient. BIN_WIDTH and NUM_BINS need update. |
+| Warp speed 30x | Physics timestep 30x larger. Verlet integration still stable if no sub-frame collisions missed. Check: projectile speed × simDt must not exceed body radius. |
+| Radar overlay | 2D canvas draw, O(n) where n=bodies+enemies. Negligible. |
 
-The ray march shader consumes 20-28ms of the 33ms budget on target hardware (GTX 1060). Combat JS + additional GL passes must fit in the remaining ~5-10ms. The estimates above show this is achievable with 50 enemies.
+### Performance Safety Notes
 
-### Performance Safety Valves
+**Warp speed and physics stability:** At 30x warp, a kinetic round at 8000 km/s moves
+240,000 km per second of real time. At 30fps, one real frame = 33ms = 8000 km real travel.
+At 30x warp that is 240,000 km per real frame. With planets at 50,000 km orbit spacing, a
+projectile could skip past a planet in one frame. Mitigation: disable warp speed when
+projectiles are in flight, or disable warp when enemies are within a threshold distance.
 
-1. **Dynamic resolution scaling** -- already exists, auto-reduces render resolution if FPS drops
-2. **LOD distance culling** -- enemies beyond 200 units not rendered
-3. **Projectile lifetime cap** -- projectiles auto-expire after N seconds, preventing unbounded growth
-4. **Explosion pool limit** -- MAX_EXPLOSIONS caps active sprite count
-5. **Enemy cap per wave** -- wave spawner respects MAX_ENEMIES
-
----
-
-## Suggested Build Order
-
-Dependencies flow downward. Each layer requires the layers above it.
-
-```
-Phase 1: Foundation (no combat yet)
-  +-- Entity Store (SoA arrays, add/remove)
-  +-- Enemy Renderer (instanced boxes, test with static dummy enemies)
-  +-- ANGLE_instanced_arrays setup
-
-Phase 2: Motion
-  +-- Combat Physics (gravity integration for enemies)
-  +-- Basic Enemy AI (orbit a body, simple state machine)
-  +-- Enemy spawner (place N enemies in orbit, no waves yet)
-
-Phase 3: Weapons (player attacks enemies)
-  +-- Weapon Controller (4 weapon types, ammo/cooldown)
-  +-- Projectile physics (kinetic: gravity-affected, plasma: straight line fade)
-  +-- Projectile Renderer (instanced points)
-  +-- Collision System (radial bins, projectile-vs-enemy)
-  +-- Damage System (enemy hull, death)
-
-Phase 4: Explosions + Feedback
-  +-- Sprite Renderer (billboard explosions)
-  +-- Combat HUD (hull, shields, ammo, wave counter)
-  +-- Death effects (explosion on kill)
-
-Phase 5: Enemy Combat (enemies attack back)
-  +-- Enemy weapons (fire at player)
-  +-- Player damage (hull integrity)
-  +-- Kinetic shields (physical debris objects)
-  +-- Ship destruction + game over
-
-Phase 6: Waves + Polish
-  +-- Wave spawner (kill-triggered waves)
-  +-- Difficulty scaling
-  +-- Boss waves
-  +-- Targeting system (tactical zoom-out view)
-
-Phase 7: Orbital Movement
-  +-- Transfer orbit computation
-  +-- Orbit capture / altitude adjustment
-  +-- Visual trajectory preview for transfers
-```
-
-### Why This Order
-
-1. **Entity Store + Renderer first** because everything else depends on having entities that can be created, stored, and drawn.
-2. **Motion before weapons** because you need enemies that move before you can shoot them.
-3. **Player weapons before enemy weapons** because a game where you can shoot but not be shot is playable for testing; the reverse is not.
-4. **Explosions after weapons** because explosions are triggered by weapon hits.
-5. **Waves after everything else** because waves are a progression system over the core combat loop.
-6. **Orbital movement last** because it is the most complex system and the game is playable without it (enemies can use simpler circular orbit motion initially).
-
----
-
-## File Organization
-
-```
-js/scene/
-  nav.js              (existing - ship physics, nav mode)
-  missiles.js         (existing - missile system)
-  math.js             (existing - vector/matrix math)
-  shaders.js          (existing - all GLSL sources)
-
-  entities.js         (NEW - SoA entity store, add/remove/swap-remove)
-  combat-physics.js   (NEW - gravity integration for combat entities)
-  collision.js        (NEW - radial bin spatial partitioning)
-  weapons.js          (NEW - weapon types, fire commands, ammo/cooldown)
-  damage.js           (NEW - hit processing, death, hull/shield)
-  enemy-ai.js         (NEW - enemy state machine, targeting, firing)
-  waves.js            (NEW - wave spawner, difficulty scaling)
-  targeting.js        (NEW - tactical view, target selection UI)
-  enemy-renderer.js   (NEW - instanced enemy drawing)
-  projectile-renderer.js (NEW - instanced projectile drawing)
-  sprite-renderer.js  (NEW - billboard explosion sprites)
-  combat-hud.js       (NEW - DOM-based combat UI)
-  combat.js           (NEW - top-level combat update orchestrator)
-```
-
-All new files loaded via `<script>` tags in index.html, after existing scripts, before the main `<script>` block. Order matters due to global scope dependencies:
-
-```html
-<script src="js/scene/shaders.js"></script>
-<script src="js/scene/math.js"></script>
-<script src="js/scene/nav.js"></script>
-<script src="js/scene/missiles.js"></script>
-<!-- Combat system -->
-<script src="js/scene/entities.js"></script>
-<script src="js/scene/combat-physics.js"></script>
-<script src="js/scene/collision.js"></script>
-<script src="js/scene/weapons.js"></script>
-<script src="js/scene/damage.js"></script>
-<script src="js/scene/enemy-ai.js"></script>
-<script src="js/scene/waves.js"></script>
-<script src="js/scene/targeting.js"></script>
-<script src="js/scene/enemy-renderer.js"></script>
-<script src="js/scene/projectile-renderer.js"></script>
-<script src="js/scene/sprite-renderer.js"></script>
-<script src="js/scene/combat-hud.js"></script>
-<script src="js/scene/combat.js"></script>
-```
+**Radial bin update at km scale:** `BIN_WIDTH` must be large enough that no entity crosses
+more than one bin per frame even at maximum simDt. At 30x warp: max enemy velocity ~orbital
+at 50,000 km orbit ≈ 5000 km/s × 1s (warp frame) = 5000 km/frame. `BIN_WIDTH = 20000 km`
+ensures no entity crosses more than 1 bin per frame.
 
 ---
 
 ## Sources
 
-- [ANGLE_instanced_arrays - MDN](https://developer.mozilla.org/en-US/docs/Web/API/ANGLE_instanced_arrays) -- Extension API, browser compatibility (HIGH confidence: official docs)
-- [WebGL Instanced Drawing - WebGL Fundamentals](https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html) -- Setup patterns for instanced rendering (HIGH confidence: authoritative tutorial)
-- [Spatial Partition - Game Programming Patterns](https://gameprogrammingpatterns.com/spatial-partition.html) -- Spatial partitioning theory and implementation (HIGH confidence: canonical reference)
-- [Anatomy of a Video Game - MDN](https://developer.mozilla.org/en-US/docs/Games/Anatomy) -- Game loop architecture for browser games (HIGH confidence: official docs)
-- [WebGL Particle Billboard Tutorial](https://www.chinedufn.com/webgl-particle-effect-billboard-tutorial/) -- Billboard rendering technique (MEDIUM confidence: tutorial)
-- Existing codebase: `index.html`, `js/scene/nav.js`, `js/scene/missiles.js`, `js/scene/math.js`, `js/scene/shaders.js` (HIGH confidence: primary source)
+All findings derived from primary source: the existing codebase.
+
+- `js/scene/combat.js` — SoA entity store, AI state machine, radial bin system (verified 2026-03-15)
+- `js/scene/orbital.js` — SOI, Hohmann, body helpers (verified 2026-03-15)
+- `js/scene/weapons.js` — projectile physics, hit detection (verified 2026-03-15)
+- `js/scene/missiles.js` — PN guidance, fuel system (verified 2026-03-15)
+- `js/scene/waves.js` — wave state machine, archetype spawning (verified 2026-03-15)
+- `js/scene/particles.js` — impact particle system (verified 2026-03-15)
+- `js/scene/math.js` — vector/matrix math, geometry builders (verified 2026-03-15)
+- `js/scene/shaders.js` — all GLSL source strings (verified 2026-03-15)
+- `.planning/PROJECT.md` — v1.1 feature requirements and constraints (verified 2026-03-15)
+- `.planning/research/ARCHITECTURE.md` (v1.0) — existing architecture baseline (verified 2026-03-15)
+
+---
+*Architecture research for: v1.1 Realistic Scale & Fleet Combat*
+*Researched: 2026-03-15*

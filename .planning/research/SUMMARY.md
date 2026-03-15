@@ -1,195 +1,203 @@
 # Project Research Summary
 
-**Project:** Navigation Combat System
-**Domain:** WebGL tactical orbital combat layered on existing black hole scene
-**Researched:** 2026-03-09
+**Project:** Navigation Combat System — v1.1 Realistic Scale & Fleet Combat
+**Domain:** WebGL km-scale orbital combat with fleet mechanics
+**Researched:** 2026-03-15
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This project adds a wave-based tactical combat system to an existing WebGL 1.0 black hole scene rendered via a fullscreen ray march shader. The existing codebase already has orbital mechanics (Verlet integration, N-body gravity), a ship with missile system, dynamic resolution scaling, and a 3-shader pipeline. The combat system introduces 30-50 instanced enemy ships, 4 weapon types (kinetic cannon, plasma gun, regular missile, nuclear missile), particle effects, collision detection, and wave progression. The recommended approach uses WebGL 1.0 universal extensions (ANGLE_instanced_arrays, OES_vertex_array_object) for instanced rendering, struct-of-arrays entity pools for zero-GC state management, and radial bin spatial partitioning tuned to the orbital geometry of the scene.
+This milestone transitions an existing WebGL 1.0 orbital combat game from abstract coordinate units to a physically realistic km-scale solar system (350,000 km scene extent) while simultaneously adding fleet-structured enemy spawning, a persistent radar mini-map, and a warp speed transit mechanic. The core technical challenge is not new feature code — it is the scale transition itself. Float32 precision at 350,000 km provides only ~40 m vertex accuracy, which causes visible geometry boiling on 500 m enemy ships. The mandatory fix is camera-relative rendering (CRR): subtract camera world position from all entity positions in JavaScript before GPU upload. This must be the first implementation step before anything else is built on the new coordinate system.
 
-The defining differentiator is that combat happens in orbital space -- movement uses orbital transfers, not WASD free flight, and kinetic cannon rounds curve under the black hole's gravity. This makes positioning inherently strategic and gives the game an identity no other browser game has. The architecture must respect one hard constraint: the ray march shader consumes 20-28ms of the 33ms frame budget at 30fps. All combat rendering, physics, AI, and collision must fit in the remaining 5-10ms. Instanced rendering (1-2 draw calls for all enemies, not 50 individual calls) is non-negotiable, as is keeping all combat visuals out of the ray march loop.
+The recommended build order follows hard dependencies: establish the scale layer (`scale.js`) first, then rescale all simulation modules, then apply the CRR transform to all GL upload sites, then add the four new features (body collision, fleet spawning, warp speed, radar) in any order. The fleet composition system is the critical path for new features because the radar displays fleet icons rather than individual dots, and fleet health arcs depend on HP aggregation across fleet members. Warp speed and world boundary are independent and can proceed in parallel once the scale foundation is verified.
 
-The top risks are: accidentally contaminating ray march shader parameters with combat-mode values (has already happened once during nav mode development, causing 27-111% iteration increases), using per-entity draw calls instead of instancing (the existing missile code does this and it will not scale), and N-body gravity for every combat entity when black-hole-only gravity is sufficient. All three are preventable through architectural decisions made before implementation begins.
+The principal risks are concentrated in the scale transition phase: corrupting the existing ray march shader (which uses its own internal coordinate system incompatible with km values), mutating `planetData` in-place and breaking the normal navigation mode, and failing to update collision bin constants (making hit detection silently miss at large orbital radii). Each is a potential rewrite trigger. All three have clear preventions documented in the research: keep the ray march shader untouched and maintain dual coordinate representations, derive `kmPlanetData` without mutating the original array, and update `BIN_WIDTH`/`NUM_BINS` simultaneously with the scale change.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The combat system builds entirely on WebGL 1.0 with three universal extensions. No new frameworks, libraries, or build tools are needed -- this aligns with the project's zero-dependency constraint. All state management uses pre-allocated typed arrays matching the existing scratch buffer pattern. See [STACK.md](STACK.md) for full details.
+No new WebGL extensions or libraries are required for v1.1. The entire feature set builds on the existing WebGL 1.0 + ANGLE_instanced_arrays foundation. Three new JS modules handle the core new concerns: `scale.js` (single SCALE_KM constant and coordinate transform helpers), `warp.js` (time dilation state and accumulator), and `radar.js` (2D canvas overlay, separate from the WebGL context). A fourth data module `fleets.js` defines fleet composition tables consumed by the wave spawner. See [STACK.md](STACK.md) for full details.
 
-**Core technologies:**
-- **ANGLE_instanced_arrays**: Render 30-50 enemies in 1-2 draw calls instead of 50 individual calls -- universal WebGL 1.0 extension, the single most important performance decision
-- **OES_vertex_array_object**: Snapshot vertex attribute state for fast switching between 4-6 render passes -- eliminates per-frame attribute rebinding overhead
-- **Struct-of-arrays entity pools**: Pre-allocated Float32Array pools for enemies, projectiles, explosions -- zero GC, cache-friendly, uploads directly to GL buffers
-- **Radial bin spatial partitioning**: Collision detection using concentric orbital rings instead of Cartesian grids -- matches the game's orbital geometry, reduces pair checks from ~1225 to ~648
+**Core techniques:**
+- **Camera-relative rendering (CRR)**: subtract camera world position in JS before uploading entity positions to the GPU — zero shader changes required, resolves float32 precision at any orbital radius
+- **Separate `<canvas id="radar-canvas">` with 2D API at z-index 30**: radar content is inherently 2D; Canvas 2D is faster than WebGL RTT for under 10,000 primitives; no GL state pollution; pointer-events: none so WebGL canvas receives all input
+- **Scaled accumulator + physics substepping (cap 8 substeps/frame)**: prevents Verlet integration divergence during time acceleration; rail mode (analytic Keplerian orbits) for warp above 10x to avoid energy accumulation errors
+- **LOD tiers calibrated to km scale**: full 3D under 5,000 km camera-relative distance; billboard quads 5,000–100,000 km; skip above 100,000 km; 20% hysteresis bands prevent per-frame tier oscillation
+- **Logarithmic depth buffer via `EXT_frag_depth`** (confirmed WebGL 1.0 extension): solves Z-fighting at the 35,000,000:1 near/far ratio required by km-scale scene
 
-**What NOT to use:** WebGL 2.0 (would require full shader rewrite), Three.js/Babylon (violates no-framework constraint), physics libraries (custom orbital gravity already exists), Web Workers (800 entities is trivially fast in a single thread), gl_PointSize for particles (hardware-capped at 63px on some GPUs).
+**What NOT to use:** World-space float32 coordinates direct to GPU (visible vertex boiling at 350,000 km), GLSL `double` (not in WebGL 1.0), DSP dual-float emulation (CRR is sufficient with zero shader changes), WebGL RTT for radar (300 LOC overhead for inherently 2D content), single large physics dt for warp (Verlet divergence), `highp` as a precision fix (extends exponent range not mantissa — wrong tool).
 
 ### Expected Features
 
 See [FEATURES.md](FEATURES.md) for the full feature landscape with dependency graph.
 
-**Must have (table stakes):**
-- 4 weapon types with distinct tradeoffs (kinetic, plasma, missile, nuclear)
-- Weapon cooldowns and ammo management
-- Target selection and weapon assignment (the defining mechanic of tactical combat)
-- Visual damage feedback (hit flash, impact particles, health bar changes)
-- Hull integrity display and death/restart flow
-- 3+ enemy archetypes (Grunt, Bomber, Swarm at minimum)
-- Wave progression with difficulty scaling
-- Weapon status HUD (selected weapon, cooldowns, ammo)
+**Must have (v1.1 table stakes):**
+- Fleet templates (3 named templates, max 3 fleets per wave) — fleet coherence is the milestone's core promise; without it the "fleet combat" label is hollow
+- Fleet anchor behavior (ships orbit within ±15% of anchor radius) — makes fleets feel like coordinated units, not random individuals
+- Radar mini-map (200px circle, always-on, bottom-left) — every space combat game provides spatial awareness without requiring zoom-out; at km scale the zoom-out approach is no longer viable
+- Warp toggle (Spacebar, x30 max, 0.2s transition, 1.0s ramp) — mandatory for km-scale transit; single toggle avoids multi-level UI complexity
+- Warp proximity locks (enemy within detection radius, or within 1.5x planet radius) — universal pattern, players accept it as physically correct
+- Body collision kill zones (player + enemies destroyed on contact with planet surface or BH event horizon) — physics credibility
+- World boundary with radial velocity reflect at 1.2x outermost orbit — play area integrity
+- Fleet spawn HUD announcement (3-second callout, directional arrow) — required at small radar scale where new contacts are hard to spot
+- Warp HUD indicator (border pulse + "WARP x30" label) — clarity and feedback
 
-**Should have (differentiators):**
-- Orbital transfer movement (the single biggest differentiator -- no other combat game does this)
-- Gravity-affected projectiles (kinetic rounds curving around the black hole)
-- Trajectory preview before firing (pool-game guide line in orbital space)
-- Tactical zoom-out with strategic overview
-- Kinetic shields as physical debris objects (not generic energy barriers)
-- Boss waves with multi-phase encounters
+**Should have (post-validation, v1.1.x):**
+- Radar expanded panel (280–400px, O key toggle to side panel with orbit rings and fleet labels) — adds orbital context without leaving combat view
+- Fleet health arcs on radar icons — strategic at-a-glance fleet status; depends on fleet composition system being stable first
+- Orbital height UX (km labels, apoapsis/periapsis display) — low effort, high clarity once scale is finalized
+- Warp star-streak post-process pass (radial UV stretch on background) — highest visual impact differentiator; defer until functional systems are solid
 
-**Defer indefinitely:**
-- Free flight / WASD movement (destroys the orbital identity)
-- Crew management / subsystems (wrong scope for a portfolio game)
-- Resource gathering / crafting (wrong genre)
-- Multiplayer (incompatible with static GitHub Pages)
-- Upgrade/progression between waves (scope trap)
+**Defer (v2+):**
+- Additional fleet templates (carrier group, ambush wing, siege flotilla)
+- Fleet retreat behavior (requires warp-capable enemy AI — significant scope)
+- Named recurring fleets with cross-wave persistent state (requires save state architecture)
+
+**Anti-features (do not implement):**
+- Multi-level time warp (adds UI buttons and wrong-level frustration; x30 single toggle is sufficient at 60s Jupiter period)
+- Radar zoom control (play area already fits in radar at fixed scale; zoom reduces tactical value)
+- 3D radar (orbits are coplanar; 2D top-down is a perfect projection with zero information loss)
+- Fleet AI formation flying (dynamic formation maintenance is expensive and unreadable at radar scale; loose proximity coherence achieves the same perceived result)
 
 ### Architecture Approach
 
-The combat system is a sub-mode of nav mode, activated by keypress. It adds ~12 new JS modules under `js/scene/` using global scope (matching the existing pattern). The update loop follows a strict 8-phase order: Input, Spawn, AI, Physics, Collision, Damage, Cleanup, Render. All rendering happens in separate GL passes AFTER the ray march, composited via depth buffer clear. Two new shader programs are needed (instanced geometry for enemies, billboard sprites for explosions), while existing programs are reused for projectiles and trajectories. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram and data flow.
+The architecture follows a strict separation between three layers: the simulation layer (all distances in km, float64 JS numbers), the coordinate transform layer (camera-relative CRR applied per-frame before any GL upload), and the render layer (GPU receives small camera-relative values, never raw km world coordinates). The ray march shader is explicitly isolated: it continues operating in its own internal abstract coordinate system, receives planet positions via `planetPosAtTime()` in abstract units, and is never passed km-scale values. Two independent coordinate representations of planet positions are maintained simultaneously — this is intentional and must not be collapsed. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system diagram, data flow, and per-file change inventory.
 
 **Major components:**
-1. **Entity Store** -- SoA typed arrays for enemies (64 max), projectiles (256 max), explosions (32 max), shields (8 max)
-2. **Rendering Pipeline** -- 2 new shader programs (enemyPg, spritePg), instanced draw calls, LOD system with 3 tiers
-3. **Collision System** -- 8 radial bins (15 world units wide), sphere-sphere narrow phase
-4. **Wave Spawner** -- Kill-triggered progression, difficulty scaling via enemy count/type/accuracy
-5. **Weapon Controller** -- 4 weapon types with independent cooldowns, ammo tracking, fire commands
-6. **Enemy AI** -- Simple state machine (orbit/attack/flee) per archetype, BH-only gravity
+1. `js/scene/scale.js` (NEW) — SCALE_KM constant, all physical body sizes and orbit radii in km, BH_GM_KM derived from Jupiter 60s orbital period, `worldToRenderPos()` transform helper; must be first in script load order
+2. `js/scene/fleets.js` (NEW) — `FLEET_ARCHETYPES` data table, `getFleetComposition(waveNum, difficulty)`, `spawnFleet(spec, anchorBodyIdx)`; fleets are spawn-time only, individual AI runs independently after spawn
+3. `js/scene/radar.js` (NEW) — reads world state without writing to simulation; draws to separate `<canvas id="radar-canvas">` with 2D context; mini mode (200px circle) and expanded mode (400px panel, O key)
+4. `js/scene/warp.js` (NEW) — `warpActive` flag, `WARP_SCALE = 30`, `WARP_RAMP_TIME = 1.0s`, `computeWarpDt(rawDt)`; advances only physics simulation time, not shader `u_time` (which tracks wall clock)
+5. Modified simulation modules (`orbital.js`, `combat.js`, `weapons.js`, `missiles.js`, `particles.js`, `waves.js`) — all distance/velocity/radius constants updated to km; `updateInstanceBuffer()` in combat.js adds CRR subtraction; collision bins updated to BIN_WIDTH=20,000 km, NUM_BINS=80
+
+**Build order (hard dependencies):**
+Phase A (scale.js + planetData km values + clipping planes) → Phase B (module rescaling, one file at a time) → Phase C (CRR in all GL upload sites) → Phases D–G independent: body collision, fleet system, warp speed, radar → Phase H: LOD and visual tuning.
 
 ### Critical Pitfalls
 
-See [PITFALLS.md](PITFALLS.md) for all 16 pitfalls with detection and prevention strategies.
+See [PITFALLS.md](PITFALLS.md) for all 10 pitfalls with concrete numbers, detection signs, recovery costs, and phase mapping.
 
-1. **Shader parameter contamination** -- Combat mode parameters applied unconditionally to the ray march cause 30-50% FPS drops in normal mode. Prevention: mode-gate every parameter with uniforms, capture iteration baselines before changes.
-2. **Combat rendering in ray march loop** -- Adding enemy checks inside the 250-iteration loop is catastrophic (500M extra operations/frame). Prevention: enforce architectural boundary -- all combat is separate GL passes.
-3. **Per-entity draw calls** -- 50 individual draw calls collapse WebGL performance. Prevention: ANGLE_instanced_arrays from day one, never per-object drawElements.
-4. **N-body gravity for all entities** -- Full 8-source gravity for 70 entities wastes CPU. Prevention: BH-only gravity for enemies/projectiles, full N-body only for player.
-5. **Depth buffer conflicts** -- Transparent effects with depth writes create visual holes. Prevention: opaque geometry first (depth write on), transparent effects second (depth write off, back-to-front sort).
-6. **GC spikes on wave spawn** -- Creating 50 enemy objects at once causes frame hitches. Prevention: pre-allocated object pools, swap-remove deletion.
+1. **Float32 precision collapse at km-scale world coordinates** — store all entity world positions as float64 JS numbers; convert to float32 only at render time via CRR; never store raw km coordinates in Float32Array. Warning sign: stationary enemies appear to vibrate at large orbital radii.
+
+2. **Normal-mode corruption from in-place `planetData` mutation** — never mutate `planetData.oR` in place; derive a separate `kmPlanetData` array; keep `BH_GM` for nav mode and define separate `BH_GM_KM` for combat. Run `tests.html` after every scale-related commit. Warning sign: planet labels at wrong positions in normal mode.
+
+3. **Ray march shader broken by km-scale constants** — the shader's `escapeR`, `outerEdge`, and step parameters are calibrated to abstract units where BH radius ≈ 2.0; passing km values (10,000) would cause escape at step 0, rendering a black scene. Never pass km coordinates to ray march uniforms. Warning sign: scene renders all black except stars.
+
+4. **Physics tunneling during warp** — at 30x warp, a kinetic round at 8,000 km/s moves 240,000 km per real second; it skips past planets in one frame. Disable projectile physics entirely during warp (warp is transit-only); use swept ray-sphere tests for planet/BH collision during warp. Warning sign: ship passes through planet visually with no collision response.
+
+5. **Collision bin system silently misses contacts** — with old BIN_WIDTH=10 (now 10 km), all entities beyond 200 km pile into the last bin causing O(n²) false candidates and genuine misses. Update to BIN_WIDTH_KM=20,000, NUM_BINS=80 simultaneously with the scale change. Warning sign: `getCollisionCandidates()` returns 30+ candidates for a single projectile.
 
 ## Implications for Roadmap
 
-Based on research, the build order follows a strict dependency chain. Each phase produces a testable increment. The critical path is: entity store -> rendering -> motion -> weapons -> collision -> damage -> waves.
+Based on research, the build order follows hard technical dependencies. The scale transition is a prerequisite for all subsequent systems.
 
-### Phase 1: Combat Foundation
-**Rationale:** Everything depends on having entities that can be stored, created, removed, and drawn. Instanced rendering must be established first because retrofitting it later is a rewrite.
-**Delivers:** Entity store (SoA arrays), enemy instanced renderer (box geometry), ANGLE_instanced_arrays + VAO setup, GL state contract for combat passes
-**Addresses:** Enemy rendering (table stakes), instanced batching architecture
-**Avoids:** Pitfall #3 (per-entity draw calls), #5 (depth conflicts), #8 (GL state leaks), #13 (extension availability)
+### Phase 1: Scale Foundation
+**Rationale:** Float32 precision loss, Z-fighting, normal-mode corruption, WASM offset mismatches, and broken collision bins are all Phase 1 failures that compound if deferred. This phase must be completed and verified — including a `tests.html` pass — before any entity positions are stored in km. Building anything else on top of broken coordinates forces a rewrite.
+**Delivers:** `scale.js` with all physical constants; km values in derived `kmPlanetData` (never mutating `planetData`); updated clipping planes with logarithmic depth buffer via `EXT_frag_depth`; CRR transform applied to all GL entity uploads; collision bins updated to km scale (BIN_WIDTH=20,000, NUM_BINS=80); WASM offset reads wrapped with scale conversion; dual coordinate representations for planet positions confirmed
+**Addresses:** World coordinate units, float32 precision, Z-fighting, WASM scale conversion, bin system
+**Avoids:** Pitfalls 1 (vertex jitter), 2 (Z-fighting), 4 (shader breakage), 5 (WASM corruption), 6 (normal mode corruption), 7 (bin miss at scale) — all the potential rewrites are in this phase
 
-### Phase 2: Enemy Motion and AI
-**Rationale:** Enemies must move before they can be shot. Orbital motion and basic AI state machine make the scene feel alive.
-**Delivers:** BH-only gravity integration for enemies, circular orbit motion, basic AI (orbit/approach states), enemy spawner (static, no waves yet), LOD system with hysteresis
-**Addresses:** Enemy variety setup (table stakes), orbital movement foundation (differentiator)
-**Avoids:** Pitfall #4 (N-body for all entities), #9 (bullet time desync), #10 (LOD thrashing), #16 (integration drift)
+### Phase 2: Simulation Layer Rescaling
+**Rationale:** Once scale.js exists, each simulation module can be updated independently with visual verification after each file. This is the most mechanical phase — search-and-replace constants with km equivalents derived from scale.js. Physics substepping for warp must be implemented here before the warp multiplier is ever applied, to prevent Verlet divergence.
+**Delivers:** `orbital.js`, `combat.js`, `weapons.js`, `missiles.js`, `particles.js` all operating in km; enemy AI detection radii and engagement distances physically plausible at km scale; warp sub-step accumulator implemented in the physics loop (cap 8 substeps/frame)
+**Avoids:** Pitfall 8 (Verlet divergence at large dt) — substepping is in place before warp is turned on
 
-### Phase 3: Player Weapons and Projectiles
-**Rationale:** A game where you can shoot but not be shot is playable for testing. Weapons require projectile physics, collision detection, and damage -- three interdependent systems that must ship together.
-**Delivers:** 4 weapon types (kinetic, plasma, missile, nuclear), projectile renderer (instanced points), radial bin collision system, damage and death for enemies, weapon cooldowns and ammo
-**Addresses:** Multiple weapon types (table stakes), cooldowns/ammo (table stakes), gravity-affected projectiles (differentiator)
-**Avoids:** Pitfall #7 (O(n^2) collision), #11 (buffer overrun), #15 (preview performance)
+### Phase 3: Body Collision and World Boundary
+**Rationale:** Low complexity, no dependencies beyond Phase 1. Building collision kill zones before warp speed means the planet exclusion radius data is available for warp proximity lock logic — build the data once, use it in two features.
+**Delivers:** Player and enemy destruction on body contact; player "COLLISION IMMINENT" warning 3 seconds before impact; world boundary radial velocity reflection at 1.2x outermost orbit; "BOUNDARY PROXIMITY" HUD warning; enemy collision counted as kill toward wave counter
+**Addresses:** Body collision kill zones (P1 table stake), world boundary (P1 table stake)
+**Avoids:** Pitfall 3 (tunneling) — swept ray-sphere body collision logic established here is reused by warp
 
-### Phase 4: Visual Feedback and Explosions
-**Rationale:** Combat without feedback feels broken. This phase makes hits feel impactful.
-**Delivers:** Sprite billboard renderer (explosions), hit flash on enemies, impact particles, screen shake on player hit, ship destruction animation
-**Addresses:** Visual damage feedback (table stakes), death effects (table stakes)
-**Avoids:** Pitfall #5 (depth conflicts with transparent sprites), #6 (GC spikes from particle allocation)
+### Phase 4: Fleet Composition System
+**Rationale:** Fleet is the critical path for new features. The radar needs fleet groupings to show fleet icons (not 20+ individual dots). Fleet health arcs depend on HP aggregation. Spawn announcements need fleet events. Building fleet before radar unlocks all downstream radar features.
+**Delivers:** `fleets.js` with 3 named FLEET_ARCHETYPES (RAID, SIEGE, WOLF — roles: Capital/Anchor, Grunt+Swarm/Screen, Bomber+Sniper/Striker); `waves.js` updated to call `spawnFleet()` instead of individual spawns; fleet anchor behavior (all members get `assignBody` = anchor planet, orbit within ±15% of anchor radius); fleet spawn HUD announcement (3-second callout with directional arrow)
+**Addresses:** Fleet templates (P1), fleet anchor behavior (P1), fleet spawn announcement (P1)
+**Avoids:** Anti-pattern of fleet-awareness in the AI state machine — fleets are spawn-time only, individual AI unchanged after spawn
 
-### Phase 5: Enemy Combat (Enemies Fight Back)
-**Rationale:** The game becomes a real survival challenge. Enemy weapons, player damage, and shields create the core survival loop.
-**Delivers:** Enemy weapon firing, player hull damage, kinetic shield objects, ship destruction + game over screen, restart flow
-**Addresses:** Shield/defense system (table stakes), health/hull display (table stakes), death and restart (table stakes), kinetic shields (differentiator)
-**Avoids:** Pitfall #9 (bullet time desync for enemy weapons)
+### Phase 5: Warp Speed
+**Rationale:** Independent of fleet and radar; depends on physics loop (Phase 2) and body collision kill-zone data (Phase 3) for proximity locking. The accumulator and sub-step cap must be verified functional before visual effects are layered on.
+**Delivers:** `warp.js` with Spacebar toggle, 30x time acceleration, 1.0s ramp, enemy proximity lock (~30 km detection radius), planet proximity lock (1.5x body radius); warp HUD indicator (border pulse + "WARP x30" label); projectile physics suspended during warp; planet/BH swept collision active during warp; `u_time` shader uniform continues tracking wall clock (not sim time) so disk/detonation visuals are unaffected
+**Addresses:** Warp toggle (P1), warp proximity locks (P1), warp HUD indicator (P1)
+**Avoids:** Pitfalls 3 (tunneling), 8 (Verlet divergence), 10 (orbital timing distortion during warp)
 
-### Phase 6: Waves, Progression, and HUD
-**Rationale:** Wave progression is a meta-system over the core combat loop. It only makes sense after combat is fully functional.
-**Delivers:** Kill-triggered wave spawner, difficulty scaling (count, types, accuracy), 3 enemy archetypes (Grunt, Bomber, Swarm), full combat HUD (hull, shields, ammo, wave counter, weapon status), wave counter display
-**Addresses:** Wave progression (table stakes), enemy variety (table stakes), weapon status HUD (table stakes), wave/enemy counter (table stakes)
-**Avoids:** Pitfall #6 (GC on wave spawn), #11 (buffer overrun from spawner), #14 (HUD overflow)
+### Phase 6: Radar Mini-Map
+**Rationale:** Depends on fleet composition (Phase 4) for fleet icons to be meaningful. Depends on scale foundation (Phase 1) for correct km coordinate mapping to radar pixels. With fleet groupings available, the radar shows ~3 fleet triangles rather than ~20 individual dots — readable at 200px.
+**Delivers:** `radar.js`; `<canvas id="radar-canvas">` at z-index 30 with pointer-events: none; mini mode (200px circle, always-on) showing player dot, planet dots, fleet triangle icons (hostile red); hybrid scale representation (bodies true-scale relative to radar extent, ships minimum 4px to prevent sub-pixel invisibility); update rate decoupled from 3D render (every 2–4 frames, every frame during warp)
+**Addresses:** Radar mini-map (P1)
+**Avoids:** Pitfall 9 (radar coordinate mismatch — hybrid representation prevents sub-pixel ships)
 
-### Phase 7: Tactical Targeting and Polish
-**Rationale:** Tactical zoom and target assignment are high-value differentiators but depend on all combat systems being functional first. Boss waves add endgame depth.
-**Delivers:** Tactical zoom-out view, target selection UI, weapon assignment to targets, trajectory preview for weapons, boss waves (every N waves), 2 more enemy archetypes (Sniper, Capital), death stats screen, off-screen enemy indicators
-**Addresses:** Target selection (table stakes), tactical zoom (differentiator), trajectory preview (differentiator), boss waves (differentiator)
-**Avoids:** Pitfall #12 (tactical zoom exposing ray march quality issues)
+### Phase 7: LOD and Visual Tuning (Optional)
+**Rationale:** All functional systems are complete after Phase 6. This phase improves visual quality at km scale and adds the radar expanded panel and polish features, but does not affect game mechanics.
+**Delivers:** Updated LOD tier thresholds in enemy shader (full 3D < 5,000 km, billboard 5,000–100,000 km, skip above); 20% hysteresis bands; radar expanded panel (400px side panel, O key toggle, orbit rings + fleet labels + fleet health arcs); warp star-streak post-process pass (radial UV stretch on background, scales with warp factor); orbital height UX (km labels, apoapsis/periapsis display)
+**Addresses:** Radar expanded panel (P2), fleet health arcs (P2), orbital height UX (P2), warp star-streak (P2)
 
 ### Phase Ordering Rationale
 
-- Phases 1-3 form the minimum playable combat: enemies exist, move, and die when shot. This is testable at each step.
-- Phase 4 (visual feedback) is separated from Phase 3 (weapons/collision) because the mechanics must work before the polish can be tested.
-- Phase 5 (enemy combat) before Phase 6 (waves) because wave difficulty is meaningless if enemies cannot fight back.
-- Phase 7 (tactical targeting) is last because it is the most complex UI/UX system and the game is fully playable without it -- tactical zoom is a differentiator, not table stakes.
-- Orbital transfer movement (the biggest differentiator) is NOT a separate phase -- the existing nav mode already provides orbital movement. Combat phases use the existing system and extend it incrementally.
+- Phase 1 before everything: float32 precision and normal-mode integrity cannot be patched retroactively without a revert; all subsequent systems assume CRR and km units are in place
+- Phase 2 before Phase 5: warp sub-stepping lives in the physics loop; the loop must operate in km before the warp multiplier is applied
+- Phase 3 before Phase 5: warp proximity lock reuses body collision kill-zone radii — build the data once, use it in two places
+- Phase 4 before Phase 6: radar fleet icons require fleet identity on each enemy entity; without fleet grouping the radar loses strategic legibility
+- Phases 3–6 are otherwise independent of each other after Phases 1 and 2 are verified; they can proceed in any order within sessions
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 1:** Instanced rendering setup with VAOs requires careful attribute binding. The STACK.md code samples are solid but integration with the existing 3-pass pipeline needs hands-on prototyping.
-- **Phase 3:** Radial bin collision system is a custom spatial partitioning approach. Bin boundaries and performance need profiling with actual entity counts.
-- **Phase 7:** Tactical zoom camera distance limits and UI overlay design need experimentation. The ray march degrades at extreme zoom distances.
+Phases likely needing deeper research or careful sub-step planning during execution:
+- **Phase 1:** High risk — six simultaneous failure modes, all are rewrite triggers if missed. Consider splitting into Phase 1a (scale.js + derived kmPlanetData, no module changes) and Phase 1b (CRR transform in all render paths). Verify `tests.html` passes after Phase 1a before proceeding.
+- **Phase 5 (warp):** The rail-mode Keplerian orbit computation for warp > 10x needs calibration against the specific BH_GM_KM value derived from Jupiter's 60s period. Verify analytic orbit stays in sync with Verlet integration at the 10x crossover to prevent position discontinuity on warp exit.
 
-Phases with standard patterns (skip deep research):
-- **Phase 2:** Enemy AI state machines and circular orbit motion are well-documented game patterns.
-- **Phase 4:** Billboard sprite rendering and particle effects are standard WebGL techniques.
-- **Phase 5:** Enemy weapons reuse projectile systems from Phase 3. Player damage is straightforward hull decrement.
-- **Phase 6:** Wave spawning is a simple state machine with data-driven difficulty tables.
+Phases with standard patterns (can skip research-phase during planning):
+- **Phase 3 (body collision):** Ray-sphere intersection and radial velocity reflection are well-documented primitives; implementation is mechanical once kill-zone radii are defined.
+- **Phase 4 (fleet system):** Fleet-as-spawn-group pattern is fully specified in ARCHITECTURE.md with concrete code examples; no design ambiguity.
+- **Phase 6 (radar):** Canvas 2D radar pattern is fully specified in STACK.md with complete reference implementation; no additional research needed.
+- **Phase 7 (LOD/visual):** LOD thresholds and hysteresis are fully specified; warp star-streak is additive and isolated to a post-process pass with known implementation pattern.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | WebGL 1.0 extensions confirmed universal by MDN. Instanced rendering pattern verified across 4+ authoritative sources. No new dependencies needed. |
-| Features | HIGH | Feature landscape grounded in 5+ reference games (FTL, Homeworld, Endless Space 2, etc.). Weapon-enemy interaction matrix ensures balanced tactical depth. Anti-features list is decisive. |
-| Architecture | HIGH | Architecture builds directly on existing codebase patterns (SoA arrays, scratch buffers, multi-pass rendering). Build order derived from concrete dependencies. File organization follows existing conventions. |
-| Pitfalls | HIGH | 6 critical pitfalls identified, 3 of which are backed by this project's own optimization history (shader contamination, register pressure, GC behavior). Prevention strategies are specific and testable. |
+| Stack | HIGH | All core techniques (CRR, Canvas 2D radar, accumulator warp, EXT_frag_depth, LOD hysteresis) verified against IEEE 754 spec, WebGL2Fundamentals, Gaffer on Games, Godot LWC docs, Cesium engineering blog — multiple independent authoritative sources with consistent conclusions |
+| Features | MEDIUM | Fleet/radar patterns from real game documentation (KSP wiki, Elite Dangerous wiki, Homeworld wiki, Endless Space 2 wiki); warp constraints from KSP and SpaceBourne 2 community sources; core patterns are consistent across references but exact balance values (warp factor ceiling, detection radii) require playtesting |
+| Architecture | HIGH | Derived directly from codebase inspection of all existing JS modules (verified 2026-03-15); build order and integration points are grounded in actual code structure, not speculation; anti-patterns confirmed by inspecting existing constants (BIN_WIDTH=10, near=0.1, far=500, WASM offsets 0x070+i*12) |
+| Pitfalls | HIGH | Critical pitfalls verified against IEEE 754 mantissa formula (exact), codebase constants (directly inspected), and external literature (Cesium depth buffer analysis, Gaffer on Games timestep); recovery costs are concrete estimates, not guesses |
 
 **Overall confidence:** HIGH
 
-The high confidence comes from three factors: (1) the technology is well-understood WebGL 1.0 with universal extensions, not bleeding-edge APIs; (2) the architecture extends an existing working system rather than building from scratch; (3) multiple pitfalls were discovered through this project's own history, making prevention strategies battle-tested.
-
 ### Gaps to Address
 
-- **Particle budgets:** The per-explosion particle counts (20-60 particles) and total pool size (512) are estimates. Need profiling on target hardware (GTX 1060 tier) to validate they fit in the ~5ms combat budget.
-- **Texture assets:** Explosion sprite sheets, plasma glow, and engine trail textures are specified but not created. Procedural shader-only effects may suffice for v1 (the existing ship uses flat color + Lambertian lighting with no textures).
-- **Enemy archetype balance:** The weapon-enemy interaction matrix is theoretically sound but untested. Wave difficulty scaling parameters (enemy count per wave, accuracy ramp) need gameplay tuning.
-- **Tactical zoom camera limits:** The maximum camDist for tactical mode needs empirical testing. The ray march produces visual artifacts at extreme distances, and the threshold is unknown until tested.
-- **Performance on lower-end hardware:** All performance estimates target GTX 1060. Mobile GPUs and integrated graphics have not been profiled. Dynamic resolution scaling provides a safety valve, but combat JS overhead (physics + collision + AI) has no equivalent fallback.
+- **Warp factor ceiling value:** Research recommends x30 but the actual ceiling should be computed from the longest Hohmann transfer in the system (Neptune to Venus or similar). Compute analytically from BH_GM_KM before setting WARP_SCALE. The value may need to be lower or higher than x30 to guarantee 30-second transfers.
+- **Enemy AI detection radii in km:** The km equivalents for `DETECT_RADIUS`, `ATTACK_RANGE`, `FIRE_RANGE` are derived proportionally from abstract units. The resulting engagement feel at km scale is unvalidated until playtested. May need significant tuning.
+- **EXT_frag_depth availability on target hardware:** Research rates this HIGH for desktop GPUs. If the site is used on low-end or mobile WebGL, the multi-frustum fallback (Option B in PITFALLS.md) needs to be implemented as a code path. Check `gl.getExtension('EXT_frag_depth')` at runtime and gate the logarithmic depth implementation on availability.
+- **Radar update rate during warp:** Research recommends every-frame Canvas 2D updates during warp. The 2ms Canvas 2D estimate is from a 2020 benchmark. Validate actual overhead on target hardware before committing to every-frame rate — if overhead is measurable, drop to every-other-frame even during warp.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [MDN: ANGLE_instanced_arrays](https://developer.mozilla.org/en-US/docs/Web/API/ANGLE_instanced_arrays) -- Extension API, universal availability confirmation
-- [MDN: WebGL Best Practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) -- State management, draw call batching, universal extensions list
-- [MDN: OES_vertex_array_object](https://developer.mozilla.org/en-US/docs/Web/API/OES_vertex_array_object) -- VAO extension API
-- [MDN: Anatomy of a Video Game](https://developer.mozilla.org/en-US/docs/Games/Anatomy) -- Game loop architecture
-- [WebGL Fundamentals: Instanced Drawing](https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html) -- Instancing patterns
-- [Game Programming Patterns: Spatial Partition](https://gameprogrammingpatterns.com/spatial-partition.html) -- Collision detection theory
-- [Game Programming Patterns: Object Pool](https://gameprogrammingpatterns.com/object-pool.html) -- Pool pattern for zero-GC
-- [Khronos: ANGLE_instanced_arrays Specification](https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/) -- Official spec
+- [IEEE 754 Single-Precision Floating-Point Format — Wikipedia](https://en.wikipedia.org/wiki/Single-precision_floating-point_format) — mantissa bits formula used for float32 precision analysis
+- [Gaffer on Games: Fix Your Timestep](https://gafferongames.com/post/fix_your_timestep/) — accumulator/substepping pattern for warp physics loop
+- [Godot Engine: Large World Coordinates Tutorial](https://docs.godotengine.org/en/stable/tutorials/physics/large_world_coordinates.html) — camera-relative rendering confirmation
+- [Godot Engine: Emulating Double Precision on GPU](https://godotengine.org/article/emulating-double-precision-gpu-render-large-worlds/) — RTE vs DSP tradeoff analysis
+- [Cesium: Hybrid Multi-Frustum Logarithmic Depth Buffer](https://cesium.com/blog/2018/05/24/logarithmic-depth/) — logarithmic depth with EXT_frag_depth and multi-frustum fallback
+- [WebGL2 Fundamentals: Precision Issues](https://webgl2fundamentals.org/webgl/lessons/webgl-precision-issues.html) — highp limitations in WebGL 1.0 vertex shaders
+- [LearnWebGL: Overlays](http://learnwebgl.brown37.net/11_advanced_rendering/overlays.html) — multiple canvas layering and mouse event routing
+- [MDN: EXT_frag_depth](https://developer.mozilla.org/en-US/docs/Web/API/EXT_frag_depth) — confirmed WebGL 1.0 extension
+- [gltut: The Perils of World Space](https://paroj.github.io/gltut/Positioning/Tut07%20The%20Perils%20of%20World%20Space.html) — RTE naming and combined model-to-camera matrix technique
+- [Deck.GL / SegmentFault: WebGL Geographic Precision](https://segmentfault.com/a/1190000040332266/en) — offset coordinates GLSL implementation
+- Direct codebase inspection: `combat.js`, `orbital.js`, `weapons.js`, `missiles.js`, `waves.js`, `shaders.js`, `nav.js`, `index.html` (verified 2026-03-15)
 
 ### Secondary (MEDIUM confidence)
-- [FTL Weapons Wiki](https://ftl.fandom.com/wiki/Weapons) -- Weapon category design reference
-- [Enemy Design - Level Design Book](https://book.leveldesignbook.com/process/combat/enemy) -- 6 enemy archetypes framework
-- [Chinedufn: WebGL Billboard Tutorial](https://www.chinedufn.com/webgl-particle-effect-billboard-tutorial/) -- Billboard particle technique
-- [TojiCode: WebGL Instancing](https://blog.tojicode.com/2013/07/webgl-instancing-with.html) -- Practical instancing examples
-- [Emscripten WebGL Optimization](https://emscripten.org/docs/optimizing/Optimizing-WebGL.html) -- Buffer upload strategies
+- [KSP Time Warp Wiki](https://kerbalspaceprogram.fandom.com/wiki/Time_Warp) — warp restrictions and physics vs on-rails mode behavior
+- [Elite Dangerous HUD/Center Wiki](https://elite-dangerous.fandom.com/wiki/HUD/Center) — radar layout and contact encoding patterns
+- [Homeworld Formations Wiki](https://homeworld.fandom.com/wiki/Formations) — fleet behavior and role differentiation
+- [Endless Space 2 Combat Wiki](https://endless-space-2.fandom.com/wiki/Combat) — flotilla phase and attacker/protector role ratio patterns
+- [SpaceBourne 2 warp during combat discussion](https://steamcommunity.com/app/1646850/discussions/0/3771239049941978385/) — proximity-based warp lock in practice
+- [semisignal.com Canvas 2D vs WebGL benchmark](https://semisignal.com/a-look-at-2d-vs-webgl-canvas-performance/) — performance crossover at ~10,000 primitives
+- [NEBULOUS: Fleet Command Wiki](https://wiki.hoodedhorse.com/NEBULOUS_Fleet_Command/NEBULOUS:_Fleet_Command) — point-cost fleet design and role specialization
 
 ### Tertiary (LOW confidence)
-- Particle budgets and performance estimates -- need validation through profiling
-- Radial bin boundary values (15 world units per bin, 8 bins) -- need tuning with real entity distributions
+- [KSP Steam Forums: Warp Under Acceleration](https://steamcommunity.com/app/220200/discussions/0/1744483505461805761/) — KSP rails warp description (community forum, consistent with documented KSP behavior)
+- [Warframe 3D radar discussion](https://forums.warframe.com/topic/334517-archwing-we-need-a-3d-radar-instead-of-the-minimap-for-deep-space-combat/) — why 3D radar fails for coplanar orbital games
 
 ---
-*Research completed: 2026-03-09*
+*Research completed: 2026-03-15*
 *Ready for roadmap: yes*

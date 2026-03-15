@@ -1,338 +1,419 @@
 # Technology Stack
 
-**Project:** Navigation Combat System
-**Researched:** 2026-03-09
+**Project:** Navigation Combat System — v1.1 Realistic Scale
+**Researched:** 2026-03-14
+**Confidence:** HIGH
+
+---
 
 ## Context
 
-This stack covers **only what is NEW for the combat system**. The existing codebase already has: WebGL 1.0 context, WASM module for planet positions, a fullscreen ray march shader, separate GL geometry passes for ship/missiles/trajectories, pre-allocated Float32Array scratch buffers, dynamic resolution scaling, a 3-shader pipeline (ray march, ship/solid geometry, trajectory/points), and a gravity simulation in JS with Verlet integration. None of that needs re-researching.
+This document covers **only what is NEW for v1.1**. The existing v1.0 stack (WebGL 1.0, ANGLE_instanced_arrays, OES_vertex_array_object, SoA typed arrays, radial bin collision, instanced enemy rendering, billboard explosion system) is already validated and documented in the prior STACK.md. This version focuses exclusively on:
 
-The combat system adds: 30-50 instanced enemy ships, 4 weapon systems with projectiles, particle effects for explosions, collision detection across orbital space, LOD switching, and a wave spawning system. This stack defines what additional WebGL capabilities, rendering patterns, and JS architectures are needed.
+1. Float32 precision management at km-scale coordinates (350,000+ km scene)
+2. LOD rendering at 40,000:1 scale ratios in WebGL 1.0
+3. Radar/minimap rendering (2D canvas overlay vs WebGL render-to-texture)
+4. Warp speed (time acceleration) implementation patterns
 
-## Recommended Stack
+---
 
-### WebGL 1.0 Extensions (Required)
+## 1. Float32 Precision at Km Scale
 
-| Extension | Status | Purpose | Why |
-|-----------|--------|---------|-----|
-| `ANGLE_instanced_arrays` | Universal | Draw 30-50 enemy ships in 1-2 draw calls | MDN confirms "universal WebGL 1 extension" available since June 2016. Without instancing, 50 enemies = 50 draw calls with 50 program state changes. Instancing reduces this to 1 draw call per LOD tier. |
-| `OES_vertex_array_object` | Universal | Snapshot vertex attribute state for fast switching between render passes | Also confirmed universal. Eliminates per-frame rebinding of attribute pointers when switching between enemy, projectile, and particle render passes. Critical because combat adds 4-6 distinct render passes. |
-| `OES_element_index_uint` | Universal | 32-bit indices for enemy geometry with >65K vertices | Also universal. Needed if enemy ship meshes or combined instanced geometry exceed the 16-bit (65535) index limit. Safety net for complex procedural geometry. |
-| `OES_standard_derivatives` | Already active | `fwidth()` in existing shader | Already enabled in index.html line 101. No action needed. |
+### The Problem: Where Float32 Breaks
 
-**Confidence: HIGH** -- MDN WebGL best practices page explicitly lists all four as "universal WebGL 1 extensions" that "can be relied upon."
+IEEE 754 single-precision float32 has 24 bits of mantissa (23 explicit + 1 implicit). This gives ~7 significant decimal digits of precision across the entire representable range.
 
-### WebGL 1.0 Extensions (Optional, Nice-to-Have)
+**Precision at specific coordinate magnitudes:**
 
-| Extension | Purpose | Fallback | Why Optional |
-|-----------|---------|----------|--------------|
-| `OES_texture_float` | Float textures for particle data if needed | Use UNSIGNED_BYTE with encoding | Particles use CPU-side Float32Arrays with per-frame buffer uploads; float textures rarely needed |
-| `WEBGL_depth_texture` | Read depth buffer for soft particle edges | Hard-edge particles (still look fine at game scale) | Visual polish only, not functional |
-| `EXT_blend_minmax` | Advanced blend modes for additive particle FX | Standard additive blending (SRC_ALPHA, ONE) works | Already universal but additive blend covers 99% of particle needs |
+| Coordinate value | Precision per unit | Effect at 1 km/s velocity |
+|-----------------|-------------------|--------------------------|
+| 1,000 km | ~0.06 m | Barely visible jitter |
+| 10,000 km | ~0.6 m | Visible vertex shimmer |
+| 100,000 km | ~6 m | Severe geometry boiling on large objects |
+| 350,000 km | ~20 m | Enemy ship (500 m) rendered with 4% quantization error |
 
-**Confidence: MEDIUM** -- These are "nice to have" quality improvements. The combat system works without them.
+**The formula:** At coordinate value `V`, the precision `P` (smallest representable difference) is approximately:
+```
+P = V * 2^(-23) ≈ V / 8,388,608
+```
 
-### Instanced Rendering Architecture
+For V = 350,000 km:
+```
+P = 350,000 / 8,388,608 ≈ 0.0417 km = 41.7 m
+```
 
-The core pattern for drawing all enemies in a single draw call via `ANGLE_instanced_arrays`:
+A 500 m enemy ship at 350,000 km from world origin is represented with ~8% positional error per vertex. At 10 km (player ship) the error is 4x worse relative to ship size. **Geometry will visibly "boil" (vertices jittering between quantization steps as the ship orbits).**
 
+**The 7-digit rule:** If world coordinates use 6-digit values (e.g., 350,000), only 1 digit of fractional precision remains. A 500 m object = 0.5 units at km scale = the fractional digit. This is right at the limit.
+
+**Confidence: HIGH** — Derived directly from IEEE 754 specification (23-bit mantissa). The formula is exact. The 350,000 km scenario pushes hard against float32 limits.
+
+---
+
+### Solution 1: Camera-Relative Rendering (Recommended)
+
+**What it is:** Never send world-space coordinates to the GPU. Instead, subtract the camera position from every entity position on the CPU, then upload camera-relative coordinates to the vertex buffer.
+
+**Why it works:** Camera-relative coordinates are differences between two similar large values, which cancels the high-order bits. If the camera is at (250,000, 0, 0) and an enemy is at (250,001, 0, 0), the world-space coordinates require 6-digit precision. The camera-relative coordinate is (1, 0, 0) — requiring only 1 digit of precision. The mantissa is used for the actual geometry detail, not wasted on encoding the orbit position.
+
+**Implementation (JS side):**
 ```javascript
-// Setup (once at init)
-const ext = gl.getExtension('ANGLE_instanced_arrays');
-const vaoExt = gl.getExtension('OES_vertex_array_object');
+// Each frame, before uploading instance data
+const camX = cameraPos[0], camY = cameraPos[1], camZ = cameraPos[2];
 
-// Per-instance data buffer (updated each frame)
-// Layout: [mat4 modelViewProj (16 floats), vec4 color (4 floats)] per instance
-const INSTANCE_STRIDE = 20 * 4; // 80 bytes per instance
-const MAX_ENEMIES = 64;
-const instanceBuf = gl.createBuffer();
-const instanceData = new Float32Array(MAX_ENEMIES * 20); // pre-allocated
-
-// VAO captures vertex state for instant switching
-const enemyVAO = vaoExt.createVertexArrayOES();
-vaoExt.bindVertexArrayOES(enemyVAO);
-// ... bind mesh buffers, set per-vertex attributes (divisor 0) ...
-// ... bind instanceBuf, set per-instance attributes (divisor 1) ...
-// For mat4: needs 4 attribute slots (vec4 each), each with divisor 1
-ext.vertexAttribDivisorANGLE(instanceMatLoc+0, 1);
-ext.vertexAttribDivisorANGLE(instanceMatLoc+1, 1);
-ext.vertexAttribDivisorANGLE(instanceMatLoc+2, 1);
-ext.vertexAttribDivisorANGLE(instanceMatLoc+3, 1);
-ext.vertexAttribDivisorANGLE(instanceColorLoc, 1);
-vaoExt.bindVertexArrayOES(null);
-
-// Render (each frame)
-vaoExt.bindVertexArrayOES(enemyVAO);
-// Update instanceData with this frame's transforms
-gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
-gl.bufferSubData(gl.ARRAY_BUFFER, 0, instanceData.subarray(0, activeEnemies * 20));
-ext.drawElementsInstancedANGLE(gl.TRIANGLES, meshIndexCount, gl.UNSIGNED_SHORT, 0, activeEnemies);
-vaoExt.bindVertexArrayOES(null);
+for (let i = 0; i < activeEnemies; i++) {
+  // Convert world-space km coords to camera-relative km coords
+  // These are now small numbers (< ship separation distance, ~1000 km max)
+  instanceData[i * STRIDE + 0] = enemyPool.x[i] - camX;
+  instanceData[i * STRIDE + 1] = enemyPool.y[i] - camY;
+  instanceData[i * STRIDE + 2] = enemyPool.z[i] - camZ;
+}
 ```
 
-**Why this pattern:**
-- 1 draw call for all enemies at same LOD level (vs. 50 individual calls)
-- VAO eliminates per-frame attribute rebinding overhead
-- Pre-allocated Float32Array matches existing codebase pattern (scratch arrays, zero GC)
-- `bufferSubData` updates only the active portion, not the full buffer
-- mat4 as per-instance attribute avoids per-instance uniform uploads
+**Precision result after applying CRR:**
+At any camera-entity separation distance, the relative coordinate is at most ~1,000 km (enemies separated by more are in a different LOD tier anyway). At 1,000 km relative: precision = 1,000 / 8,388,608 ≈ 0.0001 km = 0.1 m. A 500 m enemy ship is represented with 0.02% error. Invisible at any frame rate.
 
-**Confidence: HIGH** -- This is the standard pattern. WebGL Fundamentals tutorial, Khronos spec, and TojiCode blog all demonstrate the same approach.
+**Vertex shader (no change needed):** The shader receives `a_instancePos` as camera-relative km, so `gl_Position = projMatrix * vec4(a_instancePos, 1.0)`. No world-space values ever enter the GPU.
 
-### LOD System
+**View matrix:** Constructed as if camera is at world origin. The model matrix uses camera-relative position. This is the standard Relative-to-Eye (RTE) pattern.
 
-Three LOD tiers for enemy rendering, switching by distance from camera:
+**CPU cost:** One subtraction per float3 per entity per frame. Negligible.
 
-| Tier | Distance | Rendering | Draw Calls | Why |
-|------|----------|-----------|------------|-----|
-| Full geometry | < 50 units | Instanced 3D mesh with normals + lighting | 1 | Close enemies need visual detail; 3D geometry catches light |
-| Billboard sprite | 50-200 units | Instanced textured quads facing camera | 1 | At this distance, 3D detail is invisible; a 2D quad is 10x cheaper |
-| Skip | > 200 units | Not rendered | 0 | Beyond the orbital field of view; rendering wastes GPU cycles |
+**Confidence: HIGH** — This is the standard solution for large-world WebGL rendering. Referenced by: Godot Engine LWC docs, Flax Engine large worlds, Deck.GL coordinate system, and the gltut tutorial "Perils of World Space." Multiple independent authoritative sources confirm this exact technique.
 
-**Billboard implementation:** Use instanced quads (4 vertices) with per-instance position + size. Vertex shader computes camera-facing orientation using the view matrix axes. Do NOT use `gl_PointSize` / POINTS primitive -- the max point size is hardware-capped (often 63px or less on some GPUs) and clipping behavior at screen edges is inconsistent.
+---
 
-**Confidence: HIGH** -- LOD thresholds match PROJECT.md spec exactly. Billboard-over-points decision is supported by WebGL Fundamentals documentation on gl_PointSize limitations.
+### Solution 2: Double-Single Precision Emulation (NOT Recommended for This Project)
 
-### Particle System Architecture
+**What it is:** Split each world coordinate into two float32 values (high-bits float + low-bits remainder) and do arithmetic in the shader to recover full precision.
 
-**Approach:** CPU-driven particle pool with GPU rendering via instanced billboard quads.
+**Why not here:** Requires rewriting all vertex shaders with DSP arithmetic (4-6 extra MAD operations per coordinate per vertex). The existing shader architecture uploads one `mat4` per instance — DSP would require uploading two `vec3` values per instance and modifying all instance attribute layouts. The complexity cost is disproportionate to the benefit when camera-relative rendering achieves the same result for zero shader complexity.
 
-**Why NOT transform feedback:** WebGL 1.0 does not support transform feedback. That is a WebGL 2.0 feature. All particle state must live in CPU-side typed arrays.
+**Confidence: HIGH** — DSP is the alternative when you cannot use camera-relative (e.g., when two objects far from each other must interact in the same shader). That case does not apply here.
 
-**Why NOT gl_PointSize for particles:** Same capping issue as LOD billboards. Explosion particles can need 100+ pixel size at close range.
+---
 
-| Component | Implementation | Why |
-|-----------|----------------|-----|
-| Particle pool | Pre-allocated Float32Array, fixed max count (e.g., 512) | Zero allocation during gameplay; matches existing scratch array pattern |
-| Per-particle state | [x, y, z, vx, vy, vz, age, maxAge, size, type] = 10 floats per particle | Minimal memory, simple iteration |
-| GPU rendering | Single instanced draw call per particle type | All particles of same type (smoke, spark, debris) in one call |
-| Animation | Sprite sheet texture atlas (4x4 or 8x8 grid) sampled by age in fragment shader | Standard WebGL sprite animation technique |
-| Blending | Additive for sparks/plasma (`gl.blendFunc(gl.SRC_ALPHA, gl.ONE)`), alpha for smoke (`gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)`) | Visual accuracy: hot particles add light, smoke occludes |
+### What NOT to Do: Naive World-Space Coordinates
 
-**Particle budget per effect:**
+**The failure mode:** Store all entity positions in km from world origin (BH center), upload those coordinates directly to GPU via `bufferSubData`, and let the vertex shader handle them as `a_instancePos`.
 
-| Effect | Particles | Lifetime | Notes |
-|--------|-----------|----------|-------|
-| Small missile explosion | 20-30 | 0.5-1.5s | Billboard sprite, no volumetric |
-| Kinetic cannon impact | 5-10 sparks | 0.3-0.8s | Tiny bright dots |
-| Plasma hit | 8-15 | 0.2-0.6s | Additive glow, fast fade |
-| Ship destruction | 40-60 | 1.0-3.0s | Debris chunks + sparks |
-| Engine trail | 3-5/frame | 0.3-0.5s | Continuous emit, fast recycle |
+**Why it breaks:** At 350,000 km, float32 provides ~40 m precision per vertex. A 500 m enemy ship has ~8% vertex error. As the ship orbits, each vertex quantizes to different integer-multiples of 40 m, causing the geometry to visibly "boil" (vertices randomly jumping by 40 m steps each frame). The effect is most severe at high orbital radii and at high zoom (because the camera is close to the ship, making the 40 m jitter occupy many screen pixels).
 
-**Confidence: MEDIUM** -- Particle budgets are estimates that need profiling. The architecture pattern (CPU pool + instanced billboards) is well-established.
+**No workaround at the shader level:** You cannot fix float32 vertex precision with `highp` in WebGL 1.0 vertex shaders — `highp` is not guaranteed in vertex shaders on WebGL 1.0 and even when available only expands the exponent range, not the mantissa precision.
 
-### Collision Detection: Radial Bin Partitioning
+**Confidence: HIGH** — Derived from IEEE 754 specification and confirmed by multiple sources including WebGL Fundamentals, Godot LWC docs, and Deck.GL engineering blog.
 
-**Why radial bins instead of uniform grid or quadtree:**
-- All gameplay happens in concentric orbital rings around the black hole (radii 28-86 units)
-- Objects cluster by orbital radius, not by Cartesian position
-- A Cartesian grid would waste most cells (empty space between orbits) and split orbital arcs across many cells
-- Radial bins naturally group objects that are close in the orbital sense
+---
 
-**Implementation:**
+## 2. LOD Rendering at 40,000:1 Scale
 
-```
-Radial bins:  [0-20] [20-35] [35-50] [50-70] [70-90] [90+]
-              inner   Venus   Jupiter  Saturn  Uranus  outer
-                      Earth   Mars
-```
+### The Scale Ratio Problem
 
-Each bin is a simple array (pre-allocated, fixed max size). Objects are assigned by `sqrt(x*x + z*z)` (2D radial distance in the ecliptic plane since all combat is planar).
+The v1.1 scene spans: BH radius 20,000 km, Jupiter radius 4,000 km, player ship 10 km, enemy ships 0.5-2 km. The orbital radii are 50,000-350,000 km. A planet and a nearby enemy ship can differ in visual size by 40,000:1. A single LOD system must handle both gracefully.
 
-**Collision pairs:** Only check within same bin + adjacent bins. With 6 bins and 50 enemies + projectiles, worst case is ~15 objects per bin, yielding ~105 pair checks instead of ~1225 (brute force).
+### Recommended: Three-Tier LOD with Explicit Instance Pools
 
-**Angular subdivision (optional optimization):** If a single radial bin gets too crowded, subdivide into angular sectors (e.g., 4-8 sectors per ring). But start without this -- 50 entities across 6 bins is already fast enough.
+The v1.0 STACK.md already defined three LOD tiers for enemies. In v1.1, the tier thresholds must be expressed in km, not abstract units. The visual rationale changes: it is no longer about polygon detail, it is about whether the object is large enough to resolve as geometry at all.
 
-**Narrow phase:** Simple sphere-sphere intersection. All combat entities are small relative to orbital distances, so bounding spheres are sufficient. No need for SAT, GJK, or mesh-level collision.
+**LOD thresholds for km-scale:**
 
-**Confidence: MEDIUM** -- Radial bins are a custom approach tailored to this game's orbital structure. The concept is sound (spatial partitioning is well-studied) but the specific bin boundaries and performance characteristics need profiling.
+| Tier | Camera-relative distance | Rendering | Rationale |
+|------|--------------------------|-----------|-----------|
+| Full 3D | < 5,000 km | Instanced geometry with normals/lighting | At 5,000 km, a 500 m ship subtends ~0.006 degrees — still resolvable as a distinct shape |
+| Billboard | 5,000–100,000 km | Instanced textured quad facing camera | At 100,000 km, a 500 m ship is 1-2 pixels — billboard captures icon-level appearance |
+| Omit from 3D | > 100,000 km | Not rendered in main viewport (but shown on radar) | Below pixel threshold; skip draw call |
 
-### Render Pipeline (Extended)
+**Planet-specific LOD:** Planets (4,000 km diameter) and the BH (20,000 km) are not rendered as instanced geometry — they are rendered by the ray march shader. No new LOD logic needed for them. Their apparent angular size is handled entirely by the existing shader.
 
-The existing render pipeline is:
-
-1. Fullscreen quad ray march (black hole + accretion disk + planets + detonations)
-2. `gl.clear(gl.DEPTH_BUFFER_BIT)` -- clears depth, keeps color from ray march
-3. Enable depth test
-4. Ship geometry pass (shipPg shader)
-5. Missile geometry pass (shipPg shader, per-missile draw call)
-6. Trajectory/target marker pass (trajPg shader, points + lines)
-7. Disable depth test, restore ray march state
-
-The combat system extends this to:
-
-1. Fullscreen quad ray march (unchanged)
-2. `gl.clear(gl.DEPTH_BUFFER_BIT)`
-3. Enable depth test
-4. **Player ship** (shipPg, 1 draw call)
-5. **Enemy ships -- full LOD** (enemyPg, 1 instanced draw call)
-6. **Projectiles** (projectilePg or reuse trajPg, 1 instanced draw call per weapon type)
-7. **Kinetic shields** (shipPg, instanced, 1 draw call)
-8. Disable depth write, keep depth test
-9. **Enemy ships -- billboard LOD** (billboardPg, 1 instanced draw call)
-10. **Particle effects** (particlePg, 1 instanced draw call per particle type, blended)
-11. **Trajectory/markers/HUD geometry** (trajPg)
-12. Disable depth test, restore ray march state
-
-**Total new draw calls:** ~6-10 per frame (vs. current ~4-8). Each is instanced, so object count does not multiply draw calls.
-
-**Shader programs needed:**
-
-| Program | Exists? | Purpose | Vertex Attributes |
-|---------|---------|---------|-------------------|
-| Ray march (pg) | Yes | Background scene | a_pos (vec2) |
-| Solid geometry (shipPg) | Yes | Player ship, kinetic shields | a_shipPos, a_shipNormal + uniforms |
-| **Instanced geometry (enemyPg)** | **NEW** | Enemy ships (full LOD) | a_pos, a_normal (per-vertex) + a_instanceMat, a_instanceColor (per-instance) |
-| **Billboard (billboardPg)** | **NEW** | Enemy LOD billboards, particles | a_corner (per-vertex) + a_instancePos, a_instanceSize, a_instanceUV (per-instance) |
-| Points/lines (trajPg) | Yes | Trajectories, target markers | a_trajPos |
-| **Projectile (reuse trajPg or new)** | **Maybe** | Kinetic/plasma projectiles | Likely reuse trajPg for simple glowing points/lines |
-
-**Why 2 new shader programs, not more:**
-- State changes (program switches) are among the most expensive WebGL operations
-- Sort render calls by shader program to minimize switches
-- The 2 new programs cover all combat entities: solid instanced geometry + billboard instanced sprites
-- Reuse existing trajPg for simple projectile rendering (glowing dots/lines)
-
-**Confidence: HIGH** -- The render pipeline extension follows directly from the existing architecture. The depth buffer strategy (clear depth, render 3D, disable depth write for transparent) is standard WebGL practice confirmed by MDN and LearnWebGL.
-
-### Orbital Mechanics (JS-only, no new tech)
-
-No new technology needed -- the existing codebase already has:
-- N-body gravity computation (`computeGravAccel`, `computeGravAccelAtTime`)
-- Verlet integration for trajectory prediction (`simulateTrajectory`)
-- Planet position computation at arbitrary time (`planetPosAtTime`)
-- Pre-computed planet GMs (`_planetGM`)
-
-**What to add (pure JS, no libraries):**
-
-| Feature | Implementation | Why No Library |
-|---------|----------------|----------------|
-| Orbital transfer computation | Reuse `simulateTrajectory` with thrust parameters | Already exists, just needs UI to select destination body and compute burn |
-| Orbit altitude adjustment | Tangential velocity change at current position | Simple v += dv along orbit tangent, then let gravity sim take over |
-| Enemy orbit assignment | Place enemies at radius + random phase, give circular velocity | `v_circular = sqrt(BH_GM / r)`, perpendicular to radial direction |
-| Projectile trajectories | Reuse gravity sim for kinetic cannon; ignore gravity for plasma | Kinetic: same integration as missiles. Plasma: straight line with distance fade |
-| Missile fuel system | Track fuel as float, self-destruct when fuel <= 0 and off-target | Simple counter, no physics library needed |
-
-**Confidence: HIGH** -- The existing gravity simulation covers all orbital mechanics needs. Adding orbital transfers is a UI/gameplay problem, not a technology problem.
-
-### Game State Management (JS-only)
-
-**Architecture: Simple struct-of-arrays with object pools.**
-
-Do NOT use ECS (Entity-Component-System). Rationale:
-- ECS adds architectural complexity for games with >1000 entities and dozens of component types
-- This game has ~5 entity types (player, enemy, projectile, particle, shield) with ~50-100 active entities
-- A simple typed-array pool per entity type is faster, simpler, and matches the existing codebase style
-- No npm, no frameworks, no build tools -- ECS libraries add dependencies
-
-**Entity pools:**
-
+**LOD computation is CPU-side JS only (WebGL 1.0 has no geometry shaders, no mesh shaders):**
 ```javascript
-// Pre-allocated enemy pool
-const MAX_ENEMIES = 64;
-const enemyPool = {
-  active: new Uint8Array(MAX_ENEMIES),        // 0/1 alive flag
-  x: new Float32Array(MAX_ENEMIES),           // position
-  z: new Float32Array(MAX_ENEMIES),
-  vx: new Float32Array(MAX_ENEMIES),          // velocity
-  vz: new Float32Array(MAX_ENEMIES),
-  hp: new Float32Array(MAX_ENEMIES),          // hull points
-  type: new Uint8Array(MAX_ENEMIES),          // enemy type index
-  orbitR: new Float32Array(MAX_ENEMIES),      // current orbital radius
-  orbitPhase: new Float32Array(MAX_ENEMIES),  // current angular position
-  count: 0                                     // active count
-};
+function assignLOD(camRelDist) {
+  // Hysteresis bands to prevent oscillation at tier boundaries
+  if (camRelDist < 4500) return LOD_FULL;       // Enter full at 4500, exit at 5500
+  if (camRelDist < 5500) return prevLOD;         // Hysteresis zone: keep previous tier
+  if (camRelDist < 90000) return LOD_BILLBOARD;  // Enter billboard at 5500, exit at 110000
+  if (camRelDist < 110000) return prevLOD;       // Hysteresis zone
+  return LOD_SKIP;
+}
 ```
 
-**Why struct-of-arrays over array-of-structs:**
-- Better CPU cache locality when iterating all enemies for physics/rendering
-- Float32Arrays can be subarray'd and uploaded directly to GL buffers
-- Zero garbage collection -- arrays are allocated once at startup
-- Matches existing `detSlots`, `missiles`, and scratch array patterns
+**Why hysteresis:** Without hysteresis, an enemy at exactly the tier boundary oscillates between LOD_FULL and LOD_BILLBOARD every frame as minor camera or entity movement crosses the threshold. This creates visible popping. 20% hysteresis bands are standard game industry practice.
 
-**Confidence: HIGH** -- This is the idiomatic pattern for the existing codebase. No new architectural concepts needed.
+**Separate instance buffers per LOD tier:** Maintain two instance Float32Arrays — one for FULL geometry instances, one for BILLBOARD instances. Each frame: sort enemies into tiers, upload only their buffer, draw with separate instanced draw call per tier. This matches the existing v1.0 architecture directly.
 
-### Wave System (JS-only)
+**Confidence: HIGH** — LOD tier architecture was established in v1.0 STACK.md. The threshold values are new (km-scale) but the pattern is identical. Hysteresis is standard and well-documented.
 
-No technology decision needed. Simple state machine:
+---
 
+### Warp-Speed LOD Adjustment
+
+During warp (time acceleration at 30-1000x), the camera position does not teleport — the scene simply advances faster. LOD distances remain the same. However, at high warp the player ship may traverse 50,000 km in a single rendered frame, which means entity LOD assignments can jump multiple tiers in one frame (full geometry one frame, skip the next). This is acceptable — at high warp, visual pop is less jarring because time is visibly compressed.
+
+**No special handling needed for LOD during warp.** The existing per-frame LOD assignment handles it correctly.
+
+---
+
+## 3. Radar / Minimap Rendering
+
+### Recommendation: Separate 2D Canvas Overlay (Not WebGL Render-to-Texture)
+
+**Decision:** Use a dedicated `<canvas id="radar-canvas">` element positioned absolutely over the main WebGL canvas via CSS, rendered using the Canvas 2D API. Do NOT use WebGL render-to-texture (RTT) framebuffer for the radar.
+
+**Why NOT WebGL render-to-texture:**
+- Requires `WEBGL_depth_texture` or manual framebuffer management for the minimap render pass
+- Requires a second camera (orthographic, looking down the Y axis) with its own projection matrix
+- Requires all entity positions to be rendered a second time into the FBO
+- The main scene shader cannot be reused for a top-down orbital view
+- Total added complexity: ~300 LOC of framebuffer setup + second render pass + texture blit
+- The radar displays abstract icons (dots, rings, brackets), not a 3D view — all content is inherently 2D
+
+**Why Canvas 2D overlay is correct:**
+- Radar content is 2D: orbital rings as `arc()`, entity dots as `fillRect()`, player heading as `lineTo()`
+- Canvas 2D API has no shader complexity, no GL state pollution
+- Completely independent from the WebGL render loop — can be updated at a different rate (e.g., 15 fps for radar vs 30 fps for 3D)
+- Already the established pattern in this codebase: planet labels are HTML elements positioned by JS over the WebGL canvas; extending that pattern to a Canvas 2D radar is natural
+- Performance: A radar drawing ~20 circles + ~50 dots per frame costs <0.5ms in Canvas 2D. The crossover point where WebGL becomes faster is ~10,000 primitives (semisignal.com benchmark), far above what a minimap needs
+
+**HTML/CSS Integration Pattern:**
+```html
+<!-- In index.html, sibling to #canvas -->
+<canvas id="radar-canvas"></canvas>
 ```
-IDLE -> SPAWNING -> ACTIVE -> CLEARED -> (increment wave) -> SPAWNING
+
+```css
+/* In css/style.css */
+#canvas {
+  position: absolute;
+  z-index: 1;
+}
+#radar-canvas {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  width: 200px;
+  height: 200px;
+  z-index: 30;  /* Above planet labels (z-index 25) */
+  pointer-events: none;  /* Click-through to WebGL canvas */
+  border: 1px solid rgba(60,140,255,0.4);
+  background: rgba(0,5,15,0.7);
+}
+#radar-canvas.expanded {
+  width: 400px;
+  height: 400px;
+  /* O-key toggle: compact mini vs expanded side panel */
+}
 ```
 
-Difficulty scaling is pure data: `enemyCount = baseCount + wave * 2`, `enemyAccuracy = min(0.3 + wave * 0.02, 0.9)`, etc.
+**Radar JS Update Function:**
+```javascript
+function updateRadar(simTime) {
+  const ctx = radarCtx;
+  const W = radarCanvas.width, H = radarCanvas.height;
+  const cx = W / 2, cy = H / 2;
 
-Boss waves: every N waves, spawn a single high-HP enemy with unique behavior. No special tech needed.
+  ctx.clearRect(0, 0, W, H);
 
-**Confidence: HIGH** -- Standard game pattern, no tech choices involved.
+  // Draw orbital rings (proportional to actual km radii)
+  const scale = (W * 0.45) / MAX_ORBIT_KM;  // fit outermost orbit in canvas
+  for (const planet of planetData) {
+    const r = planet.oR * scale;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(60,140,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
 
-## What NOT to Use (and Why)
+  // Draw BH at center
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,200,80,0.8)';
+  ctx.fill();
 
-| Technology | Why Not |
-|------------|---------|
-| **WebGL 2.0** | The existing scene uses WebGL 1.0 (`canvas.getContext('webgl')`). Switching to WebGL 2 would require rewriting every shader (GLSL 100 -> 300 es, `varying` -> `in/out`, `texture2D` -> `texture`, etc.), retesting the ray march shader, and potentially breaking mobile compatibility. WebGL 1.0 with universal extensions provides everything needed. |
-| **Three.js / Babylon.js** | The project constraint is "no frameworks, no npm, no build tools." These libraries are 500KB+ minified and would fundamentally change the architecture. The existing hand-rolled GL code is more performant for this specific use case. |
-| **Physics libraries (cannon.js, ammo.js)** | Orbital mechanics require custom gravity (N-body with black hole). General-purpose physics engines use rigid body dynamics, springs, and contact resolution -- none of which apply. The existing `computeGravAccel` function handles all physics needs. |
-| **Transform feedback** | WebGL 1.0 only. Does not exist. |
-| **Geometry shaders** | WebGL does not support geometry shaders at all (neither 1.0 nor 2.0). Billboard expansion must happen in the vertex shader. |
-| **Compute shaders** | WebGL does not support compute shaders. GPU-side particle simulation is not possible. All particle physics runs on CPU. |
-| **Web Workers for physics** | Adds complexity (message passing, shared memory coordination) for marginal gain. 50 enemies + 200 projectiles + 512 particles = ~800 entities. A single JS frame at 30fps has 33ms budget. N-body gravity for 800 entities takes <1ms on modern CPUs. Not worth the architecture cost. |
-| **WASM for combat sim** | The existing WASM module is a tiny inline binary for planet position computation. Extending it for combat would require a WASM toolchain (Rust/C compiler), which conflicts with "no build tools." JS is fast enough for the entity counts involved. |
-| **gl_PointSize for particles** | Hardware-capped (often 63px max, varies by GPU). Clipping at screen edges is inconsistent (point center must be on screen). Use instanced quads instead -- no size limit, correct clipping, same draw call count. |
-| **RGB8 textures** | MDN explicitly warns "RGB8 is often surprisingly slow" due to alpha channel masking overhead. Always use RGBA8. |
+  // Draw player ship
+  const px = playerX * scale + cx;
+  const py = -playerZ * scale + cy;  // flip Z: +Z = down in world, up in radar
+  ctx.beginPath();
+  ctx.arc(px, py, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(60,200,255,1.0)';
+  ctx.fill();
 
-## Alternatives Considered
+  // Draw enemies (color by archetype)
+  for (let i = 0; i < MAX_ENEMIES; i++) {
+    if (!enemyPool.active[i]) continue;
+    const ex = enemyPool.x[i] * scale + cx;
+    const ey = -enemyPool.z[i] * scale + cy;
+    ctx.fillStyle = ENEMY_COLORS[enemyPool.type[i]];
+    ctx.fillRect(ex - 2, ey - 2, 4, 4);
+  }
+}
+```
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Enemy rendering | Instanced geometry (ANGLE_instanced_arrays) | Individual draw calls per enemy | 50 draw calls + 50 program state changes = 5-10ms wasted per frame |
-| Particle rendering | Instanced billboard quads | gl.POINTS with gl_PointSize | Max size capped at 63px on some GPUs; screen-edge clipping bugs |
-| Collision detection | Radial bin partitioning | Uniform Cartesian grid | Wasted cells in empty space between orbital rings; radial bins match game geometry |
-| Collision detection | Radial bin partitioning | Quadtree | Quadtree has higher overhead for small entity counts (<100); overkill for this game |
-| State management | Struct-of-arrays pools | ECS framework | 5 entity types, 50-100 entities -- ECS adds complexity without benefit at this scale |
-| State management | Struct-of-arrays pools | Array-of-objects | Objects cause GC pressure; typed arrays are cache-friendly and upload directly to GL |
-| Orbital mechanics | Custom JS (existing code) | Kepler equation solver library | Existing Verlet integration already works; Kepler equation is analytic but less flexible for gameplay tuning |
-| Billboard orientation | View matrix axis extraction in vertex shader | CPU-side billboard matrix computation | GPU-side is free (view matrix already available); CPU-side adds per-billboard matrix math |
+**Important: pointer-events: none on the radar canvas.** Mouse events for the game (drag to orbit, click for targeting) go to the WebGL canvas. If the radar canvas intercepts pointer events, dragging over it will stop working. Set `pointer-events: none` so all events fall through to the WebGL canvas below.
 
-## Texture Assets Needed
+**Mouse event routing exception:** If the O-key expanded radar needs clickable elements (e.g., click a planet to set as navigation target), temporarily enable pointer events only on the expanded radar and handle them explicitly. In minimized state: always pointer-events none.
 
-| Texture | Format | Size | Purpose |
-|---------|--------|------|---------|
-| Explosion sprite sheet | RGBA8 PNG | 512x512 (8x8 grid = 64 frames) | Small missile/projectile explosions |
-| Smoke/debris sprite sheet | RGBA8 PNG | 256x256 (4x4 grid = 16 frames) | Ship destruction smoke |
-| Plasma glow | RGBA8 PNG | 64x64 (single sprite) | Plasma gun projectile |
-| Engine trail | RGBA8 PNG | 32x32 (single sprite) | Ship/missile engine exhaust |
-| Enemy hull | RGBA8 procedural (generated at init) | 64x64 | Simple hull texture for enemy ships |
+**Update rate:** The radar does not need to update every WebGL frame. Update every 2-4 rendered frames. Skip radar update if `simDt` is very small (bullet time). During high warp, the update rate matters more — consider updating every frame during warp so the player can see orbital progress.
 
-**Texture atlas strategy:** Combine all particle sprites into one 512x512 atlas to minimize texture bind changes during particle rendering.
+**Confidence: HIGH** — The 2D canvas overlay pattern is confirmed by learnwebgl.brown37.net, the codebase's own established overlay pattern (HTML labels over WebGL), and fundamental WebGL constraints (a canvas element cannot have both a webgl and a 2d context). The performance trade-off analysis is backed by semisignal.com Canvas vs WebGL benchmarks.
 
-**Confidence: MEDIUM** -- Texture sizes are estimates. May need adjustment after visual testing. Procedural enemy textures may not need a texture at all if shader-only coloring looks good enough (the existing ship uses flat color + Lambertian lighting).
+---
 
-## Performance Budget
+## 4. Warp Speed (Time Acceleration) Implementation
 
-| Render Pass | Target Time | Notes |
-|-------------|-------------|-------|
-| Ray march (existing) | ~20ms | The bottleneck. Cannot be reduced without visual regression. Dynamic resolution scaling handles this. |
-| Enemy instanced draw | < 1ms | Single draw call, 50 instances, simple shader |
-| Projectile instanced draw | < 0.5ms | Single draw call, up to 200 instances, point/line primitives |
-| Particle instanced draw | < 1ms | Single draw call, up to 512 instances, simple billboard shader |
-| JS physics update | < 2ms | Gravity for ~800 entities, radial bin collision check |
-| JS game logic | < 1ms | Wave management, AI decisions, state updates |
-| **Total combat overhead** | < 5ms | Leaves 28ms for ray march at 30fps target |
+### Recommendation: Scaled Accumulator with Physics Substepping
 
-**Confidence: MEDIUM** -- Estimates based on typical WebGL instanced rendering costs. Need profiling on GTX 1060 tier hardware to validate.
+**What warp must achieve:** Transit time for orbital transfers at realistic km-scale can be 60+ seconds at 1x. The v1.1 spec says "max 30s transfers" — achieved by the "Jupiter orbit = 60 seconds" time definition. Warp speed compresses remaining transfer time further when the player initiates one. The requirement is to reach any destination in ≤30 real seconds regardless of scale.
+
+**Core pattern — scaled accumulator:**
+```javascript
+// Game loop (requestAnimationFrame)
+const PHYSICS_DT = 1/120;  // 120 Hz physics tick in sim time (at 1x)
+const MAX_WARP = 100;       // 100x maximum time acceleration
+const MAX_SUBSTEPS = 8;     // Hard cap: never run more than 8 physics ticks per frame
+const MAX_FRAME_TIME = 0.1; // Cap real frameTime to prevent spiral-of-death
+
+function gameLoop(timestamp) {
+  const wallDt = Math.min((timestamp - lastTimestamp) / 1000, MAX_FRAME_TIME);
+  lastTimestamp = timestamp;
+
+  // Accumulate sim time (warpFactor is a float: 1.0 = realtime, 100.0 = 100x)
+  accumulator += wallDt * warpFactor;
+
+  let substeps = 0;
+  while (accumulator >= PHYSICS_DT && substeps < MAX_SUBSTEPS) {
+    physicsStep(PHYSICS_DT);
+    accumulator -= PHYSICS_DT;
+    substeps++;
+  }
+
+  // Render at whatever time state we reached
+  render();
+
+  requestAnimationFrame(gameLoop);
+}
+```
+
+**Why substepping instead of a single large dt:** Verlet integration (used by the existing orbital mechanics) is numerically stable only when dt is small relative to the orbital period. At 100x warp, a single `physicsStep(100 * 0.016)` = `physicsStep(1.6s)` would use a 1.6s step for orbital mechanics with a ~60s orbital period — a step-to-period ratio of ~2.7%, which introduces integration error. With 8 substeps of PHYSICS_DT=1/120, the effective sim advance per frame is 8/120 = 0.067s at 1x, or 6.7s at 100x warp. The step-to-period ratio stays at ~0.1% — negligible.
+
+**The MAX_SUBSTEPS cap is critical:** At 100x warp, one frame of wall time (0.016s) = 1.6s of sim time = 192 physics ticks. Without a cap this would take ~1.6s of CPU time — causing the spiral of death. Cap at 8 substeps. This means at 100x warp, the sim falls behind real time — it runs at 100x nominal but ~12x actual throughput per frame. The scene will visually skip ahead. This is intentional: warp speed is not meant to be physically accurate, it is a fast-forward mode for player convenience.
+
+**Alternative for very high warp (> 10x): Rail mode.** For warp factors above a threshold, switch from physics integration to analytic Keplerian orbit calculation:
+```javascript
+if (warpFactor > 10) {
+  // Analytic circular orbit position (exact, no integration error)
+  const orbitPeriod = 2 * Math.PI * Math.sqrt(r*r*r / BH_GM);
+  const phase = (initialPhase + 2 * Math.PI * elapsedSimTime / orbitPeriod) % (2 * Math.PI);
+  playerX = r * Math.cos(phase);
+  playerZ = r * Math.sin(phase);
+} else {
+  // Physics integration for precise maneuvering
+  physicsStep(PHYSICS_DT);
+}
+```
+Rail mode is how Kerbal Space Program handles high time warp: physics off, analytic orbit equations on. This gives exact positions at any time multiplier without accumulation error. KSP uses rails above 4x and restricts engine use in rail mode — the same restriction applies here (no weapons firing, no orbit changes during high warp).
+
+**warpFactor transitions:** Do not allow instantaneous jumps from 1x to 100x. Ramp the warpFactor over 0.5s of wall time. This prevents visual discontinuities and allows the player to bail out before committing to a long transit.
+
+**HUD display during warp:** Show "WARP x100" indicator. The existing `fly-bullet-time` CSS class can be reused with different text. Suppress HUD elements that are meaningless during warp (weapon status, targeting overlay).
+
+**Confidence: HIGH** — The accumulator/substepping pattern is from Gaffer on Games "Fix Your Timestep" (canonical reference for game physics loops). The rail-mode approach is confirmed by Kerbal Space Program's documented warp behavior. The specific threshold and cap values need game-design tuning but the architecture is sound.
+
+---
+
+## 5. Coordinate System Design for km Scale
+
+### World Coordinate Units: Kilometers
+
+All entity positions, velocities, and orbit parameters are stored in km (from BH center). This is a direct search-and-replace from the existing abstract "units" — multiply all existing oR values by their km equivalents.
+
+**Existing abstract units → km mapping:**
+
+| Planet | Old oR (units) | New oR (km) |
+|--------|---------------|-------------|
+| Venus | 28 | 28,000 |
+| Earth | 33 | 33,000 |
+| Jupiter | 38 | 38,000 |
+| Mars | 45 | 45,000 |
+| Saturn | 52 | 52,000 |
+| Uranus | 68 | 68,000 |
+| Neptune | 86 | 86,000 |
+
+The time scaling (Jupiter orbit = 60 seconds) then defines all velocities:
+```javascript
+// Jupiter circular orbital velocity at 38,000 km from BH
+const JUPITER_ORBIT_PERIOD = 60;  // seconds
+const JUPITER_ORBIT_CIRCUMFERENCE = 2 * Math.PI * 38000;  // km
+const JUPITER_ORBITAL_SPEED = JUPITER_ORBIT_CIRCUMFERENCE / JUPITER_ORBIT_PERIOD;  // ~3981 km/s
+
+// BH GM derived from Jupiter orbit (circular orbit: v² = GM/r)
+const BH_GM = JUPITER_ORBITAL_SPEED * JUPITER_ORBITAL_SPEED * 38000;  // km³/s²
+```
+
+**Physics time unit: seconds.** Velocities in km/s, accelerations in km/s². The existing Verlet integrator receives dt in seconds (from the accumulator above). No unit conversion needed mid-loop.
+
+**What changes at the shader boundary:** The ray march shader uses its own internal units (the existing black hole radius, orbit radii etc.). The shader does NOT need to know about km-scale world coordinates — it renders the background independently of the entity simulation. Only the entity rendering passes (enemy instanced draw, player ship draw, projectile draw) need camera-relative km coordinates. The shader and the entity renderer remain decoupled by design.
+
+**Confidence: HIGH** — The coordinate choice is architectural, derived directly from the v1.1 spec and the existing PROJECT.md. The BH_GM derivation from Jupiter orbital period is basic orbital mechanics.
+
+---
+
+## Stack Summary: New Additions for v1.1
+
+| Component | Technique | Why |
+|-----------|-----------|-----|
+| Float32 precision | Camera-relative rendering (CRR) in JS pre-upload | Cancels high-order bits; entities always within ~1,000 km of camera = ~0.1m precision |
+| LOD thresholds | 0-5,000 km: full 3D; 5,000-100,000 km: billboard; >100,000 km: skip | Calibrated to 500m enemy ship pixel size at each tier |
+| LOD transitions | 20% hysteresis bands | Prevents per-frame tier oscillation at boundary |
+| Radar rendering | Separate `<canvas>` with 2D API, z-index 30, pointer-events none | Radar content is inherently 2D; Canvas 2D is simpler and fast enough |
+| Radar update | Every 2-4 rendered frames (every frame during warp) | Decoupled from 3D render rate; reduces overhead |
+| Time acceleration | Scaled accumulator + physics substepping (cap: 8/frame) + rail mode above 10x | Substep prevents integration error; rail mode handles high warp exactly |
+| World coordinates | km, from BH center; velocity in km/s | Matches spec; clean scaling from Jupiter orbit period |
+| Shader boundary | Ray march uses own internal units; entity passes get camera-relative km | Decoupled: shader unchanged, only entity geometry passes updated |
+
+---
+
+## What NOT to Use
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| World-space coordinates direct to GPU | Float32 provides ~40 m precision at 350,000 km — visible vertex boiling on 500 m ships | Camera-relative rendering: subtract camera position in JS before upload |
+| Double-precision GLSL (`double` keyword in shaders) | Not supported in WebGL 1.0 GLSL ES 1.00; would require WebGL 2 + shader rewrites | Camera-relative rendering achieves the same result with zero shader changes |
+| DSP (dual-float emulation in shader) | ~4-6 extra MAD operations per vertex, requires doubled upload layout for translations | CRR is sufficient; DSP adds complexity for no benefit when CRR already limits relative coords to <1,000 km |
+| WebGL render-to-texture for radar | Requires second camera, second render pass, FBO management, depth texture; ~300 LOC overhead | Separate 2D canvas overlay: zero GL complexity, correct for 2D radar content |
+| Single large physics dt for warp | Verlet integration with dt > 1% of orbital period accumulates energy errors | Substepping: cap dt at 1/120s sim time, max 8 substeps/frame; rail mode for warp >10x |
+| Instantaneous warpFactor changes | Large jump in accumulated time causes visible discontinuity | Ramp warpFactor over 0.5s wall time |
+| `highp` as a precision fix | `highp` in vertex shaders is not guaranteed in WebGL 1.0; even when present it extends exponent range not mantissa precision | Camera-relative rendering: the actual fix for large-world vertex position precision |
+
+---
+
+## Version Compatibility
+
+No new WebGL extensions are needed for v1.1. All new features (CRR, LOD, radar, warp) are pure JS or separate Canvas 2D — zero new GL extension requirements beyond what v1.0 already uses.
+
+| Feature | WebGL Extensions Required | Already Enabled in v1.0 |
+|---------|--------------------------|------------------------|
+| Camera-relative rendering | None — pure JS math | N/A |
+| LOD system | ANGLE_instanced_arrays (already required) | Yes |
+| 2D canvas radar | None (separate canvas element) | N/A |
+| Warp speed accumulator | None — pure JS | N/A |
+
+---
 
 ## Sources
 
-- [MDN: ANGLE_instanced_arrays](https://developer.mozilla.org/en-US/docs/Web/API/ANGLE_instanced_arrays) -- Extension API, browser compatibility, universal status
-- [MDN: WebGL Best Practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) -- Universal extensions list, state change costs, buffer management, shader optimization
-- [WebGL Fundamentals: Instanced Drawing](https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html) -- Instancing pattern with ANGLE_instanced_arrays
-- [WebGL Fundamentals: gl_PointSize Limitations](https://webglfundamentals.org/webgl/lessons/webgl-qna-working-around-gl_pointsize-limitations-webgl.html) -- Max 63px on some hardware, quad workaround
-- [Khronos: ANGLE_instanced_arrays Specification](https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/) -- Official spec
-- [MDN: OES_vertex_array_object](https://developer.mozilla.org/en-US/docs/Web/API/OES_vertex_array_object) -- VAO extension API
-- [Game Programming Patterns: Spatial Partition](https://gameprogrammingpatterns.com/spatial-partition.html) -- Spatial partitioning theory
-- [Game Programming Patterns: Object Pool](https://gameprogrammingpatterns.com/object-pool.html) -- Object pool pattern
-- [Web Game Dev: Spatial Partitioning](https://www.webgamedev.com/performance/spatial-partitioning) -- Web game spatial partitioning overview
-- [Chinedufn: WebGL Particle Billboard Tutorial](https://www.chinedufn.com/webgl-particle-effect-billboard-tutorial/) -- Billboard particle technique
-- [TojiCode: WebGL Instancing](https://blog.tojicode.com/2013/07/webgl-instancing-with.html) -- Practical instancing examples
-- [Geeks3D: Point Sprites vs Geometry Instancing](https://www.geeks3d.com/20140929/test-particle-rendering-point-sprites-vs-geometry-instancing-based-billboards/) -- Performance comparison
+- [IEEE 754 Single-Precision Floating-Point Format — Wikipedia](https://en.wikipedia.org/wiki/Single-precision_floating-point_format) — mantissa bits (23 explicit + 1 implicit = 24 bits), precision formula (HIGH confidence)
+- [Godot Engine: Emulating Double Precision on the GPU](https://godotengine.org/article/emulating-double-precision-gpu-render-large-worlds/) — DSP technique, precision numbers at 1M units (~1m precision), camera-relative vs DSP tradeoffs (HIGH confidence)
+- [Godot Engine: Large World Coordinates Tutorial](https://docs.godotengine.org/en/stable/tutorials/physics/large_world_coordinates.html) — Relative-to-Eye rendering confirmation (HIGH confidence)
+- [gltut: The Perils of World Space](https://paroj.github.io/gltut/Positioning/Tut07%20The%20Perils%20of%20World%20Space.html) — Combined model-to-camera matrix technique, RTE naming, CPU double-precision then float32 upload pattern (HIGH confidence)
+- [Deck.GL / SegmentFault: WebGL Geographic Precision](https://segmentfault.com/a/1190000040332266/en) — Offset coordinates GLSL implementation, 0.33m error at DeckGL zoom-level 12 threshold, shader code example (HIGH confidence)
+- [LearnWebGL: Overlays](http://learnwebgl.brown37.net/11_advanced_rendering/overlays.html) — Multiple canvas layering technique, z-index stacking, mouse event routing when overlaying canvases (HIGH confidence)
+- [semisignal.com: Canvas 2D vs WebGL Performance](https://semisignal.com/a-look-at-2d-vs-webgl-canvas-performance/) — Crossover point benchmarks; Canvas 2D faster below ~10,000 primitives (MEDIUM confidence — benchmark is from 2020 but the GPU threshold hasn't changed fundamentally)
+- [Gaffer on Games: Fix Your Timestep](https://gafferongames.com/post/fix_your_timestep/) — Canonical accumulator/substepping pattern, MAX_FRAME_TIME cap, spiral-of-death warning (HIGH confidence)
+- [KSP Steam Forums: Warp Under Acceleration](https://steamcommunity.com/app/220200/discussions/0/1744483505461805761/) — KSP rails warp description: analytic Keplerian orbits above 4x, physics integration below (MEDIUM confidence — community forum, but consistent with KSP's documented behavior)
+- [MDN WebGL Best Practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) — Buffer upload strategies, extension availability (HIGH confidence)
+- [WebGL2 Fundamentals: Precision Issues](https://webgl2fundamentals.org/webgl/lessons/webgl-precision-issues.html) — highp not guaranteed in vertex shaders for WebGL 1.0, `gl.getShaderPrecisionFormat()` (HIGH confidence)
+
+---
+*Stack research for: WebGL 1.0 km-scale rendering, float32 precision management, LOD, radar UI, warp speed*
+*Researched: 2026-03-14*

@@ -1,7 +1,8 @@
 # Domain Pitfalls
 
-**Domain:** WebGL tactical orbital combat layered on an existing fullscreen ray march shader
-**Researched:** 2026-03-09
+**Domain:** WebGL km-scale scene transition and time acceleration — adding realistic scale to an existing WebGL 1.0 orbital combat system
+**Researched:** 2026-03-14
+**Confidence:** HIGH (codebase directly inspected, precision numbers verified against WebGL float32 spec, Z-fighting and tunneling literature verified)
 
 ---
 
@@ -9,353 +10,406 @@
 
 Mistakes that cause rewrites, major performance regressions, or architectural dead-ends.
 
-### Pitfall 1: Shader Parameter Contamination Across Modes
+---
 
-**What goes wrong:** Adding combat mode parameters to the ray march shader that accidentally apply to normal (non-combat) mode, causing massive iteration count increases in the default scene.
+### Pitfall 1: Float32 Precision Collapse at Km-Scale World Coordinates
 
-**Why it happens:** This project has already experienced this exact failure (optimization history entry #13). Nav mode needed `stepCap=3.0`, `convergenceEscape=r>90`, and `escapeRadius=max(100,...)` for doubled orbits. These were applied unconditionally, causing 27-111% more iterations in normal mode. Combat mode will introduce further parameter variations (camera distances, possibly new escape thresholds for tactical zoom-out). The temptation to hardcode "just one more" parameter change is high.
+**What goes wrong:**
+At 350,000 km scene extent with float32, vertex position precision is approximately 35 meters (epsilon = 2^-23 * 350,000 = ~0.04 km = ~40 m). The player ship is 10 km. Enemies down to 0.5 km. The float32 quantization error is ~4-8% of the smallest combat-relevant object. Enemy positions jitter visibly — they shimmy by one quantization step every frame even when stationary because floating-point arithmetic on large numbers is not associative and incremental updates accumulate error. This is called "vertex jitter" or "world boil."
 
-**Consequences:** Normal mode FPS drops by 30-50%+ with no visual change. The regression is silent -- there is no crash, just worse performance that is hard to attribute to a specific change. Users in the default scene (the most common state) suffer for a mode they are not using.
+**Concrete numbers:**
+- Scene extent: 350,000 km. Float32 precision at this magnitude: ~350,000 * 2^-23 = ~41 m.
+- Player ship: 10 km. Precision error relative to ship size: 41m / 10,000m = 0.4%. Barely visible.
+- Grunt enemy: 0.5 km (500 m). Precision error relative to size: 41m / 500m = 8.2%. Clearly visible as jitter.
+- BH radius: 10,000 km. For position computation at BH surface (r=10,000 km): precision ~1.2 m. Fine.
+- Camera at 350,000 km distance computing vertex relative to BH origin: computing `vertexPos - camPos` in float32 loses 5-6 significant digits. A 10 km ship appears as a smeared blob.
 
-**Prevention:**
-- Every ray march parameter that differs between modes MUST use `u_orbitScale` or a new combat-mode uniform to switch values: `mix(normalVal, combatVal, step(threshold, u_modeUniform))`.
-- Before ANY shader change, capture baseline iteration counts in normal mode using the Python simulation method from entry #13.
-- After ANY shader change, verify normal mode iterations have not increased.
-- Add a test to `tests.html` that validates key shader parameters are mode-gated.
+**Why it happens:**
+JavaScript and GLSL both use float32 for vertex positions passed to the GPU. When world coordinates reach 10^5 km, the mantissa of float32 (23 bits = ~7 decimal digits) runs out. `350,000.000` and `350,000.041` are the same float32 value. Incremental updates of the form `pos += vel * dt` at large coordinates accumulate error.
 
-**Detection:** FPS drop in normal mode after a combat-related change. Compare `git show HEAD~1:js/scene/shaders.js` shader constants against current.
+**How to avoid:**
+Use **camera-relative rendering (RTE)**: subtract the camera position from all world positions on the CPU (in float64 JavaScript) before passing to the GPU as float32. The GPU then works with small numbers (~0 to ~10 km relative offsets), never the raw 350,000 km world coordinates. Concrete steps:
+1. Store all entity positions in JavaScript as regular JS numbers (float64). Never store them in Float32Array if they will be used as absolute world coordinates.
+2. In the render loop, compute `relX = worldX - camWorldX` (float64 subtraction), then write the result into the GPU vertex buffer as float32.
+3. The GPU receives values in the range (-500 km, +500 km) — within float32's precision budget.
+4. Uniforms for camera position, BH position, etc., that are used in the ray march shader already work this way (the shader operates in camera-relative space implicitly), but physics entity positions must be explicitly converted.
 
-**Phase:** Must be enforced from the very first phase that touches the shader. Establish the mode-gating pattern before any combat rendering code.
+**Warning signs:**
+- Enemies appear to vibrate when stationary at large orbital radii.
+- Ship trails (if any) have visible kinks or quantization steps.
+- Collision detection returns false positives/negatives for objects that look adjacent but whose float32 coordinates round to the same bin.
+- The mat4Perspective near/far distance check at `mat4Perspective(fovY, aspect, 0.1, 500, _proj)` already uses a narrow range — this becomes the anchor that works correctly because the camera-relative offset is small.
+
+**Phase to address:** Scale introduction phase (Phase 1 of v1.1). Must be solved before any combat entity positions are stored in Float32Arrays as world coordinates. Failure to address this at the start means every subsequent system is built on broken coordinates.
 
 ---
 
-### Pitfall 2: Combat Rendering Inside the Ray March Loop
+### Pitfall 2: Z-Fighting Across a 3,500,000:1 Near/Far Ratio
 
-**What goes wrong:** Adding per-enemy checks, projectile intersection tests, or combat visual effects inside the 250-iteration ray march loop, even behind uniform gates.
+**What goes wrong:**
+The current perspective matrix call is `mat4Perspective(fovY, aspect, 0.1, 500, _proj)` — a near/far ratio of 5,000:1. For km-scale, the near plane must see 0.01 km (10 m detail for a 10 km ship) while the far plane must reach 350,000 km: ratio of 35,000,000:1. A 24-bit depth buffer has 16,777,216 discrete values. With a standard perspective depth distribution (values proportional to 1/z), over 99% of the depth buffer precision is consumed within the first 0.001% of the view frustum (near the camera). Objects beyond a few hundred km have zero depth discrimination: everything at range 1,000–350,000 km maps to the same depth values. This causes Z-fighting: planets at different orbital radii flicker against each other.
 
-**Why it happens:** The ray march naturally lenses everything -- enemies rendered inside it would be gravitationally lensed, which sounds cool. Developers think "I'll just add one more sphere check per iteration, it's only 7 planets already." But planets are a fixed count compiled into the shader. Enemy counts vary per frame, requiring either a fixed maximum array (wasting registers even when empty) or dynamic loop bounds (not supported in GLSL ES 1.0).
+**Concrete numbers:**
+Standard 24-bit depth with near=0.01 km, far=350,000 km:
+- At z=0.01 km (near): full precision (~6 nm per step)
+- At z=10 km (player ship): ~0.003 mm per step — still fine
+- At z=100 km: ~0.3 m per step — acceptable
+- At z=10,000 km (BH surface): ~3 km per step — planets 10,000 km apart would share the same depth value
+- At z=350,000 km: 100% of distant objects Z-fight
 
-**Consequences:**
-- GLSL ES 1.0 requires constant loop bounds. You cannot `for(int i=0; i<u_enemyCount; i++)` -- the loop bound must be a compile-time constant.
-- Even with a fixed array like `uniform vec4 u_enemies[50]`, the GPU compiler allocates registers for the worst case. With 50 enemies * 4 floats * possible register spill, GPU occupancy drops dramatically.
-- Optimization history entry #10 shows that even 6 detonation slots inside the ray march had hypothesized register pressure issues (though on this hardware the compiler handled it). 50 enemies will NOT be handled gracefully.
-- Per-iteration branching for enemy checks causes warp divergence (different pixels see different enemies at different distances).
+**How to avoid:**
+Two compatible approaches:
 
-**Prevention:**
-- Enforce the architectural rule from PROJECT.md: all combat elements are separate GL geometry passes, NEVER inside the ray march.
-- Enemies, projectiles, and small explosions are rendered as 3D geometry or billboards AFTER the ray march fullscreen quad.
-- Only nuclear detonations (max 6, already implemented) use the in-shader volumetric path.
-- Combat elements will NOT be gravitationally lensed. This is the correct tradeoff -- enemies orbit at r=28-86 where lensing is minimal anyway.
+**Option A — Logarithmic depth buffer (recommended):**
+Requires the `EXT_frag_depth` WebGL 1.0 extension (available on all major desktop GPUs; confirmed WebGL 1.0 extension, not WebGL 2.0 only). In the fragment shader, write:
+```glsl
+#extension GL_EXT_frag_depth : enable
+gl_FragDepthEXT = log2(max(1e-6, 1.0 + fragDistanceFromCamera)) / log2(1.0 + farPlane);
+```
+Logarithmic distribution gives ~equal depth precision across each decade of distance. At 350,000 km far plane: planets at 28,000 km and 86,000 km would use clearly distinct depth values. Cost: disables early fragment test optimization (GPU-side optimization that discards fragments before shader runs). Performance hit is typically 5–15% on desktop GPUs.
 
-**Detection:** Any code review that finds `u_enemy` or combat-related uniforms referenced inside the `for (int i = 0; i < 250; i++)` loop in `shaders.js`.
+**Option B — Multi-frustum rendering (fallback):**
+Render the scene in two passes with different near/far planes:
+- Pass 1: near=0.01 km, far=500 km (combat entities, close-up)
+- Pass 2: near=100 km, far=400,000 km (planets, BH background)
+Clear the depth buffer between passes. Objects appearing in both ranges are rendered in the appropriate pass. This requires no extension and has no fragment shader cost. The tradeoff: any object spanning both ranges (e.g., a ship passing Jupiter) must be rendered in both passes. Cesium uses this as its EXT_frag_depth fallback.
 
-**Phase:** Architecture phase -- establish the multi-pass rendering pipeline before implementing any combat visuals.
+**Warning signs:**
+- Jupiter and Saturn at different orbital radii flash and interchange depth positions.
+- The BH (rendered by the ray march) appears to clip through combat geometry at certain angles.
+- Any geometry at r > 1,000 scene units shows flickering.
 
----
-
-### Pitfall 3: Per-Enemy Draw Calls Instead of Instanced Batching
-
-**What goes wrong:** Drawing each enemy ship with individual `gl.drawElements()` calls, each requiring its own model matrix uniform upload, buffer bind, and state setup. At 50 enemies, this means 50+ draw calls with 200+ GL state changes per frame.
-
-**Why it happens:** The existing missile rendering code (in `index.html` lines 665-687) already does this: it loops over `missiles[]` and makes individual draw calls with individual matrix computations. This pattern works fine for 6 missiles but will collapse at 50 enemies, because each GL call in WebGL has validation overhead that native OpenGL does not.
-
-**Consequences:**
-- At 50 enemies with per-enemy draw calls: ~50 `useProgram` or uniform uploads, ~100 `bindBuffer` calls, ~50 `drawElements` calls = ~200 GL calls just for enemies. On WebGL, each call has CPU-side validation overhead.
-- The CPU becomes the bottleneck instead of the GPU. The ray march shader finishes but the JS/GL command stream cannot keep up.
-- The existing pattern of computing per-object MVP matrices in JS (`mat4Model`, `mat4Mul` x3, `mat3NormalFromMat4`) allocates or fills scratch arrays. At 50 enemies this is ~750 typed array operations per frame (already pre-allocated, but still CPU work).
-
-**Prevention:**
-- Use `ANGLE_instanced_arrays` extension (WebGL 1.0) from day one. The extension is widely available -- check for it at init and have a fallback.
-- Pack per-instance data (position, orientation, scale, color/type) into a single Float32Array buffer. Upload once per frame with `gl.bufferSubData()`.
-- Use `vertexAttribDivisorANGLE(attr, 1)` for instance attributes, `drawArraysInstancedANGLE()` for the draw call.
-- One draw call for ALL enemies of the same mesh type. If there are 3 enemy types, that is 3 draw calls maximum.
-- Pre-allocate the instance buffer at maximum enemy capacity (e.g., 64 enemies * stride). Never resize with `bufferData` at runtime -- use `bufferSubData` into the existing allocation.
-
-**Detection:** More than 5 `gl.drawElements` or `gl.drawArrays` calls for enemy rendering in the render loop. Any loop over enemies that calls `gl.bindBuffer` inside.
-
-**Phase:** Must be designed in the architecture phase and implemented in the first enemy rendering phase. Retrofitting instancing onto per-object draw calls is a rewrite.
+**Phase to address:** Scale introduction phase. The perspective matrix parameters and depth strategy must be decided before any 3D geometry is drawn at km-scale distances.
 
 ---
 
-### Pitfall 4: N-Body Gravity for Every Combat Entity
+### Pitfall 3: Physics Tunneling at High Time Acceleration
 
-**What goes wrong:** Computing gravitational acceleration from the black hole + 7 planets for every enemy ship and every projectile every frame, using the same `computeGravAccel()` function used for the player ship.
+**What goes wrong:**
+With warp speed (time acceleration factor W), `dt` per physics tick becomes `dt_wall * W`. At W=100x and 60 fps: `dt = (1/60) * 100 = 1.67 seconds/tick`. A kinetic round at 80 units/s (in old scale) travels `80 * 1.67 = 133 units` in one tick. If a ship is 10 units wide and 133 units away, the round tunnels clean through it — the start-of-tick position is "in front" and the end-of-tick position is "behind," but no collision is detected because discrete collision only checks positions at tick boundaries.
 
-**Why it happens:** The existing `computeGravAccel()` and `computeGravAccelAtTime()` functions work correctly and are already written. The natural instinct is to reuse them for all entities. But they perform 8 gravity source evaluations (1 BH + 7 planets), each with a `Math.sqrt` and division. For 50 enemies + 20 projectiles = 70 entities: 70 * 8 = 560 sqrt calls + 560 divisions per physics tick. With Verlet integration requiring 2 evaluations per step: 1120 sqrt + 1120 div per tick.
+In km-scale with warp: the BH has radius 10,000 km. A ship at orbit 28,000 km moving at ~2,800 km/s (Keplerian at that orbit) travels 4,666 km per tick at W=100. Jupiter's diameter is 4,000 km. At W=100, a ship can tunnel through Jupiter in one tick.
 
-**Consequences:**
-- At bullet time scale (0.03x), physics ticks are small but frequent. At fast-forward (0.5x), ticks are larger.
-- With 70 entities and 2-pass Verlet: ~1120 sqrt and ~1120 div per physics frame. At 60fps: ~67,200 sqrt/s. This is not catastrophic on modern CPUs but is wasteful.
-- The real danger is trajectory prediction: `simulateTrajectory()` runs 100 forward steps for the player. If weapons need trajectory preview (kinetic cannon arcs, missile paths), and you want previews for multiple weapons simultaneously, the computation explodes: 4 weapons * 100 steps * 2 passes * 8 sources = 6400 gravity evals per frame just for previews.
+The problem is compounded for small, fast-moving projectiles in warp mode.
 
-**Prevention:**
-- **Enemies:** Use BH-only gravity (single source). Planetary perturbation at the orbital distances enemies operate is negligible for gameplay. One sqrt + one div per entity per pass.
-- **Projectiles:** BH-only for kinetic cannon and missiles. Plasma gun has no gravity effect per spec.
-- **Trajectory preview:** Cache and update every N frames (e.g., every 3rd frame like hover detection). Use BH-only for preview simulation.
-- **Player ship:** Keep full n-body (BH + 7 planets) since it is a single entity and the precision matters for orbital transfers.
-- Document the gravity model hierarchy explicitly: player=full, enemies=BH-only, projectiles=BH-only or none.
+**How to avoid:**
+Three-layer defense:
 
-**Detection:** `computeGravAccel()` called inside a loop over enemies or projectiles. Any function doing `for(let i=0;i<7;i++)` planet iteration for non-player entities.
+1. **Disable or suspend projectile physics during warp.** If warp speed is only for transit (no combat during warp), there is nothing to tunnel. Gate projectile simulation behind `if (timeAccelFactor <= 4.0)` or similar. This is the simplest and most correct approach given the project spec ("warp for transit").
 
-**Phase:** Physics/movement phase. Must be decided before implementing enemy movement.
+2. **Clamp dt with a physics sub-step limit.** For each game loop tick at time acceleration W, instead of one tick with `dt = dt_wall * W`, run `ceil(W / W_max)` sub-steps each with `dt = dt_wall * W / numSubSteps`. Choose `W_max` such that the largest fast object cannot move more than half its own radius per sub-step. For a 500 m (0.5 km) ship at 2,800 km/s: max dt = `(0.5 km / 2) / 2800 km/s = 0.09 ms`. At W=100 and 60 fps, real dt = 16.67 ms: `16.67 * 100 / 0.09 = 18,500 sub-steps` — completely infeasible. This confirms that projectile physics must be suspended during warp.
 
----
+3. **Sweep tests for planet/BH collision only.** Warp is valid for ship transit between orbits where the key collision is ship hitting a planet or the BH. For these large bodies (radius > 2,000 km), the large body radius makes sweep testing easy: check if the line segment `(pos_start, pos_end)` passes within `bodyRadius + shipRadius` of the body. This is a single ray-sphere intersection test per body per warp tick. 7 planets + 1 BH = 8 intersection tests per tick — cheap.
 
-### Pitfall 5: Depth Buffer Conflicts Between Fullscreen Quad and 3D Geometry
+**Warning signs:**
+- In warp mode, player ship passes through Jupiter's model visually with no collision response.
+- Warp exit position places the ship inside a planet's surface.
+- After exiting warp, physics state is corrupted (NaN velocities, positions at Infinity).
 
-**What goes wrong:** The fullscreen ray march quad writes to the depth buffer at z=0 (since it is a 2D quad with `gl_Position = vec4(a_pos, 0.0, 1.0)`). When 3D combat geometry is rendered afterward with depth testing enabled, the depth comparison against the quad's z=0 causes geometry to be either always-visible or always-occluded depending on depth function.
-
-**Why it happens:** The existing nav mode code already handles this correctly by doing `gl.clear(gl.DEPTH_BUFFER_BIT)` after the ray march and before 3D geometry (line 644 in index.html). But combat adds complexity: transparent effects (explosions, plasma trails, shields) need blending, and blending + depth testing interact poorly. Additionally, combat entities at vastly different distances (r=28 to r=86) need correct depth ordering relative to each other AND relative to planets/accretion disk rendered by the shader.
-
-**Consequences:**
-- Transparent sprites (explosion effects, plasma bolts) rendered with depth writes will occlude geometry behind them with their invisible pixels.
-- Without depth writes, transparent objects cannot correctly occlude each other.
-- Enemies near the camera may appear to float in front of the accretion disk or planets, breaking the illusion that they exist in the same scene.
-- The ray march renders planets and the disk in a completely different coordinate space than the 3D geometry pass. There is no shared depth buffer between them.
-
-**Prevention:**
-- Accept that the ray march pass and the geometry pass have independent depth: combat geometry uses its own depth buffer (cleared after ray march, as already done).
-- Render opaque combat geometry (enemy ships, player ship, projectiles) first with depth test + depth write.
-- Render transparent combat effects (explosions, trails, shields) second with depth test but NO depth write, sorted back-to-front.
-- For the rare case where an enemy visually overlaps a planet: the planet is rendered by the shader at a known screen position. Accept the z-ordering artifact or implement screen-space masking (complex, probably not worth it).
-- Billboard sprites (small explosions) should use `gl.depthMask(false)` + `gl.enable(gl.BLEND)`.
-
-**Detection:** Visual artifacts where enemies appear in front of the accretion disk when they should be behind it, or transparent effects creating rectangular "holes" in the scene.
-
-**Phase:** Architecture phase (rendering pipeline design) and first visual effects phase.
+**Phase to address:** Warp speed phase. Before implementing time acceleration, establish the warp-physics separation: projectiles off, planet collision as sweep test, gravity integration via sub-steps at a safe maximum dt.
 
 ---
 
-### Pitfall 6: Spawning 50 Enemies at Frame Boundaries Causing GC Spikes
+### Pitfall 4: Hardcoded Shader Constants Break at New Scale
 
-**What goes wrong:** Creating 50 new enemy objects (each with position arrays, velocity arrays, state objects, trail buffers) when a new wave spawns, causing a garbage collection spike that drops frames for 100-200ms.
+**What goes wrong:**
+The ray march shader in `shaders.js` has several distance constants calibrated to the current ~100-unit scene:
+- `float outerEdge = 14.0;` — accretion disk outer boundary (line 140)
+- `float escapeR = max(50.0 * u_orbitScale, u_camDist + 20.0);` — ray escape radius (line 537)
+- `if (r > mix(100.0, 175.0, step(1.5, u_orbitScale)) && dot(pos, vel) > 0.0) break;` — early escape (line 550)
+- `float stepCap = mix(5.0, 3.0, ...)` — Verlet step size cap (line 552)
+- Ring detection: `if (sd > 3.0 - ringPxW * 2.0 && sd < 5.5 + ringPxW * 2.0)` — Saturn ring radii (line 575)
+- Detonation radius scaling constants (tau, R expansion)
 
-**Why it happens:** JavaScript's V8 GC handles small, short-lived allocations well (as proven in optimization history entry #11 where 4000 allocs/sec had no measurable impact). But wave spawning is bursty: 0 allocations most frames, then 50 complex objects all at once. Each enemy needs Float32Array for position (3), velocity (3), forward direction (3), potentially trail buffer (180 floats for 60-point trail). That is ~200 floats * 4 bytes * 50 enemies = 40KB of typed arrays in one frame.
+In km-scale mode, if these constants remain unchanged, the accretion disk disappears (it extends only 14 "old units" but the camera is now 28,000 km away), the escape radius is 50 units (the camera is 350,000 km away, so escape happens immediately at step 0), and the ray march renders nothing except background stars.
 
-**Consequences:**
-- Single-frame allocation burst triggers minor GC collection.
-- On lower-end hardware or with browser memory pressure, this can cause a visible hitch.
-- Worse: if enemies are destroyed and recreated each wave, the old arrays become garbage. Over many waves, the nursery fills faster.
+**Why it happens:**
+The shader was designed for a scene where BH radius = ~2 units, planets at r = 28–86 units. In km-scale, BH radius = 10,000 km and planets at r = 28,000–350,000 km. The shader's internal coordinate system must be updated or the constants must be passed as uniforms that scale with the scene.
 
-**Prevention:**
-- **Object pool for enemies:** Pre-allocate a pool of 64 (or max enemy count) enemy objects at game init. Each has pre-allocated typed arrays.
-- **Pool API:** `pool.acquire()` returns a deactivated enemy, resets its state. `pool.release(enemy)` marks it available. No `new` during gameplay.
-- **Instance buffer:** Pre-allocate the GPU-side instance buffer at max capacity. `bufferSubData` writes only active enemy data each frame.
-- **Projectile pool:** Same pattern for projectiles. Pre-allocate max projectile count (e.g., 100).
-- The existing missile code already uses a simple array (`missiles[]`) with `alive` flags -- this is a partial pool pattern. Formalize it.
+**How to avoid:**
+Do NOT attempt a full unit rescaling of the ray march shader. Instead, preserve two distinct operating modes:
 
-**Detection:** Frame time spike on wave transition visible in FPS counter. `performance.memory` (Chrome) showing sawtooth pattern correlating with wave spawns.
+1. **Normal/nav mode**: unchanged shader constants, unchanged scale. The existing scene continues working exactly as today.
+2. **Combat mode (km-scale)**: the ray march renders only the BH close-up background (a sub-view or simplified version). The 3D geometry pass handles all planet rendering with standard perspective projection.
 
-**Phase:** Enemy system phase. Must be implemented from the start, not retrofitted.
+This is the safest approach and was already foreshadowed in the PROJECT.md: "LOD rendering: Far planets as 2D billboards; BH rendering tuned for close-up dominance." In combat mode, the BH is the dominant visual feature close up; planets are rendered as 3D geometry spheres, not via the ray march. The accretion disk is visible only when the camera is within a few BH radii (< 50,000 km), which is the planned "close-up dominance" case.
+
+If any shader constants must change for km-scale, they must be expressed as uniforms (not hardcoded GLSL literals) and set differently per mode. Never modify a hardcoded constant that also affects normal mode.
+
+**Warning signs:**
+- Accretion disk disappears in km-scale mode.
+- The entire scene renders black except for stars.
+- The ray march terminates at step 0 for every pixel (escape condition fires immediately).
+- `tests.html` shader invariant tests fail after scale-related changes to `shaders.js`.
+
+**Phase to address:** Scale introduction phase. Before adjusting any camera distance or world scale constant, audit every hardcoded number in `shaders.js` against the new scale. Decide which constants become uniforms vs which are replaced by a mode-split.
+
+---
+
+### Pitfall 5: WASM Memory Layout Offset Corruption After Scale Change
+
+**What goes wrong:**
+The WASM module (`WB` base64 string) uses hardcoded byte offsets for planet positions and camera data:
+- Planet positions 0–5: `0x070 + i*12` bytes (12 bytes = 3 float32 per planet)
+- Camera right: `0x048`, camera up: `0x054`
+- BH horizon radius: `0x060`
+
+These offsets were computed for the current unit system where planet positions are small floats (~28–86 units). If the scale change requires the WASM to output positions in km units (28,000–350,000), the values themselves change but the **layout does not** — WASM binary is not recompilable without source. Any JavaScript that reads these offsets and then applies a scale conversion will work correctly, but any JavaScript that assumes the values are in "scene units" without conversion will produce wrong results.
+
+The secondary risk: nav.js line 58 reads planet positions directly:
+```js
+const b = 0x070 + i * 12;
+dx = dv.getFloat32(b, true) - pos[0];
+```
+If `pos[0]` is in km-scale (e.g., 28,000) but the WASM still outputs positions in old units (38.0), the gravity computation subtracts apples from oranges: enormous incorrect gravity vectors, causing the ship to accelerate to NaN in the first tick.
+
+**How to avoid:**
+Establish a single, explicit scale factor constant: `const KM_SCALE = 1000.0;` (if 1 old unit = 1000 km). Apply this scale in exactly one place when reading from WASM memory, and in one place when writing combat entity positions to rendering buffers. Never apply the scale factor in multiple places — it compounds.
+
+Specifically:
+1. When reading planet positions from WASM (nav.js `computeGravAccel`): multiply by `KM_SCALE` after reading.
+2. When checking planet proximity, orbit radii, SOI calculations: all internal JS computations use km units.
+3. When rendering: camera-relative positions (as per Pitfall 1) handle the scale automatically.
+4. Shader uniforms `u_planetN.xyz`: these must remain in shader-coordinate space (normalized per the ray march's internal units), not km-scale coordinates — they are used for ray-sphere intersection inside the shader.
+
+Planet 6 (Mars) is JS-computed via `planetPosAtTime()` using `p.oR * sin/cos`. In km-scale mode, `p.oR` in the `planetData` array must be in km units, OR `planetPosAtTime` must apply the conversion. One place, one conversion.
+
+**Warning signs:**
+- Ship is pulled toward the wrong position (gravity points to old-scale origin when planet is at km-scale position).
+- Planet hover detection works correctly but planet rendering is displaced.
+- SOI radii computed by `computeSOI()` are wildly wrong (either millions of km or fractions of km).
+- WASM planet positions and JS planet positions diverge after the scale change.
+
+**Phase to address:** Scale introduction phase, simultaneously with the float32 precision fix (Pitfall 1). The coordinate system definition affects every subsequent system.
+
+---
+
+### Pitfall 6: Normal-Mode Scene Corruption From Scale-Change Side Effects
+
+**What goes wrong:**
+The normal navigation mode (non-combat, non-km-scale) must remain unchanged per PROJECT.md. Any global constant, `planetData` modification, or shader uniform change made for the km-scale combat mode will silently break the navigation mode. Examples of dangerous changes:
+- Modifying `planetData[i].oR` to km values: the nav mode uses `oR` for orbit rendering, collision detection, and the WASM module receives it as an input reference. If `oR` changes, normal mode renders a blank scene (orbits 28,000x too large, planets outside the escape radius).
+- Changing `BH_GM = 400` (nav.js line 10) to match km-scale gravity: the Hohmann transfer computations in `orbital.js` are calibrated to the old GM. All existing orbital mechanics break.
+- Modifying the perspective matrix near/far values at the top level: they affect both modes.
+
+**How to avoid:**
+Never mutate the `planetData` array in-place for km-scale mode. Use a **separate derived data structure** for km-scale combat:
+```js
+const KM_SCALE = 1000.0; // 1 old unit = 1000 km
+const kmPlanetData = planetData.map(p => ({
+  ...p,
+  oR: p.oR * KM_SCALE,
+  radius: p.radius * KM_SCALE
+}));
+```
+The `planetData` array is read-only for normal mode. `kmPlanetData` is used exclusively during km-scale combat.
+
+Similarly, keep `BH_GM` and `PLANET_GM_K` as-is for normal mode. Define separate `BH_GM_KM` and `PLANET_GM_K_KM` that produce physically reasonable orbital velocities at km-scale. These are separate constants, not reassignments.
+
+The perspective matrix call at index.html line 1409 currently uses `mat4Perspective(fovY, aspect, 0.1, 500, _proj)`. In km-scale mode, this must use different near/far values. This change must be gated: `const near = flyMode && kmScale ? 0.01 : 0.1; const far = flyMode && kmScale ? 500000 : 500;`.
+
+**Warning signs:**
+- Normal mode (before pressing the nav activation key) renders incorrectly after a combat-related commit.
+- Planet labels appear at wrong positions or are missing in normal mode.
+- The orbit scale (`u_orbitScale`) uniform is set incorrectly in normal mode.
+- `tests.html` shader invariant tests fail in normal mode after scale-change commits.
+
+**Phase to address:** Scale introduction phase (pre-condition). Establish the mode-split data architecture as the very first step, before any scale values change. Verify normal mode still passes `tests.html` after every commit.
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 7: Collision Detection Scaling to O(n^2)
+---
 
-**What goes wrong:** Checking every projectile against every enemy for collision: 20 projectiles * 50 enemies = 1000 distance checks per frame. Each check involves subtraction + dot product + sqrt = ~10 FLOPs. Total: ~10,000 FLOPs. This is not catastrophic alone, but combined with gravity computation and trajectory prediction, it pushes JS toward its per-frame budget.
+### Pitfall 7: Collision Bin System Silently Misses Contacts at New Scale
 
-**Prevention:**
-- Use radial bins as specified in PROJECT.md. Enemies orbit at known radii -- bin them by orbital radius bands (e.g., 5-unit bands). A projectile at r=45 only checks enemies in the r=40-50 bin.
-- Radial binning is natural for this scene because all motion is roughly coplanar (y=0 plane). A 1D radial partition is sufficient.
-- Update bin assignments only when an enemy crosses a bin boundary, not every frame.
-- For enemy-vs-player collision: check only enemies in the player's current radial bin.
+**What goes wrong:**
+The existing collision system uses `BIN_WIDTH = 10.0` covering `NUM_BINS = 20` bins (radius 0–200 units). In km-scale, the outermost orbit is 350,000 km. With `BIN_WIDTH = 10.0` (which now means 10 km), the system needs 35,000 bins — the current `Uint16Array(NUM_BINS * MAX_PER_BIN)` allocates for 20 bins. All entities at radius > 200 km go into bin 19 (the last bin, clamped by `Math.min(Math.floor(r / BIN_WIDTH), NUM_BINS - 1)`), regardless of their actual distance. Two entities 100,000 km apart are treated as collision candidates because they share the last bin. This does not cause crashes — it causes O(n^2) behavior for all entities at large orbits (false candidates) and completely misses entities in different large-radius bins.
 
-**Detection:** Frame time increasing linearly with enemy count squared rather than linearly.
+**How to avoid:**
+Redesign the bin system for km-scale at the same time as the scale change:
+- `BIN_WIDTH_KM = 5000.0` (5,000 km per bin)
+- `NUM_BINS = 80` (covers 0–400,000 km)
+- `MAX_PER_BIN = 16` (same as current)
+- Reallocate: `const binEntities = new Uint16Array(80 * 16);`
 
-**Phase:** Combat collision phase. Design bin structure when implementing projectile-enemy interaction.
+Alternatively, because enemy count is bounded at 64 and the system is already O(n*bins), consider switching to a simple angular sector bin (8 sectors * radial band) for km-scale: enemies at the same orbital radius and similar angle are collision candidates. This better matches the orbital geometry.
+
+**Warning signs:**
+- Projectiles pass through enemies at large orbital radii with no hit detection.
+- Frame time suddenly increases when all enemies are at large orbits (false candidate pairs triggering redundant distance checks).
+- `getCollisionCandidates()` returns 30+ candidates for a single projectile (all entities at large radii lumped into one bin).
+
+**Phase to address:** Scale introduction phase. Bin constants must be updated simultaneously with the scale change.
 
 ---
 
-### Pitfall 8: GL State Leaks Between Render Passes
+### Pitfall 8: Time Acceleration Causes Physics Divergence (Non-Tunneling)
 
-**What goes wrong:** The combat render pass leaves GL state (blend mode, depth test, active program, bound buffers, vertex attrib arrays) that corrupts the next frame's ray march pass or vice versa.
+**What goes wrong:**
+Separate from tunneling (Pitfall 3), large `dt` values destabilize the Verlet integrator through energy growth. The Verlet integration in `simulateTrajectory()` uses adaptive step sizes: `dt = max(0.002, min(0.08 * (r - rH), 3.0))`. This was calibrated for the old scale where BH horizon is at r≈2 and orbits at r=28–86. At km-scale, r values are thousands of times larger, making `0.08 * (r - rH)` enormous. The step size would hit the cap of 3.0 immediately — acceptable for the ray march, but with time acceleration factor W applied on top, the effective physics dt is `3.0 * W` per iteration.
 
-**Why it happens:** The existing code already manages state transitions carefully (lines 644-758 in index.html): it enables depth test and blend for nav mode, then disables them and rebinds the ray march program/buffers at the end. But combat adds more passes: enemy instanced draw, projectile draw, explosion billboard draw, UI overlay draw. Each pass may use different programs, blend modes, and vertex layouts. Missing a single `gl.disable(gl.BLEND)` or `gl.disableVertexAttribArray()` will cause the ray march to render incorrectly on the next frame.
+At W=100: `dt_effective = 300.0 simulation-seconds` per Verlet iteration during trajectory prediction. For a close orbit (r=28,000 km, period ~60s), a single Verlet step covers 300/60 * 2π = 31 radians of orbit — completely wrong prediction. The ship will spiral outward instantly in the trajectory preview.
 
-**Prevention:**
-- Define a "clean state" contract: after ALL combat rendering, the GL state must be restored to exactly what the ray march expects. Currently this is: program=`pg`, buffer=`bf`, attrib 0=enabled with 2-float pointer, blend=disabled, depth test=disabled.
-- Use a state restoration function called at the end of combat rendering, not inline state management scattered across draw calls.
-- Alternatively, use the `OES_vertex_array_object` extension for WebGL 1.0 to capture vertex attrib state in VAOs, reducing the number of `enableVertexAttribArray`/`vertexAttribPointer` calls needed during state transitions.
-- Test by toggling combat on/off rapidly -- if the ray march flickers or renders incorrectly, state is leaking.
+**How to avoid:**
+- The trajectory simulation step size must be capped independently of the world-space distance formula. In km-scale mode, use `dt = min(T_orbit / 200, dt_max_seconds)` where `T_orbit` is the orbital period of the current orbit (computable from Kepler's third law) and 200 is the number of steps per orbit for adequate resolution.
+- During warp (time acceleration), trajectory prediction is likely not needed at all — warp is for transit, not for weapon targeting. Disable trajectory preview in warp mode.
+- The existing `TRAJ_SIM_DT = 0.4` constant in nav.js is a fixed preview step. This must become adaptive in km-scale mode.
 
-**Detection:** Visual glitches (black screen, wrong colors, missing elements) that only appear when combat mode is active AND the ray march is rendering.
+**Warning signs:**
+- Trajectory preview shows the ship immediately escaping to infinity.
+- Orbit transfers compute NaN or infinite delta-v.
+- During warp, the ship's position oscillates or diverges rather than following the orbit.
 
-**Phase:** Architecture phase. Define the state contract before implementing any new render passes.
-
----
-
-### Pitfall 9: Bullet Time Physics Desync with Combat Entities
-
-**What goes wrong:** The bullet time system (0.03x time scale) and fast-forward (0.5x) affect the player ship's physics, but enemy and projectile physics use a different or incorrect time scale, causing desynchronization.
-
-**Why it happens:** The existing `updateNav()` receives `simDt` which is already scaled by bullet time. But combat adds multiple physics systems: enemy AI movement, enemy projectile flight, weapon cooldowns, wave timers. If any of these use wall-clock time instead of sim time, or use a fixed dt instead of the scaled dt, entities move at wrong speeds relative to the player.
-
-**Consequences:**
-- Enemies move at normal speed while the player is in bullet time -- unfair and disorienting.
-- Weapon cooldowns count down in real time instead of sim time, letting the player fire faster in bullet time than intended.
-- Wave spawn timers tick in real time, spawning the next wave while the player is still in slow-motion examining the field.
-
-**Prevention:**
-- ALL game logic (enemy movement, projectile flight, cooldowns, wave timers) must use the same `simDt` that the player physics uses.
-- Define a single `gameTime` (accumulated sim time) and `gameDt` (per-frame sim time delta). Every system reads from these.
-- Bullet time affects `gameDt`, which affects ALL systems uniformly.
-- Exception: UI animations (HUD transitions, text fades) should use wall-clock time so they remain responsive during bullet time.
-- The existing wave system is kill-triggered (not timed), which naturally avoids the wave timer issue. Keep it that way.
-
-**Detection:** Enter bullet time and observe: do enemies slow down proportionally? Do weapon cooldowns stretch? Does the wave counter behave correctly?
-
-**Phase:** Physics integration phase. Must be established when implementing the first non-player entity that moves.
+**Phase to address:** Warp speed phase, simultaneously with Pitfall 3.
 
 ---
 
-### Pitfall 10: LOD System Thrashing at Distance Boundaries
+### Pitfall 9: Radar/Mini-Map Coordinate Space Mismatch
 
-**What goes wrong:** Enemies near a LOD boundary (e.g., 50 units for full geometry vs billboard) oscillate between representations frame-to-frame as the camera or enemy moves slightly, causing visible popping.
+**What goes wrong:**
+The radar UI displays all objects (BH, planets, player, enemies) in a 2D projection of the 3D world. If the radar renders using world coordinates directly (e.g., drawing at pixel position `(worldX / scale, worldZ / scale)`), then at km-scale a radar 200px wide representing 700,000 km: each pixel covers 3,500 km. The player ship at 10 km is 1/350th of a pixel — invisible. Enemies at 0.5–8 km are sub-pixel. Only planets and the BH are visible.
 
-**Why it happens:** PROJECT.md specifies LOD thresholds: full geometry <50 units from camera, billboard >50, skip >200. An enemy orbiting at exactly 50 units from the camera will flip between geometry and billboard every frame as minor camera movement crosses the threshold.
+The temptation is to draw everything at a fixed screen-space size (e.g., 5px dot for ships) regardless of world size — but this breaks the spatial relationship: a ship 100 km from Jupiter would look the same as one 100,000 km away.
 
-**Prevention:**
-- Add hysteresis to LOD transitions: switch from geometry to billboard at 55 units, but switch back at 45 units. The 10-unit dead zone prevents oscillation.
-- Fade between LOD levels over 2-3 frames using alpha blending (render both and crossfade) for the transition.
-- Alternatively, use a single frame of "grace period" -- once an LOD level is assigned, it persists for at least N frames before reconsidering.
-- The skip threshold (>200) should also have hysteresis: skip at 210, resume at 190.
+**How to avoid:**
+Use a **hybrid representation** on the radar:
+- Bodies (BH, planets): true-scale markers relative to the radar's field of view. At full radar extent (350,000 km), a 10,000 km BH occupies 10,000/350,000 = 2.9% of radar width = ~5-6 pixels at 200px radar. Render as filled circle of that size.
+- Ships: minimum 4px dot, clamped to no larger than their orbital radius / 50 scale. Never sub-pixel.
+- The radar's zoom level (full-extent vs zoomed-in local area) dramatically changes what is visible. Implement two zoom levels: overview (show all orbits) and local (show combat zone around player).
 
-**Detection:** Visual popping/flickering of enemies at medium distance. LOD counter showing rapid switches.
+**Warning signs:**
+- Radar shows only BH with no visible ships.
+- Ship positions on radar do not match their visual positions in the main viewport.
+- Zoom in/out produces non-linear jumps in what is visible.
 
-**Phase:** Enemy rendering phase, when implementing the LOD system.
-
----
-
-### Pitfall 11: Instanced Rendering Buffer Overrun
-
-**What goes wrong:** The pre-allocated instance buffer holds 64 enemy slots, but a boss wave spawns 65 enemies, writing past the buffer end and causing a WebGL error or silent data corruption.
-
-**Prevention:**
-- Cap the maximum active entity count in the wave spawner, not just the buffer. The spawner must never create more entities than the pool supports.
-- Use `bufferSubData` with explicit offset and length. Never write more than `maxInstances * instanceStride` bytes.
-- Log a warning (not crash) if the spawner attempts to exceed capacity, and defer excess spawns to the next frame.
-- Define capacity constants in one place: `MAX_ENEMIES = 64`, `MAX_PROJECTILES = 128`, `MAX_EXPLOSIONS = 32`. All systems reference these.
-
-**Detection:** WebGL errors in console about buffer overrun, or enemies appearing with corrupted positions/colors.
-
-**Phase:** Enemy system phase and wave spawning phase. Must be designed together.
+**Phase to address:** Radar/mini-map phase.
 
 ---
 
-### Pitfall 12: Tactical Zoom-Out Camera Exposing Ray March Quality Issues
+### Pitfall 10: Warp Speed Distorts Perceived Orbital Period for Difficulty Balancing
 
-**What goes wrong:** Tactical targeting mode zooms the camera far out to see the entire black hole system. At extreme distances (camDist > 200), the ray march runs fewer iterations per pixel (rays escape faster), but the accretion disk and photon ring shrink to a few pixels, causing visual artifacts from aliasing.
+**What goes wrong:**
+The project spec states "Jupiter orbit in 60 seconds defines all velocities." This means enemy orbital speeds, weapon velocities, and engagement times are all calibrated to a 60-second Jupiter orbit at real (1x) time scale. If warp accelerates time by 100x, a Jupiter orbit takes 0.6 seconds. Enemy ships that were at consistent positions relative to the player at 1x become a chaotic blur at 100x. When the player exits warp, they may find themselves inside an enemy fleet that appeared to be far away during warp approach.
 
-**Why it happens:** The ray march is tuned for `camDist` in the range of 40-120 (normal mode) to 60-200 (nav mode). Tactical zoom-out might push `camDist` to 300+. At these distances, the escape radius `max(50*orbitScale, camDist+20)` becomes very large, and the step size at the camera position is `0.08 * (300 - r_h) = ~24`, far above the step cap of 5.0. The cap kicks in immediately, meaning ALL iterations use the maximum step size. This is actually fine for iteration count -- rays escape quickly. But the black hole shrinks to ~20px and the disk to ~5px, making aliasing severe.
+**How to avoid:**
+- During warp: disable enemy AI and combat entirely. Enemies hold position (or continue on rails without AI updates). The warp is purely for transit — no combat should be possible.
+- Warp entry/exit should check for nearby enemies within a safety radius and refuse to enter warp if combat is imminent. This prevents players from warping into enemy formations.
+- The "max 30s transfers" spec implies warp factor is limited: at most W = `transfer_time_realtime / 30s`. A 10-minute Hohmann transfer warps at W=20, not W=1000. Cap warp factor so the screen never becomes unreadable.
 
-**Consequences:**
-- Accretion disk appears as noisy scattered pixels at extreme zoom.
-- Photon ring becomes a single pixel with frame-to-frame jitter.
-- The scene looks "broken" at the exact moment the player is supposed to have a tactical overview.
+**Warning signs:**
+- Enemies appear at wrong positions after exiting warp.
+- Player can fire weapons during warp and hit enemies that appear stationary.
+- Orbital trajectories computed during warp show wrong intercept predictions.
 
-**Prevention:**
-- Set a maximum `camDist` for tactical mode that keeps the black hole scene visually coherent. Test at various distances to find the threshold.
-- At extreme zoom, consider rendering the black hole as a simplified sprite/icon rather than the full ray march. The ray march is designed for beauty at close range, not for tactical readability.
-- Alternatively, render the ray march at a lower resolution (the dynamic `renderScale` system already exists) and overlay tactical UI elements (orbit lines, enemy markers, weapon ranges) as crisp vector graphics.
-- The tactical view's value is strategic information, not shader beauty. Invest in clear UI overlays, not shader quality at 300 units.
-
-**Detection:** Enter tactical view and check if the black hole looks like a noisy mess vs a recognizable feature.
-
-**Phase:** Tactical targeting mode phase. Test camera distance limits early.
+**Phase to address:** Warp speed phase.
 
 ---
 
-## Minor Pitfalls
+## Technical Debt Patterns
 
-### Pitfall 13: WebGL Extension Availability Assumptions
+Shortcuts that seem reasonable but create long-term problems.
 
-**What goes wrong:** Assuming `ANGLE_instanced_arrays` or `OES_vertex_array_object` is available without checking, causing a crash on devices that lack them.
-
-**Prevention:**
-- Check for extensions at initialization. `ANGLE_instanced_arrays` is available on 97%+ of WebGL 1.0 implementations, but not 100%.
-- Have a fallback path: if instancing is unavailable, fall back to batched `drawArrays` with per-batch uniform updates (slower but functional).
-- Cache extension references: `const instExt = gl.getExtension('ANGLE_instanced_arrays');`
-
-**Detection:** White screen or console error on older browsers/devices.
-
-**Phase:** Architecture phase, during rendering pipeline setup.
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Store km-scale positions in Float32Array | Avoids refactoring SoA stores | Vertex jitter, missed collisions (Pitfall 1) | Never — use float64 JS numbers for world coords, only convert to float32 at render time |
+| Scale existing shader constants by 1000 | Quick scale match | Corrupts normal mode, breaks shader invariants (Pitfall 4, 6) | Never — use mode-split uniforms instead |
+| Re-use `BIN_WIDTH=10` collision bins | No code change | All entities pile into last bin at km-scale, O(n^2) (Pitfall 7) | Never at km-scale — must update bin constants |
+| Apply time acceleration to all dt uniformly | Simple code | Physics divergence, tunneling, NaN positions (Pitfalls 3, 8) | Only safe when W <= 4x; gate projectiles/AI above that |
+| `planetData` mutation for km-scale | One data structure | Corrupts nav mode, WASM reads wrong values (Pitfall 6) | Never — derive kmPlanetData separately |
+| Keep near=0.1, far=500 perspective params | No depth buffer changes | Z-fighting at all orbital radii in km-scale (Pitfall 2) | Only in normal mode; km-scale requires new near/far |
 
 ---
 
-### Pitfall 14: HUD Element Overflow in Combat Mode
+## Integration Gotchas
 
-**What goes wrong:** Combat adds many HUD elements (hull integrity, shield status, 4 weapon statuses, wave counter, orbit info) that overlap with existing HUD elements (spin, range, FPS, nav controls) on small screens.
+Common mistakes when connecting the km-scale system to existing components.
 
-**Prevention:**
-- Hide non-essential normal-mode HUD elements during combat (spin readout, helm controls).
-- Design combat HUD layout at the minimum supported resolution.
-- Use the existing `.nav-active` CSS class pattern to toggle HUD sections.
-- Group related combat HUD info (all weapon statuses in one panel, not scattered).
-
-**Detection:** HUD elements overlapping at 1280x720 or smaller.
-
-**Phase:** HUD/UI phase.
-
----
-
-### Pitfall 15: Weapon Trajectory Preview Performance
-
-**What goes wrong:** Computing trajectory previews for 4 different weapon types simultaneously (kinetic cannon arc, missile path, plasma range indicator, nuclear blast radius), each requiring forward simulation.
-
-**Prevention:**
-- Only preview the currently selected weapon, not all four.
-- Kinetic cannon: simulate 50 steps forward with BH-only gravity. Cache and update every 3 frames.
-- Missile: show straight line to target (PN guidance makes actual path unpredictable before launch).
-- Plasma: show range ring (no simulation needed -- it is a line-of-sight weapon with distance fade).
-- Nuclear: show blast radius circle at target (no trajectory -- it reuses the existing missile code).
-- Reuse the existing `simulateTrajectory()` infrastructure and scratch arrays.
-
-**Detection:** FPS drop when weapon preview is active, especially with multiple weapons selected.
-
-**Phase:** Weapon system phase.
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| WASM planet positions | Reading WASM float32 values and treating as km coordinates | Apply `KM_SCALE` conversion after reading; define the mapping in exactly one JS function |
+| Ray march shader | Passing km-scale camera position as `u_camPos` | The ray march operates in its own internal coordinate space; `u_camPos` must remain in the ray march's space, not km-scale world space |
+| Perspective matrix | Using same near/far for both modes | Gate on mode: `near = isKmScale ? 0.01 : 0.1; far = isKmScale ? 500000 : 500` |
+| `computeGravAccel` with km positions | Calling it with km-scale positions when BH_GM is calibrated for old units | Either use separate km-scale GM constants, or normalize position before passing to gravity function |
+| HUD distance readouts | Displaying "RANGE 28000.0 M" (old units * KM_SCALE) | Convert and label correctly: "28,000 km" or "28 Mm" depending on magnitude |
+| Collision bins | Calling `getCollisionCandidates()` with km-scale radius | Bin constants must be updated (Pitfall 7); rebuild bins with new BIN_WIDTH_KM |
 
 ---
 
-### Pitfall 16: Enemy AI Gravity Integration Drift
+## Performance Traps
 
-**What goes wrong:** Enemies using simple Euler integration for orbital motion accumulate energy errors, causing orbits to spiral inward or outward over time. After 10+ waves, enemies have drifted significantly from their intended orbital bands.
+Patterns that work at current scale but fail after the scale change.
 
-**Prevention:**
-- Use Verlet integration for enemy orbits (same as the player ship), which is symplectic and conserves energy long-term.
-- Alternatively, for enemies on stable patrol orbits: compute their position analytically (`r*sin(omega*t + phase)`) and only switch to physics simulation when they are maneuvering (attacking, evading).
-- Hybrid approach: "rail" orbits for passive enemies, physics for active combat.
-
-**Detection:** Enemies bunching up near the black hole or drifting to infinity after many waves.
-
-**Phase:** Enemy AI/movement phase.
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Trajectory simulation at W>1x | Spiral-to-infinity in preview, NaN velocities | Cap warp dt; disable preview during warp | W > ~4x at km-scale |
+| Planet hit detection sweeptest every frame during warp | 8 ray-sphere tests * 60 fps * W=100 is only 480 ops — fine | Actually not a trap; sweep tests are cheap even at high warp | Does not break, but see Pitfall 3 |
+| Float64 camera-relative subtraction every frame | JS float64 subtract for 64 entities * 3 coords = 192 ops/frame — negligible | Not a trap — do it | Does not break performance |
+| Radar rendering all entities at 60fps | 64 enemies + 7 planets + projectiles = ~80 canvas2D draw calls | Throttle radar to 20fps (render every 3rd frame); combat is 60fps, radar is informational | Fine at current entity count |
+| Logarithmic depth buffer disabling early-z | 5–15% fragment shader slowdown | Acceptable on desktop; test on target GPU (GTX 1060 tier) | Below 30fps threshold only on very low-end hardware |
 
 ---
 
-## Phase-Specific Warnings
+## "Looks Done But Isn't" Checklist
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Rendering pipeline setup | #2 (combat in ray march), #3 (per-entity draws), #5 (depth conflicts), #8 (state leaks), #13 (extension availability) | Design multi-pass pipeline with instancing from day one. Define GL state contract. |
-| Enemy rendering | #3 (per-entity draws), #10 (LOD thrashing), #11 (buffer overrun) | Use instanced rendering, add LOD hysteresis, enforce capacity limits. |
-| Enemy movement/AI | #4 (n-body for all entities), #9 (bullet time desync), #16 (integration drift) | BH-only gravity for enemies, unified simDt, Verlet or analytic orbits. |
-| Wave spawning | #6 (GC spikes), #11 (buffer overrun) | Pre-allocated object pool, capacity enforcement in spawner. |
-| Collision detection | #7 (O(n^2) scaling) | Radial bins from the start. |
-| Weapon systems | #15 (preview performance), #9 (cooldown timing) | Preview only selected weapon, use simDt for all timers. |
-| Tactical targeting mode | #12 (zoom-out quality), #14 (HUD overflow) | Cap camera distance, invest in UI overlays over shader beauty. |
-| Shader integration | #1 (parameter contamination), #2 (combat in ray march) | Mode-gate ALL parameters, enforce architecture boundary. |
+Things that appear complete but are missing critical pieces.
+
+- [ ] **Scale change complete**: Verify `planetData.oR` values are NOT changed (only `kmPlanetData` uses km values). Check by confirming normal-mode planet positions in WASM are still correct after the commit.
+- [ ] **Float32 precision handled**: Verify all combat entity positions in SoA stores are sourced from float64 JS numbers and only converted to float32 at render time. Check that no Float32Array stores the raw km-scale world coordinate.
+- [ ] **Z-fighting solved**: Fly camera to outermost orbit in km-scale mode and verify Jupiter and Saturn do not flicker against each other. Check at camDist = 350,000 km.
+- [ ] **Tunneling prevented during warp**: Verify projectile system is suspended during warp. Verify planet/BH sweep collision works by warping directly toward a planet and confirming collision response fires.
+- [ ] **Normal mode preserved**: Run `tests.html` after every scale-related commit. Verify by loading the page without entering combat mode and confirming the black hole scene renders identically to before.
+- [ ] **Warp factor capped**: Confirm that warp never accelerates beyond the factor needed for 30-second transfers. At Jupiter orbit (60s period), a Hohmann transfer to Saturn takes ~90s, so max warp = 90/30 = 3x. Verify the warp factor ceiling is enforced.
+- [ ] **Collision bins updated**: After scale change, log `getCollisionCandidates()` return count for a projectile at r=28,000 km. It should return only nearby entities, not 30+ false positives.
+- [ ] **WASM offset reads documented**: Add a comment in nav.js at every WASM offset read (`0x070 + i*12`) documenting what scale the value is in and whether `KM_SCALE` conversion is applied.
+
+---
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Float32 vertex jitter discovered late | MEDIUM | Audit all Float32Array position stores; replace world-coord stores with float64 JS numbers; add camera-relative conversion at render time. Typically 1–2 days of refactoring. |
+| Z-fighting in production | LOW | Add EXT_frag_depth check at GL init; implement logarithmic depth in fragment shader for combat pass only; 2–4 hours. |
+| Normal mode corrupted by scale change | HIGH | `git revert` to the commit before planetData was mutated; reintroduce scale as derived kmPlanetData instead of mutation; 1–3 days to re-integrate all dependent code. |
+| Tunneling during warp discovered in testing | LOW | Add `if (warpFactor > PHYSICS_SAFE_THRESHOLD) { skipProjectiles(); useSweptBodies(); }` — the architectural separation is already planned; just enforce the gate. 1–4 hours. |
+| WASM coordinate mismatch | MEDIUM | The WASM binary is not modifiable; all fixes must be in JS. Add a single wrapper function for WASM planet position reads that applies the scale conversion. 1 day to trace all call sites. |
+| Collision bin overflow at km-scale | LOW | Update `BIN_WIDTH` and `NUM_BINS` constants and reallocate `binEntities` Uint16Array. 1–2 hours. |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| 1: Float32 position precision | Phase 1 (scale introduction) | No visible jitter on stationary enemies at r=350,000 km |
+| 2: Z-fighting near/far ratio | Phase 1 (scale introduction) | No depth flickering between planets at different orbital radii |
+| 3: Physics tunneling at high warp | Phase N (warp speed) | Warp directly into a planet: collision fires. Projectiles suspended during warp. |
+| 4: Hardcoded shader constants break | Phase 1 (scale introduction) | `tests.html` passes. Ray march visible in both normal mode and km-scale close-up. |
+| 5: WASM offset corruption | Phase 1 (scale introduction) | Planet gravity vectors point to correct km-scale positions. Nav mode orbit mechanics unchanged. |
+| 6: Normal mode corruption | Phase 1 (scale introduction), every phase | `tests.html` passes after every commit. Normal mode visually identical before and after km-scale changes. |
+| 7: Collision bin miss at new scale | Phase 1 (scale introduction) | Collision candidate count is O(1) per projectile, not O(n) |
+| 8: Verlet divergence at large dt | Phase N (warp speed) | Trajectory preview at W=20x still shows physically plausible orbit |
+| 9: Radar coordinate mismatch | Phase N (radar implementation) | Ships visible as distinct dots on radar at all orbital radii |
+| 10: Warp distorts orbital timing | Phase N (warp speed) | Enemy positions correct after warp exit. Combat not possible during warp. |
+
+---
 
 ## Sources
 
-- [Optimization history from this project](blackhole-shader-optimization.md) -- entries #10, #11, #12, #13, #14, #15 are directly relevant
-- [Hover detection history from this project](hover-detection.md) -- demonstrates ray march architectural constraints
-- [MDN WebGL Best Practices](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices) -- state management, draw call batching, buffer strategies
-- [Emscripten WebGL Optimization Guide](https://emscripten.org/docs/optimizing/Optimizing-WebGL.html) -- buffer upload strategies, state change minimization
-- [MDN ANGLE_instanced_arrays](https://developer.mozilla.org/en-US/docs/Web/API/ANGLE_instanced_arrays) -- WebGL 1.0 instancing extension
-- [WebGL Fundamentals - Instanced Drawing](https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html) -- instancing patterns
-- [Game Programming Patterns - Spatial Partition](https://gameprogrammingpatterns.com/spatial-partition.html) -- collision detection partitioning
-- [TojiCode - WebGL instancing](https://blog.tojicode.com/2013/07/webgl-instancing-with.html) -- ANGLE_instanced_arrays practical usage
-- [WebGL and Alpha / Transparency](https://webglfundamentals.org/webgl/lessons/webgl-and-alpha.html) -- depth buffer and blending interactions
-- [William Henderson - GC in V8 with WebGL](https://whenderson.dev/blog/webgl-garbage-collection/) -- object pooling to avoid GC frame drops
-- [KSP Forum - N-body CPU intensity](https://forum.kerbalspaceprogram.com/topic/82212-whats-so-cpu-intensive-about-n-body-physics/) -- gravity simplification strategies for games
+- [WebGL2 Fundamentals: Precision Issues](https://webgl2fundamentals.org/webgl/lessons/webgl-precision-issues.html) — float32 mediump/highp analysis, precision loss at large values (HIGH confidence)
+- [Re:Earth Engineering: High Precision Rendering](https://reearth.engineering/posts/high-precision-rendering-en/) — RTE camera-relative rendering technique for km-scale scenes (HIGH confidence)
+- [Godot Engine: Emulating Double Precision on GPU](https://godotengine.org/article/emulating-double-precision-gpu-render-large-worlds/) — split-float and RTE approaches for large worlds (HIGH confidence)
+- [Gaffer On Games: Fix Your Timestep](https://gafferongames.com/post/fix_your_timestep/) — fixed timestep, sub-step accumulator, max-dt clamping for physics stability (HIGH confidence)
+- [Cesium Blog: Hybrid Multi-Frustum Logarithmic Depth Buffer](https://cesium.com/blog/2018/05/24/logarithmic-depth/) — logarithmic depth buffer with EXT_frag_depth fallback to multi-frustum (HIGH confidence)
+- [Game Developer: Logarithmic Depth Buffer](https://www.gamedeveloper.com/programming/logarithmic-depth-buffer) — formula, 24-bit precision analysis, performance considerations (HIGH confidence)
+- [MDN: EXT_frag_depth](https://developer.mozilla.org/en-US/docs/Web/API/EXT_frag_depth) — confirmed WebGL 1.0 extension (not WebGL 2.0 only) (HIGH confidence)
+- [LearnOpenGL: Depth Testing](https://learnopengl.com/Advanced-OpenGL/Depth-testing) — near/far ratio impact on depth buffer precision distribution (HIGH confidence)
+- Direct codebase inspection: `shaders.js` (shader constants, escape radii), `combat.js` (BIN_WIDTH=10, NUM_BINS=20), `nav.js` (BH_GM=400, WASM offsets 0x070+i*12), `index.html` (mat4Perspective near=0.1 far=500, line 1409) (HIGH confidence — authoritative)
+
+---
+*Pitfalls research for: km-scale WebGL scene transition and warp speed physics*
+*Researched: 2026-03-14*
