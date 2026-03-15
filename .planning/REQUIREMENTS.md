@@ -112,46 +112,46 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCALE-01 | — | Pending |
-| SCALE-02 | — | Pending |
-| SCALE-03 | — | Pending |
-| SCALE-04 | — | Pending |
-| SCALE-05 | — | Pending |
-| SCALE-06 | — | Pending |
-| SCALE-07 | — | Pending |
-| TIME-01 | — | Pending |
-| TIME-02 | — | Pending |
-| FLEET-01 | — | Pending |
-| FLEET-02 | — | Pending |
-| FLEET-03 | — | Pending |
-| FLEET-04 | — | Pending |
-| RADAR-01 | — | Pending |
-| RADAR-02 | — | Pending |
-| RADAR-03 | — | Pending |
-| RADAR-04 | — | Pending |
-| RADAR-05 | — | Pending |
-| VIEW-01 | — | Pending |
-| VIEW-02 | — | Pending |
-| VIEW-03 | — | Pending |
-| WARP-01 | — | Pending |
-| WARP-02 | — | Pending |
-| WARP-03 | — | Pending |
-| WARP-04 | — | Pending |
-| WARP-05 | — | Pending |
-| COLL-01 | — | Pending |
-| COLL-02 | — | Pending |
-| COLL-03 | — | Pending |
-| COLL-04 | — | Pending |
-| REND-01 | — | Pending |
-| REND-02 | — | Pending |
-| REND-03 | — | Pending |
-| REND-04 | — | Pending |
+| SCALE-01 | Phase 10 | Pending |
+| SCALE-02 | Phase 10 | Pending |
+| SCALE-03 | Phase 10 | Pending |
+| SCALE-04 | Phase 10 | Pending |
+| SCALE-05 | Phase 10 | Pending |
+| SCALE-06 | Phase 10 | Pending |
+| SCALE-07 | Phase 10 | Pending |
+| TIME-01 | Phase 10 | Pending |
+| TIME-02 | Phase 10 | Pending |
+| FLEET-01 | Phase 13 | Pending |
+| FLEET-02 | Phase 13 | Pending |
+| FLEET-03 | Phase 13 | Pending |
+| FLEET-04 | Phase 13 | Pending |
+| RADAR-01 | Phase 15 | Pending |
+| RADAR-02 | Phase 15 | Pending |
+| RADAR-03 | Phase 15 | Pending |
+| RADAR-04 | Phase 15 | Pending |
+| RADAR-05 | Phase 15 | Pending |
+| VIEW-01 | Phase 11 | Pending |
+| VIEW-02 | Phase 11 | Pending |
+| VIEW-03 | Phase 11 | Pending |
+| WARP-01 | Phase 14 | Pending |
+| WARP-02 | Phase 14 | Pending |
+| WARP-03 | Phase 14 | Pending |
+| WARP-04 | Phase 14 | Pending |
+| WARP-05 | Phase 14 | Pending |
+| COLL-01 | Phase 12 | Pending |
+| COLL-02 | Phase 12 | Pending |
+| COLL-03 | Phase 12 | Pending |
+| COLL-04 | Phase 12 | Pending |
+| REND-01 | Phase 11 | Pending |
+| REND-02 | Phase 16 | Pending |
+| REND-03 | Phase 16 | Pending |
+| REND-04 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 after roadmap creation*
