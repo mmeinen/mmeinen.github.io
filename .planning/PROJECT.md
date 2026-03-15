@@ -12,27 +12,27 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Orbital movement system — Phases 1-2
+- ✓ Orbit altitude adjustment — Phase 2
+- ✓ Visible player ship (third-person, camera follows) — Phase 2
+- ✓ Kinetic shields — Phase 6
+- ✓ Ship destruction with explosion and game over / restart flow — Phase 6
+- ✓ Nuclear missile with volumetric explosion — Phase 4
+- ✓ Regular missiles with sprite explosions, proximity detonation, fuel system — Phase 4
+- ✓ Kinetic cannon (momentum-based, gravity-affected) — Phase 3
+- ✓ Plasma gun (energy blast, distance fade) — Phase 3
+- ✓ Tactical targeting mode (overlay, target selection, weapon assignment, salvo fire) — Phase 9
+- ✓ Enemy ships with procedural shader geometry — Phase 1
+- ✓ Kill-triggered wave spawning — Phase 7
+- ✓ Boss waves every 10 waves — Phase 7
+- ✓ Enemies fire projectiles with increasing difficulty — Phases 5, 7
+- ✓ Difficulty scaling (count, aggression, accuracy, variety) — Phase 7
+- ✓ HUD (hull, shields, weapons, wave counter, orbit info) — Phase 8
+- ✓ Performance target: 30fps+ with 30-50 enemies — Phase 1
 
 ### Active
 
-- [ ] Orbital movement system — select any body (black hole, 7 planets, Lagrange points) to orbit, ship computes and flies a physically accurate transfer orbit shown as a trajectory line, thrust controls transit speed
-- [ ] Orbit altitude adjustment once captured in orbit around a body
-- [ ] Visible player ship (third-person, camera follows)
-- [ ] Kinetic shields — physical debris/armor objects in front of the ship that absorb projectile hits
-- [ ] Ship destruction with explosion and game over / restart flow
-- [ ] Nuclear missile (existing) — massive volumetric explosion, rare use
-- [ ] Regular missiles — smaller sprite-based explosion, proximity detonation within blast radius, fuel system (self-destruct without detonation when fuel exhausted and off-target)
-- [ ] Kinetic cannon — fires projectile carried by momentum, no guidance, gravity-affected
-- [ ] Plasma gun — energy blast toward target, fades over distance, minimal gravity effect (light-based)
-- [ ] Tactical targeting mode — zoomed-out view of entire black hole system, enemy ships highlighted, select targets on orbital plane, preview weapons, issue fire command to launch salvo
-- [ ] Enemy ships with procedural shader geometry visuals
-- [ ] Kill-triggered wave spawning — clear current wave to trigger next
-- [ ] Boss waves every N waves (milestone encounters)
-- [ ] Enemies fire projectiles at player with increasing difficulty per wave
-- [ ] Difficulty scaling — enemy count, aggression, accuracy, and variety increase with waves
-- [ ] HUD: ship hull integrity, kinetic shield status, weapon status (ammo/cooldowns/selected), wave counter (current wave + enemies remaining), orbit info (current orbit, altitude, transfer status)
-- [ ] Performance target: 30fps+ on GTX 1060 / RX 580 tier hardware with 30-50 enemies
+(All v1 requirements validated — see v2 requirements in REQUIREMENTS.md)
 
 ### Out of Scope
 
@@ -72,13 +72,14 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Orbital movement (not free flight) | Physically grounded feel, reduces control complexity, gravity shapes gameplay | — Pending |
-| Tactical targeting (zoom-out + assign) vs twitch aiming | Matches tactical sim feel, works with orbital scale of the scene | — Pending |
-| Kill-triggered waves (not timed) | Player controls pace, no pressure during orbital transfers | — Pending |
-| Small explosions as 2D sprites | Volumetric shader detonations too expensive at combat frequency; sprites are 1000x cheaper | — Pending |
-| Combat elements as separate GL passes | Ray march is the bottleneck; adding per-enemy checks inside it would destroy FPS | — Pending |
-| Kinetic shields (not energy) | Physical debris absorbing hits — more visually interesting and physically grounded | — Pending |
-| Instanced rendering for enemies | One draw call for all enemies via GL instancing, massive perf win over individual draw calls | — Pending |
+| Orbital movement (not free flight) | Physically grounded feel, reduces control complexity, gravity shapes gameplay | ✓ Shipped — Phase 2 |
+| Tactical targeting (zoom-out + assign) vs twitch aiming | Matches tactical sim feel, works with orbital scale of the scene | ✓ Shipped — Phase 9 |
+| Kill-triggered waves (not timed) | Player controls pace, no pressure during orbital transfers | ✓ Shipped — Phase 7 |
+| Small explosions as 2D sprites | Volumetric shader detonations too expensive at combat frequency; sprites are 1000x cheaper | ✓ Shipped — Phase 4 |
+| Combat elements as separate GL passes | Ray march is the bottleneck; adding per-enemy checks inside it would destroy FPS | ✓ Shipped — Phase 1 |
+| Kinetic shields (not energy) | Physical debris absorbing hits — more visually interesting and physically grounded | ✓ Shipped — Phase 6 |
+| Instanced rendering for enemies | One draw call for all enemies via GL instancing, massive perf win over individual draw calls | ✓ Shipped — Phase 1 |
+| Unified combat/tactical mode | Separate T key toggle was unnecessary friction; F key activates both simultaneously | ✓ Shipped — Phase 9 (CR1) |
 
 ---
-*Last updated: 2026-03-09 after initialization*
+*Last updated: 2026-03-14 after Phase 9 — v1.0 milestone complete*
