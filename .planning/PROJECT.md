@@ -32,7 +32,22 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 
 ### Active
 
-(All v1 requirements validated. v2 candidates archived in milestones/v1.0-REQUIREMENTS.md)
+See REQUIREMENTS.md for v1.1 scope.
+
+## Current Milestone: v1.1 Realistic Scale & Fleet Combat
+
+**Goal:** Transform the scene from abstract game-units to kilometer-scale space, restructure enemies into tactical fleets, and separate navigation (radar) from combat (main viewport).
+
+**Target features:**
+- Realistic scale: BH 20,000 km, Jupiter 4,000 km, 50,000 km orbit spacing, 10 km player ship
+- Time scale: Jupiter orbit in 60 seconds defines all velocities
+- Fleet system: Structured enemy groups (max 3/wave), difficulty-scaling compositions
+- Radar/orbital chart: Mini-map (bottom-left) expands to side panel (O key), all navigation here
+- Warp speed: Spacebar toggles universal time acceleration for transit (max 30s transfers)
+- Body collision: Anything hitting a planet/BH is destroyed; player prevented from collision
+- World boundary: Invisible fence beyond outermost orbit
+- LOD rendering: Far planets as 2D billboards; BH rendering tuned for close-up dominance
+- Viewport cleanup: Main 3D view is pure combat, no orbit visuals
 
 ### Out of Scope
 
@@ -91,4 +106,4 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 | BH-only gravity for enemies/projectiles | Full N-body too expensive; BH dominates anyway at orbital scale | ✓ Good — Phase 1 |
 
 ---
-*Last updated: 2026-03-15 after v1.0 milestone completion*
+*Last updated: 2026-03-15 after v1.1 milestone started*
