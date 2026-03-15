@@ -32,7 +32,7 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 
 ### Active
 
-(All v1 requirements validated — see v2 requirements in REQUIREMENTS.md)
+(All v1 requirements validated. v2 candidates archived in milestones/v1.0-REQUIREMENTS.md)
 
 ### Out of Scope
 
@@ -45,15 +45,21 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 
 ## Context
 
-- Built on existing WebGL black hole scene (`index.html`) with Verlet ray march shader
-- Navigation mode already exists: ship spawning, thrust, trajectory preview, bullet time, missile salvos with proportional navigation guidance
-- WASM module handles planet positions for planets 0-5; planet 6 computed in JS
-- Detonation system: 6 shader slots for volumetric explosions (post ray-march, straight-line approximation)
-- Fragment shader is the bottleneck — 250-iteration ray march on every pixel. All combat rendering must happen as separate GL geometry passes, NOT inside the ray march
-- Noise LUT texture already replaces procedural vnoise3 calls
-- Dynamic resolution scaling (`renderScale`) already exists and auto-adjusts
-- Pre-allocated scratch arrays eliminate per-frame JS allocations
-- Optimization history documented in `.claude/projects/.../memory/blackhole-shader-optimization.md` — 15 experiments, most failed to improve FPS. The ray march parameters are well-tuned; don't touch them
+**Shipped v1.0** with ~3,400 LOC across 7 combat modules (combat.js, orbital.js, weapons.js, missiles.js, particles.js, waves.js, explosions.js) plus HUD and shader additions.
+
+**Tech stack:** Pure HTML/CSS/JS + WebGL 1.0 + WASM. No frameworks, no npm, no build tools.
+
+**Architecture:**
+- WebGL black hole scene (`index.html`) with Verlet ray march shader (250-iteration bottleneck)
+- All combat rendering as separate GL geometry passes after ray march (never inside it)
+- Instanced rendering via ANGLE_instanced_arrays for enemies + projectiles
+- SoA typed-array entity stores with free-list allocation for all combat entities
+- Radial bin collision detection exploiting orbital structure
+- 5 enemy archetypes with distinct procedural geometry and AI state machines
+- Billboard explosion system for regular combat; volumetric shader reserved for nuclear missiles
+- WASM handles planet positions 0-5; planet 6 (Mars) computed in JS
+
+**Performance:** 30fps+ with 50 enemies on mid-range discrete GPU (GTX 1060 tier). Dynamic resolution scaling auto-adjusts.
 
 ## Constraints
 
@@ -80,6 +86,9 @@ Tactical orbital combat that feels physically grounded — ship movement follows
 | Kinetic shields (not energy) | Physical debris absorbing hits — more visually interesting and physically grounded | ✓ Shipped — Phase 6 |
 | Instanced rendering for enemies | One draw call for all enemies via GL instancing, massive perf win over individual draw calls | ✓ Shipped — Phase 1 |
 | Unified combat/tactical mode | Separate T key toggle was unnecessary friction; F key activates both simultaneously | ✓ Shipped — Phase 9 (CR1) |
+| SoA typed arrays (not AoS objects) | Cache-friendly iteration, zero GC pressure, O(1) free-list allocation | ✓ Good — all phases |
+| Multi-geometry instanced rendering | One shared instance buffer, per-archetype byte offsets, minimal draw calls | ✓ Good — Phase 7 |
+| BH-only gravity for enemies/projectiles | Full N-body too expensive; BH dominates anyway at orbital scale | ✓ Good — Phase 1 |
 
 ---
-*Last updated: 2026-03-14 after Phase 9 — v1.0 milestone complete*
+*Last updated: 2026-03-15 after v1.0 milestone completion*
