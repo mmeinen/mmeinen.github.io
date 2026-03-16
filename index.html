@@ -177,6 +177,9 @@
     gl.getExtension('OES_standard_derivatives');
     const iExt = gl.getExtension('ANGLE_instanced_arrays');
     if (!iExt) console.error('ANGLE_instanced_arrays not supported');
+    // Log depth buffer extension for Z-fighting prevention at km-scale distances
+    const extFragDepth = gl.getExtension('EXT_frag_depth');
+    if (!extFragDepth) console.warn('EXT_frag_depth not available -- minor Z-fighting may occur at extreme ranges');
 
     let baseWidth = window.innerWidth;
     let baseHeight = window.innerHeight;
@@ -1266,6 +1269,7 @@
         dv.setFloat32(0x048,_camR[0],true);dv.setFloat32(0x04C,_camR[1],true);dv.setFloat32(0x050,_camR[2],true);
         dv.setFloat32(0x054,_camU[0],true);dv.setFloat32(0x058,_camU[1],true);dv.setFloat32(0x05C,_camU[2],true);
         // Nav mode hover detection: check if mouse is near a planet on screen
+        // Planet positions converted to km for comparison with km-scale _camP
         hP=-1;
         if(mSX>=0){
           const mD=Math.min(baseWidth,baseHeight);
@@ -1273,17 +1277,17 @@
             let px,py,pz;
             if(i<6){
               const b=0x070+i*12;
-              px=dv.getFloat32(b,true);py=dv.getFloat32(b+4,true);pz=dv.getFloat32(b+8,true);
+              px=dv.getFloat32(b,true)*ORBIT_SCALE;py=dv.getFloat32(b+4,true)*ORBIT_SCALE;pz=dv.getFloat32(b+8,true)*ORBIT_SCALE;
             }else{
               const p=planetData[6],a=p.sp*simTime+p.ph;
-              px=p.oR*Math.sin(a);py=0;pz=p.oR*Math.cos(a);
+              px=p.oR*ORBIT_SCALE*Math.sin(a);py=0;pz=p.oR*ORBIT_SCALE*Math.cos(a);
             }
             const dx=px-_camP[0],dy=py-_camP[1],dz=pz-_camP[2];
             const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
             if(dp<=0)continue;
             const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mD;
             const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mD;
-            const ar=Math.max((planetData[i].radius/dp)*mD*1.8, 30); // min 30px hit area
+            const ar=Math.max((planetData[i].radius*BODY_SCALE/dp)*mD*1.8, 30); // min 30px hit area
             const tdx=mSX-sx,tdy=mSY-sy;
             if(tdx*tdx+tdy*tdy<ar*ar){hP=i;break;}
           }
@@ -1416,7 +1420,8 @@
         const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
         const aspect=canvas.width/canvas.height;
         // CRR: gated perspective matrix -- km-appropriate near/far in flyMode
-        mat4Perspective(fovY,aspect,1.0,600000,_proj);
+        // With log depth: full range [1.0, 600000]. Without: tighter [10.0, 300000] (accept minor Z-fighting)
+        mat4Perspective(fovY,aspect,extFragDepth?1.0:10.0,extFragDepth?600000:300000,_proj);
         const _lookTarget = playerState.deathPhase >= 2 ? deathPos : flyPos;
         // CRR: view matrix with camera at origin -- look target is camera-relative
         const _crrLook=[_lookTarget[0]-_camWX,_lookTarget[1]-_camWY,_lookTarget[2]-_camWZ];
@@ -1628,11 +1633,11 @@
         // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
         if(orbitState===ORBIT_STATE.TRANSFER){
           // During transfer: simulate with guidance correction toward target
-          const _tP=getBodyPosition(transferTarget);
+          const _tP=getBodyPositionKm(transferTarget,simTime);
           const _gx=_tP[0]-flyPos[0],_gz=_tP[2]-flyPos[2];
           const _gd=Math.sqrt(_gx*_gx+_gz*_gz);
           const _gDir=_gd>0.1?[_gx/_gd,0,_gz/_gd]:null;
-          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,_gDir,1.5,999);
+          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,_gDir,1.5*ORBIT_SCALE,999);
           // CRR: offset trajectory points
           for(let ti=0;ti<n1;ti++){trajArray[ti*3]-=_camWX;trajArray[ti*3+1]-=_camWY;trajArray[ti*3+2]-=_camWZ;}
           gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);

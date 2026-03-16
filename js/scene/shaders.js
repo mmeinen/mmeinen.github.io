@@ -733,7 +733,8 @@ void main(){
   v_objPos=a_shipPos;
   gl_Position=u_mvp*vec4(a_shipPos,1.0);
 }`;
-const shipFS=`precision mediump float;
+const shipFS=`#extension GL_EXT_frag_depth : enable
+precision mediump float;
 uniform vec3 u_shipColor;
 uniform vec3 u_lightDir;
 uniform float u_thrustIntensity;
@@ -750,6 +751,9 @@ void main(){
   vec3 engineColor=vec3(0.3,0.5,1.0)*u_thrustIntensity*engineMask;
   col+=engineColor;
   gl_FragColor=vec4(col,1.0);
+#ifdef GL_EXT_frag_depth
+  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
+#endif
 }`;
 
 /* -- Trajectory Shader -- */
@@ -760,12 +764,16 @@ void main(){
   gl_Position=u_trajMVP*vec4(a_trajPos,1.0);
   gl_PointSize=u_trajPtSize;
 }`;
-const trajFS=`precision mediump float;
+const trajFS=`#extension GL_EXT_frag_depth : enable
+precision mediump float;
 uniform vec4 u_trajColor;
 void main(){
   vec2 c=gl_PointCoord-0.5;
   if(dot(c,c)>0.25)discard;
   gl_FragColor=u_trajColor;
+#ifdef GL_EXT_frag_depth
+  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
+#endif
 }`;
 
 /* -- Enemy Shader (instanced rendering) -- */
@@ -811,7 +819,8 @@ void main(){
   v_flash=a_instFlash;
   gl_Position=u_viewProj*vec4(worldPos,1.0);
 }`;
-const enemyFS=`precision mediump float;
+const enemyFS=`#extension GL_EXT_frag_depth : enable
+precision mediump float;
 uniform vec3 u_lightDir;
 uniform float u_time;
 varying vec3 v_normal;
@@ -833,6 +842,9 @@ void main(){
   col+=v_color.rgb*engineGlow;
   col=mix(col,vec3(3.0),v_flash);
   gl_FragColor=vec4(col,1.0);
+#ifdef GL_EXT_frag_depth
+  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
+#endif
 }`;
 
 /* -- Billboard Explosion Shader (instanced rendering) -- */
@@ -858,11 +870,15 @@ void main(){
     a_corner.y+0.5
   );
 }`;
-const billboardFS=`precision mediump float;
+const billboardFS=`#extension GL_EXT_frag_depth : enable
+precision mediump float;
 uniform sampler2D u_bbSprite;
 varying vec2 v_uv;
 void main(){
   vec4 texel=texture2D(u_bbSprite,v_uv);
   if(texel.a<0.01)discard;
   gl_FragColor=texel;
+#ifdef GL_EXT_frag_depth
+  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
+#endif
 }`;
