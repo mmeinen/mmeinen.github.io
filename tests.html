@@ -72,6 +72,7 @@
       background: rgba(255,64,80,0.08);
     }
   </style>
+  <script src="js/scene/scale.js"></script>
 </head>
 <body>
   <h1>// REGRESSION TESTS</h1>
@@ -996,6 +997,97 @@
         assert(shadersText.match(/u_thrustIntensity/),
           'Orbital Mechanics: u_thrustIntensity uniform in shaders.js',
           'js/scene/shaders.js must reference u_thrustIntensity');
+      }
+
+      // =============================================
+      // SCALE FOUNDATION (Phase 10) — scale.js constants
+      // =============================================
+
+      // SCALE-01: Body sizes
+      {
+        assert(typeof BODY_SCALE === 'number' && BODY_SCALE === 800,
+          'Scale Foundation: SCALE-01 BODY_SCALE === 800',
+          `BODY_SCALE = ${typeof BODY_SCALE === 'number' ? BODY_SCALE : 'undefined'}`);
+
+        const expectedDiameters = [4000, 3200, 2400, 2240, 864, 960, 2080];
+        const names = ['Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Venus', 'Earth', 'Mars'];
+        let allMatch = Array.isArray(PLANET_DIAMETER_KM) && PLANET_DIAMETER_KM.length === 7;
+        let mismatch = '';
+        if (allMatch) {
+          for (let i = 0; i < 7; i++) {
+            if (PLANET_DIAMETER_KM[i] !== expectedDiameters[i]) {
+              allMatch = false;
+              mismatch = `${names[i]}: got ${PLANET_DIAMETER_KM[i]}, expected ${expectedDiameters[i]}`;
+              break;
+            }
+          }
+        }
+        assert(allMatch,
+          'Scale Foundation: SCALE-01 planet diameters correct',
+          allMatch ? 'all 7 planet diameters match' : (mismatch || 'PLANET_DIAMETER_KM missing or wrong length'));
+      }
+
+      // SCALE-02: Jupiter orbit at ~50,000 km
+      {
+        const jupiterOrbit = typeof ORBIT_SCALE === 'number' ? ORBIT_SCALE * 38 : NaN;
+        assert(jupiterOrbit >= 49500 && jupiterOrbit <= 50500,
+          'Scale Foundation: SCALE-02 Jupiter orbit ~50,000 km',
+          `ORBIT_SCALE * 38 = ${jupiterOrbit} km (expected 49,500-50,500)`);
+      }
+
+      // SCALE-03: Archetype sizes
+      {
+        const checks = [
+          ['PLAYER_SIZE_KM', typeof PLAYER_SIZE_KM !== 'undefined' ? PLAYER_SIZE_KM : null, 10],
+          ['CAPITAL_SIZE_KM', typeof CAPITAL_SIZE_KM !== 'undefined' ? CAPITAL_SIZE_KM : null, 8],
+          ['GRUNT_SIZE_KM', typeof GRUNT_SIZE_KM !== 'undefined' ? GRUNT_SIZE_KM : null, 0.5],
+          ['SWARM_SIZE_KM', typeof SWARM_SIZE_KM !== 'undefined' ? SWARM_SIZE_KM : null, 0.5],
+        ];
+        let allOk = true;
+        let details = [];
+        for (const [name, val, exp] of checks) {
+          if (val !== exp) allOk = false;
+          details.push(`${name}=${val}`);
+        }
+        assert(allOk,
+          'Scale Foundation: SCALE-03 archetype sizes correct',
+          details.join(', '));
+      }
+
+      // TIME-02: BH_GM_KM Kepler derivation check
+      {
+        // Independently compute GM from Kepler's law
+        const r_j = 38 * (typeof ORBIT_SCALE === 'number' ? ORBIT_SCALE : 0);
+        const T_j = 60.0;
+        const gmExpected = (4 * Math.PI * Math.PI * Math.pow(r_j, 3)) / (T_j * T_j);
+        const gmActual = typeof BH_GM_KM === 'number' ? BH_GM_KM : 0;
+        const tolerance = Math.abs(gmActual - gmExpected) / gmExpected;
+        assert(tolerance < 0.001,
+          'Scale Foundation: TIME-02 BH_GM_KM matches Kepler derivation (<0.1%)',
+          `BH_GM_KM = ${gmActual.toExponential(4)}, expected ${gmExpected.toExponential(4)}, diff ${(tolerance * 100).toFixed(4)}%`);
+
+        // Verify T(Jupiter) = 2*pi*sqrt(r^3/GM) is ~60s
+        const T_check = 2 * Math.PI * Math.sqrt(
+          Math.pow(typeof JUPITER_ORBIT_KM === 'number' ? JUPITER_ORBIT_KM : 0, 3) / gmActual
+        );
+        assert(T_check >= 59.5 && T_check <= 60.5,
+          'Scale Foundation: TIME-02 T(Jupiter) from BH_GM_KM is 59.5-60.5s',
+          `T(Jupiter) = ${T_check.toFixed(4)}s`);
+      }
+
+      // SCALE-07: Collision bins
+      {
+        const bw = typeof BIN_WIDTH_KM === 'number' ? BIN_WIDTH_KM : 0;
+        const nb = typeof NUM_BINS_KM === 'number' ? NUM_BINS_KM : 0;
+        assert(bw === 5000,
+          'Scale Foundation: SCALE-07 BIN_WIDTH_KM === 5000',
+          `BIN_WIDTH_KM = ${bw}`);
+        assert(nb === 24,
+          'Scale Foundation: SCALE-07 NUM_BINS_KM === 24',
+          `NUM_BINS_KM = ${nb}`);
+        assert(bw * nb > 113176,
+          'Scale Foundation: SCALE-07 bins cover beyond Neptune orbit',
+          `${bw} * ${nb} = ${bw * nb} km > 113,176 km (Neptune orbit)`);
       }
 
       // =============================================
