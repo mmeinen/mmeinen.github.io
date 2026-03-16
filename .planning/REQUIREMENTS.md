@@ -19,7 +19,7 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Time
 
-- [ ] **TIME-01**: Ships orbit Jupiter in approximately 60 seconds at normal speed
+- [x] **TIME-01**: Ships orbit Jupiter in approximately 60 seconds at normal speed
 - [x] **TIME-02**: All orbital velocities and gravitational constants derived from the Jupiter 60s anchor
 
 ### Fleet
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCALE-05 | Phase 10 | Complete |
 | SCALE-06 | Phase 10 | Complete |
 | SCALE-07 | Phase 10 | Pending |
-| TIME-01 | Phase 10 | Pending |
+| TIME-01 | Phase 10 | Complete |
 | TIME-02 | Phase 10 | Complete |
 | FLEET-01 | Phase 13 | Pending |
 | FLEET-02 | Phase 13 | Pending |
