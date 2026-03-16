@@ -4,7 +4,7 @@ const flyPos=new Float32Array(3);
 const flyFwd=new Float32Array(3);
 const flyUp=new Float32Array(3);
 const flyVel=new Float32Array(3);
-const SHIP_HALF=[0.08,0.025,0.04], SHIP_COLOR=[0.25,0.35,0.55];
+const SHIP_HALF=[5,1.5,3], SHIP_COLOR=[0.25,0.35,0.55]; // km -- player ship half-extents (~10 km total)
 const FLY_SENSITIVITY=0.003;
 // Abstract-unit gravity constants (used by abstract-unit callers: trajectory preview, resetCombat)
 const BH_GM=400;

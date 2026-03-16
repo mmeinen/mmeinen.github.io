@@ -5,7 +5,7 @@ const MAX_EXPLOSIONS = 24;
 const EXPLOSION_DURATION = 0.5;
 const EXPLOSION_FRAME_COUNT = 6;
 const EXPLOSION_FRAME_SIZE = 64;
-const EXPLOSION_BASE_SIZE = 2.0;
+const EXPLOSION_BASE_SIZE = 1000;   // km -- base explosion size (grunt ~500m ship -> 1000 km visual explosion)
 
 /* Explosion SoA Store */
 const explosion = {

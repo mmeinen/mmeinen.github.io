@@ -119,8 +119,8 @@ function spawnWave(waveNum) {
         pIdx = planetIndices[(totalSpawned + c) % planetIndices.length];
       }
       const stPh = Math.random() * Math.PI * 2;
-      const bodyPos = getBodyPosition(pIdx);
-      const bodyR = getBodyRadius(pIdx);
+      const bodyPos = getBodyPositionKm(pIdx, simTime);
+      const bodyR = getBodyRadiusKm(pIdx);
       const stR = bodyR + STATION_KEEP_ALT;
       const planetAngle = Math.atan2(bodyPos[0], bodyPos[2]);
       const angle = planetAngle + stPh;
@@ -130,7 +130,7 @@ function spawnWave(waveNum) {
       // Capital: set auxTimer to -1.0 for warp-in phase + spawn explosion flash
       if (group.type === ETYPE.CAPITAL && spawnedIdx >= 0) {
         enemies.auxTimer[spawnedIdx] = -1.0;
-        if (typeof spawnExplosion === 'function') spawnExplosion(x, 0, z, 3.0);
+        if (typeof spawnExplosion === 'function') spawnExplosion(x, 0, z, 4000); // km -- large warp-in flash
       }
       totalSpawned++;
     }
@@ -250,55 +250,55 @@ function getArchetypeStats(type, waveNum) {
   switch (type) {
     case ETYPE.GRUNT:
       return {
-        detectRadius: 40 + waveScale * 20,      // 40 -> 60
-        attackRange: 15 + waveScale * 5,          // 15 -> 20
-        fireRange: 10 + waveScale * 5,            // 10 -> 15
-        accuracyNoise: 5.0 - waveScale * 3.0,     // 5.0 -> 2.0
-        attackCooldown: 1.0 - waveScale * 0.4,     // 1.0 -> 0.6
+        detectRadius: 20000 + waveScale * 10000,    // 20,000 -> 30,000 km
+        attackRange: 7500 + waveScale * 2500,        // 7,500 -> 10,000 km
+        fireRange: 5000 + waveScale * 2500,          // 5,000 -> 7,500 km
+        accuracyNoise: 2000 - waveScale * 1200,      // 2,000 -> 800 km
+        attackCooldown: 1.0 - waveScale * 0.4,       // 1.0 -> 0.6 (seconds, unchanged)
       };
 
     case ETYPE.SWARM:
       return {
-        detectRadius: 50 + waveScale * 30,      // 50 -> 80 (aggressive)
-        attackRange: 8 + waveScale * 4,           // 8 -> 12 (close range)
-        fireRange: 5 + waveScale * 3,             // 5 -> 8
-        accuracyNoise: 8.0 - waveScale * 4.0,     // 8.0 -> 4.0 (less accurate)
-        attackCooldown: 0.5 - waveScale * 0.2,     // 0.5 -> 0.3 (very fast)
+        detectRadius: 25000 + waveScale * 15000,    // 25,000 -> 40,000 km (aggressive)
+        attackRange: 4000 + waveScale * 2000,        // 4,000 -> 6,000 km (close range)
+        fireRange: 2500 + waveScale * 1500,          // 2,500 -> 4,000 km
+        accuracyNoise: 4000 - waveScale * 2000,      // 4,000 -> 2,000 km (less accurate)
+        attackCooldown: 0.5 - waveScale * 0.2,       // 0.5 -> 0.3 (very fast)
       };
 
     case ETYPE.BOMBER:
       return {
-        detectRadius: 45 + waveScale * 15,      // 45 -> 60
-        attackRange: 25 + waveScale * 10,         // 25 -> 35 (long range)
-        fireRange: 20 + waveScale * 10,           // 20 -> 30
-        accuracyNoise: 4.0 - waveScale * 2.0,     // 4.0 -> 2.0
-        attackCooldown: 3.0 - waveScale * 1.0,     // 3.0 -> 2.0 (slow reload)
+        detectRadius: 22500 + waveScale * 7500,     // 22,500 -> 30,000 km
+        attackRange: 12500 + waveScale * 5000,       // 12,500 -> 17,500 km (long range)
+        fireRange: 10000 + waveScale * 5000,         // 10,000 -> 15,000 km
+        accuracyNoise: 1600 - waveScale * 800,       // 1,600 -> 800 km
+        attackCooldown: 3.0 - waveScale * 1.0,       // 3.0 -> 2.0 (slow reload)
       };
 
     case ETYPE.SNIPER:
       return {
-        detectRadius: 60 + waveScale * 30,      // 60 -> 90 (long range)
-        attackRange: 35 + waveScale * 15,         // 35 -> 50 (extreme range)
-        fireRange: 30 + waveScale * 15,           // 30 -> 45
-        accuracyNoise: 2.0 - waveScale * 1.5,     // 2.0 -> 0.5 (highly accurate)
-        attackCooldown: 2.0 - waveScale * 0.5,     // 2.0 -> 1.5
+        detectRadius: 30000 + waveScale * 15000,    // 30,000 -> 45,000 km (long range)
+        attackRange: 17500 + waveScale * 7500,       // 17,500 -> 25,000 km (extreme range)
+        fireRange: 15000 + waveScale * 7500,         // 15,000 -> 22,500 km
+        accuracyNoise: 800 - waveScale * 600,        // 800 -> 200 km (highly accurate)
+        attackCooldown: 2.0 - waveScale * 0.5,       // 2.0 -> 1.5
       };
 
     case ETYPE.CAPITAL:
       return {
-        detectRadius: 60 + waveScale * 20,      // 60 -> 80
-        attackRange: 20 + waveScale * 10,         // 20 -> 30
-        fireRange: 15 + waveScale * 10,           // 15 -> 25
-        accuracyNoise: 3.0 - waveScale * 1.5,     // 3.0 -> 1.5
-        attackCooldown: 5.0 - waveScale * 2.0,     // 5.0 -> 3.0 (slow)
+        detectRadius: 30000 + waveScale * 10000,    // 30,000 -> 40,000 km
+        attackRange: 10000 + waveScale * 5000,       // 10,000 -> 15,000 km
+        fireRange: 7500 + waveScale * 5000,          // 7,500 -> 12,500 km
+        accuracyNoise: 1200 - waveScale * 600,       // 1,200 -> 600 km
+        attackCooldown: 5.0 - waveScale * 2.0,       // 5.0 -> 3.0 (slow)
       };
 
     default:
       return {
-        detectRadius: 40,
-        attackRange: 15,
-        fireRange: 10,
-        accuracyNoise: 5.0,
+        detectRadius: 20000,
+        attackRange: 7500,
+        fireRange: 5000,
+        accuracyNoise: 2000,
         attackCooldown: 1.0,
       };
   }

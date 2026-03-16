@@ -1,21 +1,21 @@
 /* ---- Weapons System: Kinetic Cannon + Plasma Gun ---- */
 
-/* Tunable constants */
+/* Tunable constants (km-scale: speeds in km/s, distances in km) */
 const MAX_PROJECTILES = 128;
-const KINETIC_SPEED = 80;           // muzzle speed in units/s
-const KINETIC_LIFETIME = 3.0;       // seconds before despawn
-const KINETIC_COOLDOWN = 1.0;       // volley cooldown (sim seconds)
+const KINETIC_SPEED = 15000;        // muzzle speed in km/s (0.33s to hit at 5,000 km)
+const KINETIC_LIFETIME = 2.0;       // seconds before despawn (30,000 km max range)
+const KINETIC_COOLDOWN = 0.8;       // volley cooldown (seconds, slightly faster at real-time)
 const KINETIC_BURST_COUNT = 5;      // rounds per volley
-const KINETIC_BURST_DELAY = 0.05;   // sim seconds between burst rounds
-const PLASMA_SPEED = 200;           // bolt speed in units/s
-const PLASMA_MAX_RANGE = 120;       // units before despawn
-const PLASMA_FADE_START = 80;       // units where alpha/size fade begins
-const PLASMA_COOLDOWN = 2.5;        // seconds between shots
-const HIT_RADIUS_KINETIC = 1.5;     // generous hit area for kinetic
-const HIT_RADIUS_PLASMA = 2.0;      // slightly larger for plasma bolt
-const KINETIC_DAMAGE = 15;          // damage per kinetic hit
-const PLASMA_DAMAGE = 35;           // damage per plasma hit
-const ENEMY_KINETIC_SPEED = 60;     // enemy projectile speed
+const KINETIC_BURST_DELAY = 0.05;   // seconds between burst rounds
+const PLASMA_SPEED = 30000;         // bolt speed in km/s (near-instant)
+const PLASMA_MAX_RANGE = 60000;     // km before despawn (~2s travel time)
+const PLASMA_FADE_START = 40000;    // km where alpha/size fade begins
+const PLASMA_COOLDOWN = 2.0;        // seconds between shots
+const HIT_RADIUS_KINETIC = 500;     // km -- generous hit area for gameplay
+const HIT_RADIUS_PLASMA = 800;      // km -- slightly larger for plasma bolt
+const KINETIC_DAMAGE = 15;          // damage per kinetic hit (scale-independent)
+const PLASMA_DAMAGE = 35;           // damage per plasma hit (scale-independent)
+const ENEMY_KINETIC_SPEED = 10000;  // enemy projectile speed in km/s
 
 /* Combat mode state */
 let combatMode = false;
@@ -140,13 +140,13 @@ function enemyFireAt(enemyIdx, playerPos, playerVel) {
   const ex = enemies.posX[enemyIdx], ez = enemies.posZ[enemyIdx];
   const dx = playerPos[0] - ex, dz = playerPos[2] - ez;
   const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist < 0.1) return;
+  if (dist < 1.0) return;
   // Lead prediction: estimate time-of-flight
   const tof = dist / ENEMY_KINETIC_SPEED;
   // Predict player position
   let predX = playerPos[0] + playerVel[0] * tof;
   let predZ = playerPos[2] + playerVel[2] * tof;
-  // Add accuracy noise via Box-Muller
+  // Add accuracy noise via Box-Muller (ACCURACY_NOISE is in km)
   const u1 = Math.random(), u2 = Math.random();
   const mag = Math.sqrt(-2 * Math.log(Math.max(u1, 0.0001))) * ACCURACY_NOISE;
   const theta = u2 * 6.283185;
@@ -155,7 +155,7 @@ function enemyFireAt(enemyIdx, playerPos, playerVel) {
   // Aim direction from enemy to predicted position
   const adx = predX - ex, adz = predZ - ez;
   const adist = Math.sqrt(adx * adx + adz * adz);
-  if (adist < 0.01) return;
+  if (adist < 1.0) return;
   const aimX = adx / adist, aimZ = adz / adist;
   // Spawn type=2 enemy kinetic round (inherit enemy velocity + muzzle velocity)
   spawnProjectile(2, ex, ez,
@@ -175,7 +175,7 @@ function enemySniperBurst(enemyIdx, playerPos, playerVel, accuracyOverride) {
   const ex = enemies.posX[enemyIdx], ez = enemies.posZ[enemyIdx];
   const dx = playerPos[0] - ex, dz = playerPos[2] - ez;
   const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist < 0.1) return;
+  if (dist < 1.0) return;
   // Lead prediction: estimate time-of-flight
   const tof = dist / ENEMY_KINETIC_SPEED;
   // Predict player position
@@ -191,7 +191,7 @@ function enemySniperBurst(enemyIdx, playerPos, playerVel, accuracyOverride) {
   // Base aim direction from enemy to predicted position
   const adx = predX - ex, adz = predZ - ez;
   const adist = Math.sqrt(adx * adx + adz * adz);
-  if (adist < 0.01) return;
+  if (adist < 1.0) return;
   const baseAimX = adx / adist, baseAimZ = adz / adist;
   // Fire 3 rounds with angular spread
   for (let round = 0; round < 3; round++) {
@@ -210,8 +210,8 @@ function enemySniperBurst(enemyIdx, playerPos, playerVel, accuracyOverride) {
       enemies.velX[enemyIdx] + aimX * ENEMY_KINETIC_SPEED,
       enemies.velZ[enemyIdx] + aimZ * ENEMY_KINETIC_SPEED);
   }
-  // Muzzle flash
-  if (typeof spawnExplosion === 'function') spawnExplosion(ex, 0, ez, 0.5);
+  // Muzzle flash (km-scale visual)
+  if (typeof spawnExplosion === 'function') spawnExplosion(ex, 0, ez, 200);
 }
 
 /* ---- Trail buffer (shared ring buffer for all kinetic tracers) ---- */
@@ -511,9 +511,9 @@ function updateProjectiles(simDt, st) {
 
       // Despawn: lifetime exceeded
       if (proj.age[i] > KINETIC_LIFETIME) { removeProjectile(i); continue; }
-      // Despawn: fell into BH (radius < 2.0)
+      // Despawn: fell into BH (radius < BH_RADIUS_KM)
       const r2 = proj.posX[i] * proj.posX[i] + proj.posZ[i] * proj.posZ[i];
-      if (r2 < 4.0) { removeProjectile(i); continue; }
+      if (r2 < BH_RADIUS_KM * BH_RADIUS_KM) { removeProjectile(i); continue; }
 
     } else if (proj.type[i] === 1) {
       // PLASMA: straight line, no gravity, constant speed
@@ -586,7 +586,7 @@ function checkProjectileHits() {
           spawnImpactParticles(proj.posX[i], proj.posZ[i], enemies.type[ci]);
         }
         if (enemies.hp[ci] <= 0) {
-          spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+          spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], EXPLOSION_BASE_SIZE);
           if (typeof recordEnemyKill === 'function') recordEnemyKill();
           removeEnemy(ci);
         }
@@ -597,11 +597,11 @@ function checkProjectileHits() {
   }
 }
 
-/* ---- Missile blast damage ---- */
+/* ---- Missile blast damage (km-scale blast radii) ---- */
 const MISSILE_DAMAGE_REGULAR = 50;
 const MISSILE_DAMAGE_NUKE = 150;
-const MISSILE_BLAST_RADIUS = 5.0;
-const NUKE_BLAST_RADIUS = 15.0;
+const MISSILE_BLAST_RADIUS = 2000;    // km -- regular missile blast
+const NUKE_BLAST_RADIUS = 8000;       // km -- nuclear missile blast
 
 /**
  * Check missile blast against enemies. Called from missile detonation handlers.
@@ -628,7 +628,7 @@ function checkMissileBlastHits(x, z, damage, blastRadius) {
         spawnImpactParticles(enemies.posX[ci], enemies.posZ[ci], enemies.type[ci]);
       }
       if (enemies.hp[ci] <= 0) {
-        spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], 1.2);
+        spawnExplosion(enemies.posX[ci], 0, enemies.posZ[ci], EXPLOSION_BASE_SIZE);
         if (typeof recordEnemyKill === 'function') recordEnemyKill();
         removeEnemy(ci);
       }

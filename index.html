@@ -283,7 +283,7 @@
       offRight: new Float32Array(MAX_SHIELD_PIECES),
     };
     let shieldCount = 0;
-    const SHIELD_HIT_RADIUS = 0.8;
+    const SHIELD_HIT_RADIUS = 400;   // km -- shield piece hit detection radius
     const SHIELD_HIT_RADIUS_SQ = SHIELD_HIT_RADIUS * SHIELD_HIT_RADIUS;
 
     function initShieldWall() {
@@ -292,8 +292,8 @@
         shield.alive[i] = 1;
         const row = i < 5 ? 0 : 1;
         const col = i < 5 ? i : i - 5;
-        shield.offFwd[i] = 3.0 + row * 0.8; // 3.0 front row, 3.8 back row
-        shield.offRight[i] = (col - 2) * 1.1 + (row === 1 ? 0.55 : 0); // staggered
+        shield.offFwd[i] = 15 + row * 5; // 15 km front row, 20 km back row (km-scale)
+        shield.offRight[i] = (col - 2) * 8 + (row === 1 ? 4 : 0); // km-scale staggered
       }
       shieldCount = MAX_SHIELD_PIECES;
     }

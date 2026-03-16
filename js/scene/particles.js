@@ -36,9 +36,9 @@ function spawnImpactParticles(hitX, hitZ, enemyType) {
     particle.alive[idx] = 1;
     particle.posX[idx] = hitX;
     particle.posZ[idx] = hitZ;
-    // Random direction and speed
+    // Random direction and speed (km/s -- visible spray at combat range)
     const angle = Math.random() * Math.PI * 2;
-    const speed = 15 + Math.random() * 25; // 15-40 units/s
+    const speed = 500 + Math.random() * 1500; // 500-2000 km/s
     particle.velX[idx] = Math.cos(angle) * speed;
     particle.velZ[idx] = Math.sin(angle) * speed;
     particle.age[idx] = 0;

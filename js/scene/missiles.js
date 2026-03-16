@@ -1,18 +1,18 @@
 /* ---- Missile System (SoA Store) ---- */
 
-/* Constants */
+/* Constants (km-scale: speeds in km/s, distances in km, thrust in km/s^2) */
 const MAX_MISSILES_ACTIVE = 24;
-const MISSILE_THRUST = 12.0;
-const MISSILE_NAV_GAIN = 3.0;
-const MISSILE_DET_RADIUS = 1.5;
-const MISSILE_FUEL_REGULAR = 7.0;
-const MISSILE_FUEL_NUKE = 10.0;
-const MISSILE_COAST_DURATION = 1.5;
-const MISSILE_SPEED = 15.0;
-const NUKE_MISSILE_SPEED = 12.0;
-const MISSILE_COOLDOWN_REGULAR = 3.0;
-const MISSILE_COOLDOWN_NUKE = 8.0;
-const MISSILE_HALF = [0.03, 0.008, 0.008];
+const MISSILE_THRUST = 2000;          // km/s^2 acceleration
+const MISSILE_NAV_GAIN = 3.0;         // dimensionless proportional nav gain
+const MISSILE_DET_RADIUS = 300;       // km -- proximity fuse detonation
+const MISSILE_FUEL_REGULAR = 5.0;     // seconds (~15,000 km powered range)
+const MISSILE_FUEL_NUKE = 8.0;        // seconds (~24,000 km powered range)
+const MISSILE_COAST_DURATION = 1.5;   // seconds -- unchanged
+const MISSILE_SPEED = 3000;           // km/s initial velocity
+const NUKE_MISSILE_SPEED = 2500;      // km/s initial velocity
+const MISSILE_COOLDOWN_REGULAR = 3.0; // seconds -- unchanged
+const MISSILE_COOLDOWN_NUKE = 8.0;    // seconds -- unchanged
+const MISSILE_HALF = [15, 4, 4];      // km -- missile visual half-extents
 const MISSILE_COLOR = [0.85, 0.35, 0.15];
 const NUKE_MISSILE_COLOR = [0.95, 0.85, 0.75];
 
@@ -177,8 +177,8 @@ function enemyFireMissile(enemyIdx) {
   // Aim toward player
   let dx = flyPos[0] - ex, dz = flyPos[2] - ez;
   const d = Math.sqrt(dx * dx + dz * dz);
-  if (d > 0.01) { dx /= d; dz /= d; } else { dx = 0; dz = 1; }
-  const enemySpd = MISSILE_SPEED * 0.7;
+  if (d > 1.0) { dx /= d; dz /= d; } else { dx = 0; dz = 1; }
+  const enemySpd = MISSILE_SPEED * 0.7;  // slightly slower than player missiles
   missile.alive[idx] = 1;
   missile.posX[idx] = ex;
   missile.posZ[idx] = ez;
@@ -212,7 +212,7 @@ function fireMissileSalvo(st) {
         // Fan-out: add perpendicular velocity offset for spread
         const perpX = -missile.fwdZ[spawned];
         const perpZ = missile.fwdX[spawned];
-        const offset = (c - 0.5) * 2.0;
+        const offset = (c - 0.5) * 500.0;  // km -- fan-out spread
         missile.velX[spawned] += perpX * offset;
         missile.velZ[spawned] += perpZ * offset;
       }
@@ -308,9 +308,9 @@ function updateMissiles(simDt) {
       continue;
     }
 
-    // BH despawn
+    // BH despawn (km-scale: BH_RADIUS_KM from scale.js)
     const r2 = missile.posX[i] * missile.posX[i] + missile.posZ[i] * missile.posZ[i];
-    if (r2 < 4.0) { removeMissile(i); continue; }
+    if (r2 < BH_RADIUS_KM * BH_RADIUS_KM) { removeMissile(i); continue; }
 
     // Gravity (always active)
     const g = computeGravAccel([missile.posX[i], 0, missile.posZ[i]]);
@@ -324,7 +324,7 @@ function updateMissiles(simDt) {
       const crossZ = missile.velZ[i] - vDotLos * losZ;
       const crossSpeed = Math.sqrt(crossX * crossX + crossZ * crossZ);
       const losRate = crossSpeed / (dist || 1);
-      const closingSpeed = Math.max(-vDotLos, 1.0);
+      const closingSpeed = Math.max(-vDotLos, 100.0);
       const perpX = -losZ, perpZ = losX;
       const pnSign = (crossX * perpX + crossZ * perpZ) > 0 ? -1 : 1;
       const pnMag = MISSILE_NAV_GAIN * closingSpeed * losRate;
