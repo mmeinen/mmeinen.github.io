@@ -108,16 +108,17 @@ function removeEnemy(idx) {
  * Returns {typeCounts: [gruntCount, swarmCount, bomberCount, sniperCount, capitalCount], totalCount}.
  */
 const _typeCounts = [0, 0, 0, 0, 0];
-function updateInstanceBuffer(simTime) {
+function updateInstanceBuffer(simTime, camX, camY, camZ) {
   let offset = 0;
   _typeCounts[0] = _typeCounts[1] = _typeCounts[2] = _typeCounts[3] = _typeCounts[4] = 0;
   for (let t = 0; t < 5; t++) {
     for (let i = 0; i < MAX_ENEMIES; i++) {
       if (!enemies.alive[i] || enemies.type[i] !== t) continue;
       const base = offset * ENEMY_INST_FLOATS;
-      instanceData[base]     = enemies.posX[i];
-      instanceData[base + 1] = enemies.posY[i];
-      instanceData[base + 2] = enemies.posZ[i];
+      // CRR: subtract camera world position (float64 arithmetic) before float32 store
+      instanceData[base]     = enemies.posX[i] - camX;
+      instanceData[base + 1] = enemies.posY[i] - camY;
+      instanceData[base + 2] = enemies.posZ[i] - camZ;
       instanceData[base + 3] = enemies.heading[i];
       const c = ARCHETYPE_COLORS[t];
       instanceData[base + 4] = c[0];

@@ -302,7 +302,7 @@ function computeWeaponPreview(simTime) {
  * @param {Float32Array} vpMat - view-projection matrix
  * @param {WebGLBuffer} projGlBuf - pre-allocated GL buffer for projectile data
  */
-function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
+function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf, camX, camY, camZ) {
   if (projCount === 0 && trailCount === 0) return;
 
   gl.useProgram(trajPg);
@@ -317,9 +317,10 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
   let kCount = 0;
   for (let i = 0; i < MAX_PROJECTILES; i++) {
     if (!proj.alive[i] || proj.type[i] !== 0) continue;
-    projRenderBuf[kCount * 3]     = proj.posX[i];
-    projRenderBuf[kCount * 3 + 1] = 0;
-    projRenderBuf[kCount * 3 + 2] = proj.posZ[i];
+    // CRR: subtract camera world position before GPU upload
+    projRenderBuf[kCount * 3]     = proj.posX[i] - camX;
+    projRenderBuf[kCount * 3 + 1] = 0 - camY;
+    projRenderBuf[kCount * 3 + 2] = proj.posZ[i] - camZ;
     kCount++;
   }
   if (kCount > 0) {
@@ -334,9 +335,10 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
   let tCount = 0;
   for (let i = 0; i < TRAIL_MAX_POINTS; i++) {
     if (trailAlpha[i] <= 0) continue;
-    projRenderBuf[tCount * 3]     = trailBuf[i * 3];
-    projRenderBuf[tCount * 3 + 1] = trailBuf[i * 3 + 1];
-    projRenderBuf[tCount * 3 + 2] = trailBuf[i * 3 + 2];
+    // CRR: subtract camera world position
+    projRenderBuf[tCount * 3]     = trailBuf[i * 3] - camX;
+    projRenderBuf[tCount * 3 + 1] = trailBuf[i * 3 + 1] - camY;
+    projRenderBuf[tCount * 3 + 2] = trailBuf[i * 3 + 2] - camZ;
     tCount++;
   }
   if (tCount > 0) {
@@ -355,9 +357,10 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
       ? 1.0
       : Math.max(0, 1.0 - (proj.distTrav[i] - PLASMA_FADE_START) / (PLASMA_MAX_RANGE - PLASMA_FADE_START));
 
-    projRenderBuf[0] = proj.posX[i];
-    projRenderBuf[1] = 0;
-    projRenderBuf[2] = proj.posZ[i];
+    // CRR: subtract camera world position
+    projRenderBuf[0] = proj.posX[i] - camX;
+    projRenderBuf[1] = 0 - camY;
+    projRenderBuf[2] = proj.posZ[i] - camZ;
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, 3));
     gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
 
@@ -376,9 +379,10 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
   let eCount = 0;
   for (let i = 0; i < MAX_PROJECTILES; i++) {
     if (!proj.alive[i] || proj.type[i] !== 2) continue;
-    projRenderBuf[eCount * 3]     = proj.posX[i];
-    projRenderBuf[eCount * 3 + 1] = 0;
-    projRenderBuf[eCount * 3 + 2] = proj.posZ[i];
+    // CRR: subtract camera world position
+    projRenderBuf[eCount * 3]     = proj.posX[i] - camX;
+    projRenderBuf[eCount * 3 + 1] = 0 - camY;
+    projRenderBuf[eCount * 3 + 2] = proj.posZ[i] - camZ;
     eCount++;
   }
   if (eCount > 0) {
@@ -401,7 +405,7 @@ function renderProjectiles(gl, trajPg, trajLocs, vpMat, projGlBuf) {
  * @param {Float32Array} vpMat - view-projection matrix
  * @param {WebGLBuffer} projGlBuf - pre-allocated GL buffer
  */
-function renderWeaponPreview(gl, trajPg, trajLocs, vpMat, projGlBuf) {
+function renderWeaponPreview(gl, trajPg, trajLocs, vpMat, projGlBuf, camX, camY, camZ) {
   if (previewCount === 0) return;
 
   gl.useProgram(trajPg);
@@ -412,8 +416,13 @@ function renderWeaponPreview(gl, trajPg, trajLocs, vpMat, projGlBuf) {
   gl.bindBuffer(gl.ARRAY_BUFFER, projGlBuf);
   gl.enableVertexAttribArray(trajLocs.aPos);
 
-  // Upload preview points
-  gl.bufferSubData(gl.ARRAY_BUFFER, 0, previewBuf.subarray(0, previewCount * 3));
+  // CRR: apply camera-relative offset to preview points before upload
+  for (let s = 0; s < previewCount; s++) {
+    projRenderBuf[s * 3]     = previewBuf[s * 3]     - camX;
+    projRenderBuf[s * 3 + 1] = previewBuf[s * 3 + 1] - camY;
+    projRenderBuf[s * 3 + 2] = previewBuf[s * 3 + 2] - camZ;
+  }
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, previewCount * 3));
   gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
 
   if (selectedWeapon === 0) {
@@ -438,9 +447,10 @@ function renderWeaponPreview(gl, trajPg, trajLocs, vpMat, projGlBuf) {
 
   // Hit prediction marker
   if (hitPredictionPoint) {
-    projRenderBuf[0] = hitPredictionPoint[0];
-    projRenderBuf[1] = hitPredictionPoint[1];
-    projRenderBuf[2] = hitPredictionPoint[2];
+    // CRR: subtract camera world position
+    projRenderBuf[0] = hitPredictionPoint[0] - camX;
+    projRenderBuf[1] = hitPredictionPoint[1] - camY;
+    projRenderBuf[2] = hitPredictionPoint[2] - camZ;
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, projRenderBuf.subarray(0, 3));
     gl.vertexAttribPointer(trajLocs.aPos, 3, gl.FLOAT, false, 0, 0);
     gl.uniform4f(trajLocs.uColor, 1.0, 0.3, 0.2, 0.9);  // bright red/orange

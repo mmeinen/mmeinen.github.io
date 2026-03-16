@@ -14,26 +14,26 @@ const DEFAULT_ORBIT_ALT = new Float32Array(8); // same indexing
 // Map: body index (-1 = BH, 0-6 = planet) to table index (0-7)
 function _tableIdx(bodyIndex) { return bodyIndex + 1; }
 
-/* ---- SOI computation ---- */
+/* ---- SOI computation (km scale) ---- */
 function computeSOI(planetIndex) {
-  // Hill sphere with gameplay floor: max(d * cbrt(planetGM / (3 * BH_GM)), radius * 2.5 + 1.0)
+  // Hill sphere in km with gameplay floor
   const p = planetData[planetIndex];
-  const d = p.oR; // abstract-unit orbit radius (no doubling)
-  const planetGM = _planetGM[planetIndex];
-  const hillR = d * Math.cbrt(planetGM / (3 * BH_GM));
-  const floor = p.radius * 2.5 + 1.0;
+  const d_km = p.oR * ORBIT_SCALE;
+  const planetGM = _planetGM_km[planetIndex];
+  const hillR = d_km * Math.cbrt(planetGM / (3 * BH_GM_KM));
+  const floor = p.radius * BODY_SCALE * 2.5 + ORBIT_SCALE;
   return Math.max(hillR, floor);
 }
 
-/* ---- Body property helpers ---- */
+/* ---- Body property helpers (abstract units -- for non-km callers) ---- */
 function getBodyGM(index) {
-  // index -1 = black hole, 0-6 = planets
+  // index -1 = black hole, 0-6 = planets (abstract units)
   if (index === -1) return BH_GM;
   return _planetGM[index];
 }
 
 function getBodyRadius(index) {
-  // index -1 = black hole event horizon (~2.0), 0-6 = planet radius
+  // index -1 = black hole event horizon (~2.0), 0-6 = planet radius (abstract units)
   if (index === -1) return 2.0;
   return planetData[index].radius;
 }
@@ -60,7 +60,7 @@ function computeHohmannDV(r1, r2, GM) {
 
 /* ---- Body velocity helper ---- */
 function getBodyVelocity(bodyIndex) {
-  // Returns [vx, 0, vz] of the body itself (its orbital motion).
+  // Returns [vx, 0, vz] of the body itself (its orbital motion) in abstract units.
   // For a planet at position [px, 0, pz] with angular speed sp:
   //   velocity = [sp * pz, 0, -sp * px]
   if (bodyIndex === -1) return [0, 0, 0]; // BH is stationary
@@ -74,6 +74,21 @@ function getBodyVelocity(bodyIndex) {
   }
   const p = planetData[bodyIndex];
   const pos = getBodyPosition(bodyIndex);
+  return [p.sp * pos[2], 0, -p.sp * pos[0]];
+}
+
+function getBodyVelocityKm(bodyIndex, sTime) {
+  // Returns [vx, 0, vz] in km/s. Uses km-scale positions.
+  if (bodyIndex === -1) return [0, 0, 0];
+  if (bodyIndex >= 100) {
+    const fi = bodyIndex - 100;
+    const pi = [0, 1, 3][Math.floor(fi / 4)];
+    const sp = planetData[pi].sp;
+    const pos = getLPointPositionKm(fi);
+    return [sp * pos[2], 0, -sp * pos[0]];
+  }
+  const p = planetData[bodyIndex];
+  const pos = planetPosKm(p, sTime);
   return [p.sp * pos[2], 0, -p.sp * pos[0]];
 }
 
@@ -100,7 +115,9 @@ function circularizeOrbit(flyPos, flyVel, bodyPos, bodyGM, bodyVel) {
 const LAGRANGE_PLANETS = [0, 1, 3];
 
 function computeLagrangePoints(planetIndex, time) {
-  // Only compute for major planets
+  // Only compute for major planets. Returns abstract-unit positions
+  // (L-point positions are stored in the abstract-unit lPointPositions array
+  //  for compatibility with the shader render loop)
   if (LAGRANGE_PLANETS.indexOf(planetIndex) === -1) return null;
 
   const p = planetData[planetIndex];
@@ -132,27 +149,27 @@ function computeLagrangePoints(planetIndex, time) {
   return { L1: L1, L2: L2, L4: L4, L5: L5, r_hill: r_hill };
 }
 
-/* ---- Initialize orbital data tables ---- */
+/* ---- Initialize orbital data tables (km scale) ---- */
 // Called from enterNavMode()
 function initOrbitalData() {
-  // Black hole (index -1 -> table index 0)
-  BODY_SOI[0] = 8.0;
-  DEFAULT_ORBIT_ALT[0] = 5.0;
+  // Black hole (index -1 -> table index 0) -- km
+  BODY_SOI[0] = BH_RADIUS_KM;
+  DEFAULT_ORBIT_ALT[0] = 5000;
 
-  // Planets (index 0-6 -> table index 1-7)
+  // Planets (index 0-6 -> table index 1-7) -- km
   for (let i = 0; i < 7; i++) {
     const soi = computeSOI(i);
     BODY_SOI[i + 1] = soi;
-    // Default orbit altitude: roughly radius * 1.5, with per-planet tuning
-    const r = planetData[i].radius;
+    // Default orbit altitude in km, tuned per planet
+    const r_km = planetData[i].radius * BODY_SCALE;
     let alt;
-    if (i === 0)      alt = 4.0;   // Jupiter
-    else if (i === 1) alt = 3.5;   // Saturn
-    else if (i === 2) alt = 3.0;   // Uranus
-    else if (i === 3) alt = 3.0;   // Neptune
-    else if (i === 4) alt = 1.0;   // Venus
-    else if (i === 5) alt = 1.2;   // Earth
-    else              alt = 2.5;   // Mars
+    if (i === 0)      alt = 3200;   // Jupiter (4000 km diameter)
+    else if (i === 1) alt = 2800;   // Saturn (3200 km diameter)
+    else if (i === 2) alt = 2400;   // Uranus (2400 km diameter)
+    else if (i === 3) alt = 2400;   // Neptune (2240 km diameter)
+    else if (i === 4) alt = 800;    // Venus (864 km diameter)
+    else if (i === 5) alt = 960;    // Earth (960 km diameter)
+    else              alt = 2000;   // Mars (2080 km diameter)
     DEFAULT_ORBIT_ALT[i + 1] = alt;
   }
 }

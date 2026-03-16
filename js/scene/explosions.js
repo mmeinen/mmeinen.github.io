@@ -191,7 +191,7 @@ const _bbInstanceData = new Float32Array(MAX_EXPLOSIONS * 5);
  * @param {Float32Array} viewMat - 4x4 view matrix (column-major)
  * @param {Float32Array} viewProjMat - 4x4 view-projection matrix (column-major)
  */
-function renderExplosions(gl, ext, viewMat, viewProjMat) {
+function renderExplosions(gl, ext, viewMat, viewProjMat, camX, camY, camZ) {
   if (explosionCount === 0 || !bbPg) return;
 
   /* Pack instance data for all alive explosions */
@@ -199,9 +199,10 @@ function renderExplosions(gl, ext, viewMat, viewProjMat) {
   for (let i = 0; i < MAX_EXPLOSIONS; i++) {
     if (!explosion.alive[i]) continue;
     const off = liveCount * 5;
-    _bbInstanceData[off]     = explosion.posX[i];
-    _bbInstanceData[off + 1] = explosion.posY[i];
-    _bbInstanceData[off + 2] = explosion.posZ[i];
+    // CRR: subtract camera world position before GPU upload
+    _bbInstanceData[off]     = explosion.posX[i] - camX;
+    _bbInstanceData[off + 1] = explosion.posY[i] - camY;
+    _bbInstanceData[off + 2] = explosion.posZ[i] - camZ;
     _bbInstanceData[off + 3] = Math.min(
       Math.floor(explosion.age[i] / EXPLOSION_DURATION * EXPLOSION_FRAME_COUNT),
       EXPLOSION_FRAME_COUNT - 1

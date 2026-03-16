@@ -425,6 +425,8 @@
     const _camP=new Float32Array(3),_camF=new Float32Array(3),_camR=new Float32Array(3),_camU=new Float32Array(3);
     const _shipR=new Float32Array(3),_worldUp=new Float32Array([0,1,0]);
     const _toLW=new Float32Array(3),_toLV=new Float32Array(3);
+    // CRR: camera world position (float64) for camera-relative rendering
+    let _camWX=0,_camWY=0,_camWZ=0;
     const _proj=new Float32Array(16),_view=new Float32Array(16),_vpMat=new Float32Array(16);
     const _model=new Float32Array(16),_mvp=new Float32Array(16),_t16=new Float32Array(16);
     const _normM=new Float32Array(9);
@@ -620,7 +622,8 @@
         const c=Math.cos(rotOff),s=Math.sin(rotOff);
         _shieldFwd[0]=flyFwd[0]*c+(-flyFwd[2])*s;_shieldFwd[1]=0;_shieldFwd[2]=flyFwd[2]*c+flyFwd[0]*s;
         v3cross(_shieldR,_shieldFwd,_worldUp);v3norm(_shieldR,_shieldR);
-        const sPos=[px,0,pz];
+        // CRR: camera-relative shield position
+        const sPos=[px-_camWX,0-_camWY,pz-_camWZ];
         mat4Model(sPos,_shieldFwd,_worldUp,_shieldR,_shieldModel);
         mat4Mul(_view,_shieldModel,_shieldT16);
         mat4Mul(_proj,_shieldT16,_shieldMvp);
@@ -674,7 +677,8 @@
         up[0]=right[1]*fwd[2]-right[2]*fwd[1];
         up[1]=right[2]*fwd[0]-right[0]*fwd[2];
         up[2]=right[0]*fwd[1]-right[1]*fwd[0];
-        const bPos=[px,py,pz];
+        // CRR: camera-relative breakup position
+        const bPos=[px-_camWX,py-_camWY,pz-_camWZ];
         mat4Model(bPos,fwd,up,right,_brkModel);
         mat4Mul(_view,_brkModel,_brkT16);
         mat4Mul(_proj,_brkT16,_brkMvp);
@@ -1221,7 +1225,7 @@
           }
         }
       }
-      updateNav(simDtSec);
+      updateNav(simDtSec,simTime);
       updateMissiles(simDtSec);
       if(flyMode)updateExplosions(simDtSec);
       // Missile trail ring buffer: push positions, decay alphas
@@ -1256,7 +1260,8 @@
         v3norm(_camF,_camF);
         v3cross(_camR,_camF,_worldUp);v3norm(_camR,_camR);
         v3cross(_camU,_camR,_camF);v3norm(_camU,_camU);
-        dv.setFloat32(0x030,cx,true);dv.setFloat32(0x034,cy,true);dv.setFloat32(0x038,cz,true);
+        // Write camera position for ray march shader in ABSTRACT units (flyPos is km, divide by ORBIT_SCALE)
+        dv.setFloat32(0x030,cx/ORBIT_SCALE,true);dv.setFloat32(0x034,cy/ORBIT_SCALE,true);dv.setFloat32(0x038,cz/ORBIT_SCALE,true);
         dv.setFloat32(0x03C,_camF[0],true);dv.setFloat32(0x040,_camF[1],true);dv.setFloat32(0x044,_camF[2],true);
         dv.setFloat32(0x048,_camR[0],true);dv.setFloat32(0x04C,_camR[1],true);dv.setFloat32(0x050,_camR[2],true);
         dv.setFloat32(0x054,_camU[0],true);dv.setFloat32(0x058,_camU[1],true);dv.setFloat32(0x05C,_camU[2],true);
@@ -1399,7 +1404,11 @@
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
       if(flyMode){
         v3cross(_shipR,flyFwd,flyUp);v3norm(_shipR,_shipR);
-        _camP[0]=dv.getFloat32(0x030,true);_camP[1]=dv.getFloat32(0x034,true);_camP[2]=dv.getFloat32(0x038,true);
+        // CRR: camera position in km (float64) -- read from data view (abstract) and scale to km
+        // The data view 0x030 was written in abstract units for the ray march shader.
+        // Camera vectors (fwd/right/up) are direction-only and unit-length, so no scaling needed.
+        _camWX=dv.getFloat32(0x030,true)*ORBIT_SCALE;_camWY=dv.getFloat32(0x034,true)*ORBIT_SCALE;_camWZ=dv.getFloat32(0x038,true)*ORBIT_SCALE;
+        _camP[0]=_camWX;_camP[1]=_camWY;_camP[2]=_camWZ;
         _camF[0]=dv.getFloat32(0x03C,true);_camF[1]=dv.getFloat32(0x040,true);_camF[2]=dv.getFloat32(0x044,true);
         _camR[0]=dv.getFloat32(0x048,true);_camR[1]=dv.getFloat32(0x04C,true);_camR[2]=dv.getFloat32(0x050,true);
         _camU[0]=dv.getFloat32(0x054,true);_camU[1]=dv.getFloat32(0x058,true);_camU[2]=dv.getFloat32(0x05C,true);
@@ -1408,8 +1417,6 @@
         const aspect=canvas.width/canvas.height;
         // CRR: gated perspective matrix -- km-appropriate near/far in flyMode
         mat4Perspective(fovY,aspect,1.0,600000,_proj);
-        // CRR: store world-space camera position (float64) before constructing camera-at-origin view
-        const _camWX=_camP[0],_camWY=_camP[1],_camWZ=_camP[2];
         const _lookTarget = playerState.deathPhase >= 2 ? deathPos : flyPos;
         // CRR: view matrix with camera at origin -- look target is camera-relative
         const _crrLook=[_lookTarget[0]-_camWX,_lookTarget[1]-_camWY,_lookTarget[2]-_camWZ];
@@ -1435,7 +1442,8 @@
             gl.useProgram(enemyPg);
             gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
             gl.uniform3f(enemyLocs.uLightDir,_toLV[0],_toLV[1],_toLV[2]);
-            gl.uniform3f(enemyLocs.uBhPos,0,0,0);
+            // CRR: black hole position in camera-relative space
+            gl.uniform3f(enemyLocs.uBhPos,-_camWX,-_camWY,-_camWZ);
             gl.uniform1f(enemyLocs.uTime,simTime);
             gl.disableVertexAttribArray(aP);
             // Upload full instance data once
@@ -1602,12 +1610,12 @@
         }else{
           computeWeaponPreview(simTime);
         }
-        renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf);
-        renderParticles(gl,trajPg,trajLocs,_vpMat);
-        renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf);
+        renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf,_camWX,_camWY,_camWZ);
+        renderParticles(gl,trajPg,trajLocs,_vpMat,_camWX,_camWY,_camWZ);
+        renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf,_camWX,_camWY,_camWZ);
 
         // Billboard explosions (uses _view and _vpMat)
-        renderExplosions(gl,iExt,_view,_vpMat);
+        renderExplosions(gl,iExt,_view,_vpMat,_camWX,_camWY,_camWZ);
 
         gl.useProgram(trajPg);
         gl.enable(gl.BLEND);
@@ -1625,6 +1633,8 @@
           const _gd=Math.sqrt(_gx*_gx+_gz*_gz);
           const _gDir=_gd>0.1?[_gx/_gd,0,_gz/_gd]:null;
           const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,_gDir,1.5,999);
+          // CRR: offset trajectory points
+          for(let ti=0;ti<n1;ti++){trajArray[ti*3]-=_camWX;trajArray[ti*3+1]-=_camWY;trajArray[ti*3+2]-=_camWZ;}
           gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
           gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
           gl.enableVertexAttribArray(trajLocs.aPos);
@@ -1634,6 +1644,8 @@
         }else{
           // ORBITING or FREE: show current velocity trajectory
           const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
+          // CRR: offset trajectory points
+          for(let ti=0;ti<n1;ti++){trajArray[ti*3]-=_camWX;trajArray[ti*3+1]-=_camWY;trajArray[ti*3+2]-=_camWZ;}
           gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
           gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
           gl.enableVertexAttribArray(trajLocs.aPos);
@@ -1672,11 +1684,13 @@
             }else{
               bodyPos=getBodyPosition(ringBodyIdx);
             }
+            // CRR: camera-relative body position for ring center
+            const _crrBpX=bodyPos[0]-_camWX,_crrBpY=0-_camWY,_crrBpZ=bodyPos[2]-_camWZ;
             for(let ri=0;ri<RING_SEGMENTS;ri++){
               const angle=(ri/RING_SEGMENTS)*Math.PI*2;
-              ringArray[ri*3]=bodyPos[0]+ringRadius*Math.cos(angle);
-              ringArray[ri*3+1]=0;
-              ringArray[ri*3+2]=bodyPos[2]+ringRadius*Math.sin(angle);
+              ringArray[ri*3]=_crrBpX+ringRadius*Math.cos(angle);
+              ringArray[ri*3+1]=_crrBpY;
+              ringArray[ri*3+2]=_crrBpZ+ringRadius*Math.sin(angle);
             }
             gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
             gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
@@ -1687,8 +1701,8 @@
             // Draw target crosshair at center of ring for visual reference
             const _crossSize=ringRadius*0.3;
             const _crossArr=new Float32Array([
-              bodyPos[0]-_crossSize,0,bodyPos[2], bodyPos[0]+_crossSize,0,bodyPos[2],
-              bodyPos[0],0,bodyPos[2]-_crossSize, bodyPos[0],0,bodyPos[2]+_crossSize
+              _crrBpX-_crossSize,_crrBpY,_crrBpZ, _crrBpX+_crossSize,_crrBpY,_crrBpZ,
+              _crrBpX,_crrBpY,_crrBpZ-_crossSize, _crrBpX,_crrBpY,_crrBpZ+_crossSize
             ]);
             gl.bufferData(gl.ARRAY_BUFFER,_crossArr,gl.DYNAMIC_DRAW);
             gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
@@ -1712,8 +1726,11 @@
               lIdx++;
             }
           }
+          // CRR: offset L-point positions for GL upload (keep lPointPositions in world space for labels)
+          const _crrLP=new Float32Array(36);
+          for(let li=0;li<12;li++){_crrLP[li*3]=lPointPositions[li*3]-_camWX;_crrLP[li*3+1]=lPointPositions[li*3+1]-_camWY;_crrLP[li*3+2]=lPointPositions[li*3+2]-_camWZ;}
           gl.bindBuffer(gl.ARRAY_BUFFER,lPointBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,lPointPositions,gl.DYNAMIC_DRAW);
+          gl.bufferData(gl.ARRAY_BUFFER,_crrLP,gl.DYNAMIC_DRAW);
           gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
           gl.uniform4f(trajLocs.uColor,0.706,0.863,1.0,0.6); // light blue
           gl.uniform1f(trajLocs.uPtSize,4.0);
@@ -1740,8 +1757,9 @@
 
         if(aimDir&&orbitState===ORBIT_STATE.FREE){
           const lineLen=2.0;
-          _aimLine[0]=flyPos[0];_aimLine[1]=flyPos[1];_aimLine[2]=flyPos[2];
-          _aimLine[3]=flyPos[0]+aimDir[0]*lineLen;_aimLine[4]=flyPos[1];_aimLine[5]=flyPos[2]+aimDir[2]*lineLen;
+          // CRR: camera-relative aim line positions
+          _aimLine[0]=flyPos[0]-_camWX;_aimLine[1]=flyPos[1]-_camWY;_aimLine[2]=flyPos[2]-_camWZ;
+          _aimLine[3]=flyPos[0]+aimDir[0]*lineLen-_camWX;_aimLine[4]=flyPos[1]-_camWY;_aimLine[5]=flyPos[2]+aimDir[2]*lineLen-_camWZ;
           gl.bindBuffer(gl.ARRAY_BUFFER,aimLineBuf);
           gl.bufferData(gl.ARRAY_BUFFER,_aimLine,gl.DYNAMIC_DRAW);
           gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
@@ -1756,9 +1774,10 @@
           let regCount=0;
           for(let mt=0;mt<missileTrailMaxPts;mt++){
             if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==0)continue;
-            _mtRenderBuf[regCount*3]=missileTrailPos[mt*3];
-            _mtRenderBuf[regCount*3+1]=missileTrailPos[mt*3+1];
-            _mtRenderBuf[regCount*3+2]=missileTrailPos[mt*3+2];
+            // CRR: camera-relative trail positions
+            _mtRenderBuf[regCount*3]=missileTrailPos[mt*3]-_camWX;
+            _mtRenderBuf[regCount*3+1]=missileTrailPos[mt*3+1]-_camWY;
+            _mtRenderBuf[regCount*3+2]=missileTrailPos[mt*3+2]-_camWZ;
             regCount++;
           }
           if(regCount>0){
@@ -1773,9 +1792,10 @@
           let nukeCount=0;
           for(let mt=0;mt<missileTrailMaxPts;mt++){
             if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==1)continue;
-            _mtRenderBuf[nukeCount*3]=missileTrailPos[mt*3];
-            _mtRenderBuf[nukeCount*3+1]=missileTrailPos[mt*3+1];
-            _mtRenderBuf[nukeCount*3+2]=missileTrailPos[mt*3+2];
+            // CRR: camera-relative trail positions
+            _mtRenderBuf[nukeCount*3]=missileTrailPos[mt*3]-_camWX;
+            _mtRenderBuf[nukeCount*3+1]=missileTrailPos[mt*3+1]-_camWY;
+            _mtRenderBuf[nukeCount*3+2]=missileTrailPos[mt*3+2]-_camWZ;
             nukeCount++;
           }
           if(nukeCount>0){
@@ -1792,18 +1812,20 @@
         for(let ti=0;ti<lockState.targets.length;ti++){
           const lk=lockState.targets[ti];
           if(!enemies.alive[lk.enemyIdx])continue;
-          const ex=enemies.posX[lk.enemyIdx],ez=enemies.posZ[lk.enemyIdx];
-          _tgtMark[0]=ex-1.5;_tgtMark[1]=0;_tgtMark[2]=ez-1.5;
-          _tgtMark[3]=ex+1.5;_tgtMark[4]=0;_tgtMark[5]=ez+1.5;
-          _tgtMark[6]=ex-1.5;_tgtMark[7]=0;_tgtMark[8]=ez+1.5;
-          _tgtMark[9]=ex+1.5;_tgtMark[10]=0;_tgtMark[11]=ez-1.5;
+          // CRR: camera-relative enemy positions for lock markers
+          const ex=enemies.posX[lk.enemyIdx]-_camWX,ez=enemies.posZ[lk.enemyIdx]-_camWZ;
+          const ey=0-_camWY;
+          _tgtMark[0]=ex-1.5;_tgtMark[1]=ey;_tgtMark[2]=ez-1.5;
+          _tgtMark[3]=ex+1.5;_tgtMark[4]=ey;_tgtMark[5]=ez+1.5;
+          _tgtMark[6]=ex-1.5;_tgtMark[7]=ey;_tgtMark[8]=ez+1.5;
+          _tgtMark[9]=ex+1.5;_tgtMark[10]=ey;_tgtMark[11]=ez-1.5;
           gl.bindBuffer(gl.ARRAY_BUFFER,targetMarkerBuf);
           gl.bufferData(gl.ARRAY_BUFFER,_tgtMark,gl.DYNAMIC_DRAW);
           gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
           gl.uniform4f(trajLocs.uColor,1.0,0.3,0.2,0.9);
           gl.uniform1f(trajLocs.uPtSize,6.0);
           gl.drawArrays(gl.LINES,0,4);
-          _tgtDot[0]=ex;_tgtDot[1]=0;_tgtDot[2]=ez;
+          _tgtDot[0]=ex;_tgtDot[1]=ey;_tgtDot[2]=ez;
           gl.bufferData(gl.ARRAY_BUFFER,_tgtDot,gl.DYNAMIC_DRAW);
           gl.drawArrays(gl.POINTS,0,1);
         }
@@ -1814,11 +1836,12 @@
           gl.enableVertexAttribArray(trajLocs.aPos);
           for(let rr=0;rr<_tacRingRadii.length;rr++){
             const radius=_tacRingRadii[rr];
+            // CRR: offset ring center from origin to camera-relative origin
             for(let s=0;s<RING_SEGMENTS;s++){
               const angle=(s/RING_SEGMENTS)*Math.PI*2;
-              ringArray[s*3]=radius*Math.cos(angle);
-              ringArray[s*3+1]=0;
-              ringArray[s*3+2]=radius*Math.sin(angle);
+              ringArray[s*3]=radius*Math.cos(angle)-_camWX;
+              ringArray[s*3+1]=0-_camWY;
+              ringArray[s*3+2]=radius*Math.sin(angle)-_camWZ;
             }
             gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
             gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);

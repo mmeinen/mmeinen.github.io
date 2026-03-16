@@ -83,7 +83,7 @@ let particleGlBuf = null; // lazy-created on first render
  * @param {Object} trajLocs - attribute/uniform locations
  * @param {Float32Array} vpMat - view-projection matrix
  */
-function renderParticles(gl, trajPg, trajLocs, vpMat) {
+function renderParticles(gl, trajPg, trajLocs, vpMat, camX, camY, camZ) {
   if (particleCount === 0) return;
 
   // Lazy GL buffer creation
@@ -98,9 +98,10 @@ function renderParticles(gl, trajPg, trajLocs, vpMat) {
   let pCount = 0;
   for (let i = 0; i < MAX_PARTICLES; i++) {
     if (!particle.alive[i]) continue;
-    particleRenderBuf[pCount * 3]     = particle.posX[i];
-    particleRenderBuf[pCount * 3 + 1] = 0;
-    particleRenderBuf[pCount * 3 + 2] = particle.posZ[i];
+    // CRR: subtract camera world position before GPU upload
+    particleRenderBuf[pCount * 3]     = particle.posX[i] - camX;
+    particleRenderBuf[pCount * 3 + 1] = 0 - camY;
+    particleRenderBuf[pCount * 3 + 2] = particle.posZ[i] - camZ;
     pCount++;
   }
   if (pCount === 0) return;
