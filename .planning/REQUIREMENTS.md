@@ -9,9 +9,9 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Scale
 
-- [ ] **SCALE-01**: Scene uses km-based coordinate system with black hole diameter 20,000 km, Jupiter diameter 4,000 km, and other planets scaled proportionally
-- [ ] **SCALE-02**: Planet orbits are approximately 50,000 km apart
-- [ ] **SCALE-03**: Player ship is 10 km long, Capital enemies 8 km, Grunts 500 m, other archetypes scaled proportionally
+- [x] **SCALE-01**: Scene uses km-based coordinate system with black hole diameter 20,000 km, Jupiter diameter 4,000 km, and other planets scaled proportionally
+- [x] **SCALE-02**: Planet orbits are approximately 50,000 km apart
+- [x] **SCALE-03**: Player ship is 10 km long, Capital enemies 8 km, Grunts 500 m, other archetypes scaled proportionally
 - [ ] **SCALE-04**: Camera-relative rendering (CRR) prevents float32 precision jitter at all orbital radii
 - [ ] **SCALE-05**: Logarithmic depth buffer prevents Z-fighting across the km-scale scene
 - [ ] **SCALE-06**: Normal (non-nav) mode rendering is completely unaffected by km-scale changes
@@ -20,7 +20,7 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 ### Time
 
 - [ ] **TIME-01**: Ships orbit Jupiter in approximately 60 seconds at normal speed
-- [ ] **TIME-02**: All orbital velocities and gravitational constants derived from the Jupiter 60s anchor
+- [x] **TIME-02**: All orbital velocities and gravitational constants derived from the Jupiter 60s anchor
 
 ### Fleet
 
@@ -112,15 +112,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCALE-01 | Phase 10 | Pending |
-| SCALE-02 | Phase 10 | Pending |
-| SCALE-03 | Phase 10 | Pending |
+| SCALE-01 | Phase 10 | Complete |
+| SCALE-02 | Phase 10 | Complete |
+| SCALE-03 | Phase 10 | Complete |
 | SCALE-04 | Phase 10 | Pending |
 | SCALE-05 | Phase 10 | Pending |
 | SCALE-06 | Phase 10 | Pending |
 | SCALE-07 | Phase 10 | Pending |
 | TIME-01 | Phase 10 | Pending |
-| TIME-02 | Phase 10 | Pending |
+| TIME-02 | Phase 10 | Complete |
 | FLEET-01 | Phase 13 | Pending |
 | FLEET-02 | Phase 13 | Pending |
 | FLEET-03 | Phase 13 | Pending |
