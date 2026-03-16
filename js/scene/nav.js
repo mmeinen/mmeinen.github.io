@@ -73,19 +73,19 @@ function computeGravAccel(pos){
    if(r3>0.001){ax+=_planetGM[6]*dx/r3;ay+=_planetGM[6]*dy/r3;az+=_planetGM[6]*dz/r3;}}
   return [ax,ay,az];
 }
-// Gravity at arbitrary time (for trajectory prediction)
+// Gravity at arbitrary time (for trajectory prediction -- km scale)
 function computeGravAccelAtTime(pos,time){
   let dx=-pos[0], dy=-pos[1], dz=-pos[2];
   let r2=dx*dx+dy*dy+dz*dz;
   let r=Math.sqrt(r2);
   let r3=r2*r;
   let ax=0,ay=0,az=0;
-  if(r3>0.001){ax+=BH_GM*dx/r3;ay+=BH_GM*dy/r3;az+=BH_GM*dz/r3;}
+  if(r3>0.001){ax+=BH_GM_KM*dx/r3;ay+=BH_GM_KM*dy/r3;az+=BH_GM_KM*dz/r3;}
   for(let i=0;i<7;i++){
-    const pp=planetPosAtTime(planetData[i],time);
+    const pp=planetPosKm(planetData[i],time);
     dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
-    if(r3>0.001){ax+=_planetGM[i]*dx/r3;ay+=_planetGM[i]*dy/r3;az+=_planetGM[i]*dz/r3;}
+    if(r3>0.001){ax+=_planetGM_km[i]*dx/r3;ay+=_planetGM_km[i]*dy/r3;az+=_planetGM_km[i]*dz/r3;}
   }
   return [ax,ay,az];
 }
@@ -129,7 +129,7 @@ function simulateTrajectory(startPos,startVel,startTime,steps,simDt,outArray,thr
     let ax2=a2[0],az2=a2[2];
     if(thrDir&&elapsed<thrDur){ax2+=thrDir[0]*thrPow;az2+=thrDir[2]*thrPow;}
     vx+=0.5*ax2*simDt;vy+=0.5*a2[1]*simDt;vz+=0.5*az2*simDt;
-    if(px*px+py*py+pz*pz<4){break;}
+    if(px*px+py*py+pz*pz<BH_RADIUS_KM*BH_RADIUS_KM){break;}
   }
   return n/3;
 }

@@ -381,7 +381,7 @@
         breakup.spinX[i] = (Math.random() - 0.5) * 6;
         breakup.spinY[i] = (Math.random() - 0.5) * 6;
       }
-      spawnExplosion(flyPos[0], 0, flyPos[2], 2.0);
+      spawnExplosion(flyPos[0], 0, flyPos[2], PLAYER_SIZE_KM*2);
     }
 
     function updateBreakup(dt) {
@@ -399,7 +399,8 @@
     function triggerDetonationAtShip() {
       const slot = detSlots.find(function(s) { return !s.active; });
       if (!slot) return;
-      slot.pos[0] = deathPos[0]; slot.pos[1] = 0; slot.pos[2] = deathPos[2];
+      // deathPos is in km; convert to abstract units for shader detonation effect
+      slot.pos[0] = deathPos[0]/ORBIT_SCALE; slot.pos[1] = 0; slot.pos[2] = deathPos[2]/ORBIT_SCALE;
       slot.startSimTime = simTime;
       slot.active = true;
     }
@@ -1051,9 +1052,8 @@
       const slot=detSlots.find(s=>!s.active);
       if(!slot)return;
       const saturn=planetData[1];
-      const oScale=flyMode?2.0:1.0;
       const angle=saturn.sp*simTime+saturn.ph;
-      const detOrbR=(saturn.oR+3.0)*oScale;
+      const detOrbR=saturn.oR+3.0;
       slot.pos[0]=detOrbR*Math.sin(angle);
       slot.pos[1]=0;
       slot.pos[2]=detOrbR*Math.cos(angle);
@@ -1200,7 +1200,7 @@
         if (playerState.deathPhase === 1) {
           // FLICKER phase (~1.0s): ship flickers, small sparks every ~0.25s
           if (Math.floor(playerState.deathTimer / 0.25) > Math.floor(prevTimer / 0.25)) {
-            spawnExplosion(flyPos[0] + (Math.random()-0.5)*0.5, 0, flyPos[2] + (Math.random()-0.5)*0.5, 0.5);
+            spawnExplosion(flyPos[0] + (Math.random()-0.5)*PLAYER_SIZE_KM, 0, flyPos[2] + (Math.random()-0.5)*PLAYER_SIZE_KM, PLAYER_SIZE_KM*0.5);
           }
           if (playerState.deathTimer > 1.0) {
             playerState.deathPhase = 2;
@@ -1220,7 +1220,7 @@
           }
         } else if (playerState.deathPhase === 3) {
           // DETONATION phase (~3.5s): volumetric explosion, camera pulls out
-          navCamDist += (120 - navCamDist) * simDtSec * 0.8;
+          navCamDist += (NAV_CAM_DIST_MAX*0.6 - navCamDist) * simDtSec * 0.8;
           navCamEl += (0.6 - navCamEl) * simDtSec * 0.5;
           if (playerState.deathTimer > 3.5) {
             playerState.deathPhase = 4;

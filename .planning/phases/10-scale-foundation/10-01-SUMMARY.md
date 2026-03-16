@@ -69,7 +69,7 @@ Each task was committed atomically:
 1. **Task 1: Create js/scene/scale.js with all km-scale constants** - `80fe730` (feat)
 2. **Task 2: Extend tests.html with scale constant validation tests** - `57fc5df` (test)
 
-**Plan metadata:** [pending] (docs: complete plan)
+**Plan metadata:** `d436d56` (docs: complete plan)
 
 ## Files Created/Modified
 - `js/scene/scale.js` - All km-scale constants, Kepler-derived BH_GM_KM, planetPosKm() and periodFromOr() helpers

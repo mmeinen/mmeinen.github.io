@@ -48,7 +48,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. No geometry jitter or Z-fighting is visible at any orbital radius -- camera-relative rendering and log depth buffer eliminate precision artifacts
   4. Normal (non-nav) mode rendering is completely unchanged -- tests.html passes, planet labels at correct positions, black hole shader unaffected
   5. Jupiter completes one orbit in approximately 60 seconds and all other orbital velocities feel physically consistent
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 Plans:
 - [ ] 10-01-PLAN.md — Scale constants module (scale.js) and automated test suite
 - [ ] 10-02-PLAN.md — Camera-relative rendering and logarithmic depth buffer
@@ -138,7 +138,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 7. Wave Progression & Enemy Variety | v1.0 | 3/3 | Complete | 2026-03-14 |
 | 8. Combat HUD | v1.0 | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
-| 10. Scale Foundation | 1/4 | In Progress|  | - |
+| 10. Scale Foundation | 2/4 | In Progress|  | - |
 | 11. Simulation Rescaling & Viewport Cleanup | v1.1 | 0/? | Not started | - |
 | 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
