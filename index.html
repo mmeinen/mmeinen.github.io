@@ -985,8 +985,8 @@
         return;
       }
       if(flyMode){
-        // B for fast-forward is always available (even when dead)
-        if(e.key==='b'||e.key==='B'){fastForward=!fastForward;}
+        // Warp speed: Phase 14
+        if(e.key==='b'||e.key==='B'){}
         // Gate combat/navigation input on player alive
         if(!playerState.alive){return;}
         if(e.key==='f'||e.key==='F'){
@@ -1180,7 +1180,7 @@
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
       const dtSec=Math.min(ft*0.001,0.1);
-      const simDtSec=flyMode?(fastForward?dtSec*FAST_FORWARD_SCALE:dtSec*BULLET_TIME_SCALE):dtSec;
+      const simDtSec=dtSec;
       simTime+=simDtSec;
       dv.setFloat32(0x028,ft,true);
       dv.setFloat32(0x010,simTime,true);
@@ -1406,11 +1406,18 @@
         const minDim=Math.min(canvas.width,canvas.height);
         const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
         const aspect=canvas.width/canvas.height;
-        mat4Perspective(fovY,aspect,0.1,500,_proj);
+        // CRR: gated perspective matrix -- km-appropriate near/far in flyMode
+        mat4Perspective(fovY,aspect,1.0,600000,_proj);
+        // CRR: store world-space camera position (float64) before constructing camera-at-origin view
+        const _camWX=_camP[0],_camWY=_camP[1],_camWZ=_camP[2];
         const _lookTarget = playerState.deathPhase >= 2 ? deathPos : flyPos;
-        mat4LookAt(_camP,_lookTarget,_camU,_view);
+        // CRR: view matrix with camera at origin -- look target is camera-relative
+        const _crrLook=[_lookTarget[0]-_camWX,_lookTarget[1]-_camWY,_lookTarget[2]-_camWZ];
+        mat4LookAt([0,0,0],_crrLook,_camU,_view);
         mat4Mul(_proj,_view,_vpMat);
-        mat4Model(flyPos,flyFwd,flyUp,_shipR,_model);
+        // CRR: ship model uses camera-relative position
+        const _crrShipPos=[flyPos[0]-_camWX,flyPos[1]-_camWY,flyPos[2]-_camWZ];
+        mat4Model(_crrShipPos,flyFwd,flyUp,_shipR,_model);
         mat4Mul(_view,_model,_t16);
         mat4Mul(_proj,_t16,_mvp);
         mat3NormalFromMat4(_t16,_normM);
@@ -1423,7 +1430,7 @@
 
         // --- Enemy instanced rendering (multi-geometry per archetype) ---
         if(enemyCount>0){
-          const instResult=updateInstanceBuffer(simTime);
+          const instResult=updateInstanceBuffer(simTime,_camWX,_camWY,_camWZ);
           if(instResult.totalCount>0){
             gl.useProgram(enemyPg);
             gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
@@ -1533,7 +1540,8 @@
           const _mpArr=[0,0,0],_mfArr=[0,0,0];
           for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){
             if(!missile.alive[mi])continue;
-            _mpArr[0]=missile.posX[mi];_mpArr[1]=0;_mpArr[2]=missile.posZ[mi];
+            // CRR: camera-relative missile position
+            _mpArr[0]=missile.posX[mi]-_camWX;_mpArr[1]=0-_camWY;_mpArr[2]=missile.posZ[mi]-_camWZ;
             _mfArr[0]=missile.fwdX[mi];_mfArr[1]=0;_mfArr[2]=missile.fwdZ[mi];
             v3cross(_mR,_mfArr,_worldUp);v3norm(_mR,_mR);
             // Scale nuclear missiles by 1.8x
@@ -1832,8 +1840,7 @@
         for(let i=0;i<pL.length;i++)pL[i].classList.remove('visible','hovered');
         flySpdEl.textContent=v3len(flyVel).toFixed(1);
         flyPosEl.textContent=flyPos[0].toFixed(0)+', '+flyPos[1].toFixed(0)+', '+flyPos[2].toFixed(0);
-        if(!fastForward)flyBulletTime.classList.add('active');
-        else flyBulletTime.classList.remove('active');
+        // Bullet time removed (Phase 10); warp indicator: Phase 14
         // Damage vignette and HP bar update
         {
           const hpRatio=playerState.hp/playerState.maxHp;

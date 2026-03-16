@@ -11,10 +11,7 @@ const BH_GM=400;
 const PLANET_GM_K=50.0;
 // Altitude thrust (internal, not user-controllable)
 const ALT_THRUST=2.0;
-// Time scale: default is bullet time (0.03x), "b" toggles fast forward (0.5x)
-let fastForward=false;
-const BULLET_TIME_SCALE=0.03;
-const FAST_FORWARD_SCALE=0.5;
+// Time scaling removed (Phase 10) -- simDtSec = dtSec always. Warp: Phase 14.
 // Trajectory preview
 const TRAJ_STEPS=100;
 const TRAJ_SIM_DT=0.4;
@@ -177,7 +174,7 @@ function initiateTransfer(targetIndex) {
   } else if (targetIndex === -1) {
     targetR = 8.0; // BH capture radius
   } else {
-    targetR = planetData[targetIndex].oR; // already doubled in nav mode
+    targetR = planetData[targetIndex].oR;
   }
 
   // Current ship orbit radius
@@ -380,13 +377,15 @@ function enterNavMode(){
   else{flyFwd[0]=0;flyFwd[1]=0;flyFwd[2]=-1;}
   flyUp[0]=0;flyUp[1]=1;flyUp[2]=0;
   navCamAz=Math.atan2(cx,cz);navCamEl=0.5;navCamDist=3;
-  fastForward=false;aimDir=null;
+  aimDir=null;
   const tNow=simTime;
+  // Recompute planet angular speeds to Keplerian values (using BH_GM_KM at km scale)
+  // No oR doubling -- planetData.oR stays at its original abstract value
   for(let i=0;i<6;i++){
     const p=planetData[i],b=0x100+i*16;
     p._origSp=p.sp;p._origPh=p.ph;
-    p.oR*=2;
-    const spKep=Math.sqrt(BH_GM)/Math.pow(p.oR,1.5);
+    const oR_km=p.oR*ORBIT_SCALE;
+    const spKep=Math.sqrt(BH_GM_KM)/Math.pow(oR_km,1.5);
     p.ph+=(p.sp-spKep)*tNow;
     p.sp=spKep;
     dv.setFloat32(b,p.oR,true);
@@ -395,12 +394,12 @@ function enterNavMode(){
   }
   {const p=planetData[6];
    p._origSp=p.sp;p._origPh=p.ph;
-   p.oR*=2;
-   const spKep=Math.sqrt(BH_GM)/Math.pow(p.oR,1.5);
+   const oR_km=p.oR*ORBIT_SCALE;
+   const spKep=Math.sqrt(BH_GM_KM)/Math.pow(oR_km,1.5);
    p.ph+=(p.sp-spKep)*tNow;
    p.sp=spKep;}
   flyMode=true;
-  // Initialize orbital data tables (SOI, default orbit altitudes) after oR doubling
+  // Initialize orbital data tables (SOI, default orbit altitudes)
   initOrbitalData();
   // Set initial orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
@@ -416,12 +415,11 @@ function enterNavMode(){
   flyHudAltEl.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
-  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; ZOOM<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; FIRE SALVO<br>C &mdash; CLEAR LOCKS<br>B &mdash; FAST FORWARD<br>L &mdash; LAGRANGE PTS<br>F &mdash; COMBAT MODE<br>1-4 &mdash; WEAPON SELECT<br>` &mdash; EXIT</div>';
+  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; ZOOM<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; FIRE SALVO<br>C &mdash; CLEAR LOCKS<br>L &mdash; LAGRANGE PTS<br>F &mdash; COMBAT MODE<br>1-4 &mdash; WEAPON SELECT<br>` &mdash; EXIT</div>';
 }
 
 function exitNavMode(){
   flyMode=false;
-  fastForward=false;
   if(typeof hideAllIndicators==='function')hideAllIndicators();
   // Reset orbit state
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
@@ -431,14 +429,15 @@ function exitNavMode(){
   for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
   clearLocks();for(let _mi=0;_mi<MAX_MISSILES_ACTIVE;_mi++){if(missile.alive[_mi])removeMissile(_mi);}
   for(let i=0;i<6;i++){detSlots[i].active=false;}
+  // Restore original sp/ph (no oR change needed -- oR was never mutated)
   for(let i=0;i<6;i++){
     const p=planetData[i],b=0x100+i*16;
-    p.oR/=2;p.sp=p._origSp;p.ph=p._origPh;
+    p.sp=p._origSp;p.ph=p._origPh;
     dv.setFloat32(b,p.oR,true);
     dv.setFloat32(b+4,p.ph,true);
     dv.setFloat32(b+8,p.sp,true);
   }
-  {const p=planetData[6];p.oR/=2;p.sp=p._origSp;p.ph=p._origPh;}
+  {const p=planetData[6];p.sp=p._origSp;p.ph=p._origPh;}
   const dx=flyPos[0],dy=flyPos[1],dz=flyPos[2];
   camDist=Math.sqrt(dx*dx+dy*dy+dz*dz);
   if(camDist<5)camDist=120;

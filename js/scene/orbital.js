@@ -1,12 +1,13 @@
 /* ---- Orbital mechanics module ---- */
 /* Provides SOI radii, Lagrange point positions, Hohmann delta-v formulas,
    and orbit state management for the navigation system.
-   Depends on globals from nav.js: BH_GM, PLANET_GM_K, _planetGM, planetData, planetPosAtTime */
+   Depends on globals from nav.js: BH_GM, _planetGM, planetData, planetPosAtTime
+   and from scale.js: BH_GM_KM, ORBIT_SCALE, BODY_SCALE */
 
 const ORBIT_STATE = { ORBITING: 0, TRANSFER: 1, FREE: 2 };
 
 /* ---- SOI and orbit altitude tables ---- */
-// Filled by initOrbitalData() after enterNavMode() doubles oR
+// Filled by initOrbitalData() during enterNavMode()
 const BODY_SOI = new Float32Array(8);       // index 0 = BH, 1-7 = planets 0-6
 const DEFAULT_ORBIT_ALT = new Float32Array(8); // same indexing
 
@@ -17,7 +18,7 @@ function _tableIdx(bodyIndex) { return bodyIndex + 1; }
 function computeSOI(planetIndex) {
   // Hill sphere with gameplay floor: max(d * cbrt(planetGM / (3 * BH_GM)), radius * 2.5 + 1.0)
   const p = planetData[planetIndex];
-  const d = p.oR; // already doubled in nav mode when this runs
+  const d = p.oR; // abstract-unit orbit radius (no doubling)
   const planetGM = _planetGM[planetIndex];
   const hillR = d * Math.cbrt(planetGM / (3 * BH_GM));
   const floor = p.radius * 2.5 + 1.0;
@@ -132,7 +133,7 @@ function computeLagrangePoints(planetIndex, time) {
 }
 
 /* ---- Initialize orbital data tables ---- */
-// Called from enterNavMode() after oR has been doubled
+// Called from enterNavMode()
 function initOrbitalData() {
   // Black hole (index -1 -> table index 0)
   BODY_SOI[0] = 8.0;
