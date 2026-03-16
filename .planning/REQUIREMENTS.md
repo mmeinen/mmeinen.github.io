@@ -15,7 +15,7 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 - [x] **SCALE-04**: Camera-relative rendering (CRR) prevents float32 precision jitter at all orbital radii
 - [x] **SCALE-05**: Logarithmic depth buffer prevents Z-fighting across the km-scale scene
 - [x] **SCALE-06**: Normal (non-nav) mode rendering is completely unaffected by km-scale changes
-- [ ] **SCALE-07**: Collision detection bins recalibrated for km-scale distances
+- [x] **SCALE-07**: Collision detection bins recalibrated for km-scale distances
 
 ### Time
 
@@ -118,7 +118,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCALE-04 | Phase 10 | Complete |
 | SCALE-05 | Phase 10 | Complete |
 | SCALE-06 | Phase 10 | Complete |
-| SCALE-07 | Phase 10 | Pending |
+| SCALE-07 | Phase 10 | Complete |
 | TIME-01 | Phase 10 | Complete |
 | TIME-02 | Phase 10 | Complete |
 | FLEET-01 | Phase 13 | Pending |

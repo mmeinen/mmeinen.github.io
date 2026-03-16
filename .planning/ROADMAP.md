@@ -28,7 +28,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Transform the scene from abstract game-units to kilometer-scale space, restructure enemies into tactical fleets, and separate navigation (radar) from combat (main viewport).
 
-- [ ] **Phase 10: Scale Foundation** — km coordinate system, CRR, log depth buffer, collision bins, time anchor
+- [x] **Phase 10: Scale Foundation** — km coordinate system, CRR, log depth buffer, collision bins, time anchor
 - [ ] **Phase 11: Simulation Rescaling & Viewport Cleanup** — All physics modules operating in km, viewport purified for combat, BH close-up tuning
 - [ ] **Phase 12: Body Collision & World Boundary** — Kill zones on planets/BH, player protection, world boundary fence
 - [ ] **Phase 13: Fleet Composition System** — Structured fleet spawning with roles, anchor orbiting, HUD announcements
@@ -48,12 +48,12 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. No geometry jitter or Z-fighting is visible at any orbital radius -- camera-relative rendering and log depth buffer eliminate precision artifacts
   4. Normal (non-nav) mode rendering is completely unchanged -- tests.html passes, planet labels at correct positions, black hole shader unaffected
   5. Jupiter completes one orbit in approximately 60 seconds and all other orbital velocities feel physically consistent
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans executed -- PHASE COMPLETE
 Plans:
-- [ ] 10-01-PLAN.md — Scale constants module (scale.js) and automated test suite
-- [ ] 10-02-PLAN.md — Camera-relative rendering and logarithmic depth buffer
-- [ ] 10-03-PLAN.md — Keplerian orbital mechanics and bullet time removal
-- [ ] 10-04-PLAN.md — Combat rebalancing, collision bins, and spawn system for km scale
+- [x] 10-01-PLAN.md — Scale constants module (scale.js) and automated test suite
+- [x] 10-02-PLAN.md — Camera-relative rendering and logarithmic depth buffer
+- [x] 10-03-PLAN.md — Keplerian orbital mechanics and bullet time removal
+- [x] 10-04-PLAN.md — Combat rebalancing, collision bins, and spawn system for km scale
 
 ### Phase 11: Simulation Rescaling & Viewport Cleanup
 **Goal**: All combat simulation modules operate in km and the main 3D viewport shows only combat -- no navigation overlays
@@ -138,7 +138,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 7. Wave Progression & Enemy Variety | v1.0 | 3/3 | Complete | 2026-03-14 |
 | 8. Combat HUD | v1.0 | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
-| 10. Scale Foundation | 3/4 | In Progress|  | - |
+| 10. Scale Foundation | v1.1 | 4/4 | Complete | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | v1.1 | 0/? | Not started | - |
 | 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
