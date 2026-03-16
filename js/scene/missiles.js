@@ -312,8 +312,12 @@ function updateMissiles(simDt) {
     const r2 = missile.posX[i] * missile.posX[i] + missile.posZ[i] * missile.posZ[i];
     if (r2 < BH_RADIUS_KM * BH_RADIUS_KM) { removeMissile(i); continue; }
 
-    // Gravity (always active)
-    const g = computeGravAccel([missile.posX[i], 0, missile.posZ[i]]);
+    // BH-only gravity at km scale (always active)
+    const mx = missile.posX[i], mzg = missile.posZ[i];
+    const mr2 = mx * mx + mzg * mzg;
+    const mr = Math.sqrt(mr2);
+    const mr3 = mr2 * mr;
+    const g = mr3 > 1.0 ? [-BH_GM_KM * mx / mr3, 0, -BH_GM_KM * mzg / mr3] : [0, 0, 0];
 
     if (missile.fuel[i] > 0) {
       // Powered flight: PN guidance + thrust

@@ -209,6 +209,16 @@ const ACCURACY_NOISE = 2000;          // km -- lead prediction scatter
 /* Scratch arrays for vector calculations (avoid per-frame allocation) */
 const _aiScratch = [0, 0, 0];
 
+/** BH-only gravity at km scale (sufficient for enemies -- no planet GM needed) */
+function _bhGravKm(pos) {
+  const dx = -pos[0], dz = -pos[2];
+  const r2 = dx * dx + pos[1] * pos[1] + dz * dz;
+  const r = Math.sqrt(r2);
+  const r3 = r2 * r;
+  if (r3 < 1.0) return [0, 0, 0];
+  return [BH_GM_KM * dx / r3, 0, BH_GM_KM * dz / r3];
+}
+
 /**
  * Update enemy AI state machine for all alive enemies.
  * @param {number} simDt - scaled delta time
@@ -321,7 +331,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         }
         // Gravity
         _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-        const ga = computeGravAccel(_aiScratch);
+        const ga = _bhGravKm(_aiScratch);
         // Mid-course guidance: correction toward player
         let gx = 0, gz = 0;
         if (dist > 500) {
@@ -378,7 +388,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           // ---- SWARM ATTACK: ram damage, no ranged weapons ----
           // Continue physics with gravity + thrust toward player
           _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-          const gaS = computeGravAccel(_aiScratch);
+          const gaS = _bhGravKm(_aiScratch);
           // Always accelerate toward player (rush behavior) -- km/s^2
           let rushX = 0, rushZ = 0;
           if (dist > 10) {
@@ -411,7 +421,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           // ---- BOMBER ATTACK: hold position, fire missile salvos ----
           // Gravity + braking to hold position at medium range
           _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-          const gaB = computeGravAccel(_aiScratch);
+          const gaB = _bhGravKm(_aiScratch);
           enemies.velX[i] *= 0.98; // braking force
           enemies.velZ[i] *= 0.98;
           enemies.velX[i] += gaB[0] * simDt;
@@ -453,7 +463,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           // ---- SNIPER ATTACK: extreme range burst fire, maintain distance ----
           // Continue physics (gravity + leapfrog)
           _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-          const gaSnp = computeGravAccel(_aiScratch);
+          const gaSnp = _bhGravKm(_aiScratch);
           enemies.velX[i] += gaSnp[0] * simDt;
           enemies.velZ[i] += gaSnp[2] * simDt;
           // Mild retrograde thrust to maintain distance if player closes in (km/s^2)
@@ -556,7 +566,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           // ---- GRUNT: default attack behavior ----
           // Continue physics (gravity + leapfrog, no guidance)
           _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-          const ga2 = computeGravAccel(_aiScratch);
+          const ga2 = _bhGravKm(_aiScratch);
           enemies.velX[i] += ga2[0] * simDt;
           enemies.velZ[i] += ga2[2] * simDt;
           enemies.posX[i] += enemies.velX[i] * simDt;
@@ -598,7 +608,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         }
         // Continue physics
         _aiScratch[0] = enemies.posX[i]; _aiScratch[1] = 0; _aiScratch[2] = enemies.posZ[i];
-        const ga3 = computeGravAccel(_aiScratch);
+        const ga3 = _bhGravKm(_aiScratch);
         enemies.velX[i] += ga3[0] * simDt;
         enemies.velZ[i] += ga3[2] * simDt;
         enemies.posX[i] += enemies.velX[i] * simDt;

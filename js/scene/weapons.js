@@ -492,10 +492,15 @@ function updateProjectiles(simDt, st) {
     proj.age[i] += simDt;
 
     if (proj.type[i] === 0 || proj.type[i] === 2) {
-      // KINETIC (player type=0) or ENEMY KINETIC (type=2): gravity, leapfrog
-      const g = computeGravAccel([proj.posX[i], 0, proj.posZ[i]]);
-      proj.velX[i] += g[0] * simDt;
-      proj.velZ[i] += g[2] * simDt;
+      // KINETIC (player type=0) or ENEMY KINETIC (type=2): BH-only gravity at km scale
+      const px = proj.posX[i], pz = proj.posZ[i];
+      const pr2 = px * px + pz * pz;
+      const pr = Math.sqrt(pr2);
+      const pr3 = pr2 * pr;
+      if (pr3 > 1.0) {
+        proj.velX[i] += (-BH_GM_KM * px / pr3) * simDt;
+        proj.velZ[i] += (-BH_GM_KM * pz / pr3) * simDt;
+      }
       proj.posX[i] += proj.velX[i] * simDt;
       proj.posZ[i] += proj.velZ[i] * simDt;
 
