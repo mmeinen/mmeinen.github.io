@@ -149,8 +149,8 @@ function updateInstanceBuffer(simTime, camX, camY, camZ) {
 
 /* ---- Radial Bin Collision Structure ---- */
 
-const BIN_WIDTH = 10.0;
-const NUM_BINS = 20;        // covers radius 0-200
+const BIN_WIDTH = BIN_WIDTH_KM;   // 5,000 km per bin (from scale.js)
+const NUM_BINS = NUM_BINS_KM;     // 24 bins, covers 0-120,000 km (past Neptune)
 const MAX_PER_BIN = 16;
 
 const binCounts = new Uint8Array(NUM_BINS);
