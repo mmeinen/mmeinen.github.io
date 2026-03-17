@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Realistic Scale & Fleet Combat
 status: completed
-stopped_at: Completed 10-04-PLAN.md -- Phase 10 complete
-last_updated: "2026-03-17T12:38:53.051Z"
+stopped_at: Phase 11 context gathered
+last_updated: "2026-03-17T19:29:33.196Z"
 last_activity: 2026-03-16 -- Completed 10-04 Combat rebalancing for km scale
 progress:
   total_phases: 7
@@ -98,6 +98,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-16T21:28:00Z
-Stopped at: Completed 10-04-PLAN.md -- Phase 10 complete
-Resume file: .planning/phases/10-scale-foundation/10-04-SUMMARY.md
+Last session: 2026-03-17T19:29:33.193Z
+Stopped at: Phase 11 context gathered
+Resume file: .planning/phases/11-simulation-rescaling-viewport-cleanup/11-CONTEXT.md
