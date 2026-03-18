@@ -80,7 +80,10 @@ Plans:
   2. Player ship orbital mechanics prevent collision courses -- the player can never fly into a planet or the black hole
   3. An invisible boundary at 1.2x the outermost orbit prevents entities from drifting beyond the play area
   4. Enemies destroyed by body collision count as kills toward the wave counter and trigger the next wave when thresholds are met
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Entity body collision (enemies, projectiles, missiles vs all 8 celestial bodies)
+- [ ] 12-02-PLAN.md — Player body protection and world boundary enforcement
 
 ### Phase 13: Fleet Composition System
 **Goal**: Enemies spawn as structured fleets with defined roles rather than as individual ships
@@ -144,7 +147,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete    | 2026-03-18 | - |
-| 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
+| 12. Body Collision & World Boundary | v1.1 | 0/2 | Planned | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
 | 15. Radar System | v1.1 | 0/? | Not started | - |
