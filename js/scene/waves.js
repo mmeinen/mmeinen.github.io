@@ -16,28 +16,21 @@ let waveEnemyCount = 0; // tracks wave-spawned enemies (not Capital-spawned mini
 /* DOM reference (set after DOM ready) */
 let waveAnnounceEl = null;
 
-/**
- * Get wave composition for a given wave number.
- * Formula-driven: enemy count grows, archetype availability unlocks at thresholds.
- * @param {number} waveNum - 1-based wave number
- * @returns {{ enemies: Array<{type: number, count: number}>, isBoss: boolean }}
+/* Fleet spawn results for HUD callout system (consumed by Plan 02) */
+let _lastFleetResults = [];
+
+/* LEGACY: replaced by getFleetComposition() in fleets.js
+ * Preserved for reference. No longer called by spawnWave().
  */
 function getWaveDefinition(waveNum) {
+  /* LEGACY: replaced by getFleetComposition() in fleets.js */
   const totalEnemies = Math.min(MAX_ENEMIES - 8, Math.floor(6 + waveNum * 1.2));
   const isBoss = waveNum >= 10 && waveNum % 10 === 0;
 
   if (isBoss) {
-    // Boss wave: Capital ships + supporting cast
-    // Wave 10: 1 Capital solo (introduction). Wave 20: 2 Capitals + support. Wave 30+: 3 Capitals max.
     const capitalCount = Math.min(3, Math.floor(waveNum / 10));
     const result = [{ type: ETYPE.CAPITAL, count: capitalCount }];
-
-    // Wave 10: solo Capital (no supporting cast)
-    if (waveNum === 10) {
-      return { enemies: result, isBoss: true };
-    }
-
-    // Fill support with hardest available archetypes (weighted toward Snipers and Bombers)
+    if (waveNum === 10) return { enemies: result, isBoss: true };
     const supportCount = totalEnemies - capitalCount;
     let remaining = supportCount;
     if (remaining > 0) {
@@ -55,29 +48,17 @@ function getWaveDefinition(waveNum) {
       if (swarmCount > 0) result.push({ type: ETYPE.SWARM, count: swarmCount });
       remaining -= swarmCount;
     }
-    if (remaining > 0) {
-      result.push({ type: ETYPE.GRUNT, count: remaining });
-    }
+    if (remaining > 0) result.push({ type: ETYPE.GRUNT, count: remaining });
     return { enemies: result, isBoss: true };
   }
 
-  // Normal wave: weighted random selection
-  // Available archetypes based on wave number
   const weights = [];
-  // Grunt: always available, weight decreases
   weights.push({ type: ETYPE.GRUNT, weight: Math.max(10, 50 - waveNum * 2) });
-  // Swarm: wave 3+
   if (waveNum >= 3) weights.push({ type: ETYPE.SWARM, weight: Math.min(30, 5 + (waveNum - 3) * 3) });
-  // Bomber: wave 5+
   if (waveNum >= 5) weights.push({ type: ETYPE.BOMBER, weight: Math.min(20, 3 + (waveNum - 5) * 2) });
-  // Sniper: wave 8+
   if (waveNum >= 8) weights.push({ type: ETYPE.SNIPER, weight: Math.min(15, 2 + (waveNum - 8) * 1.5) });
-  // Capital: wave 15+ (non-boss) -- rare appearance
   if (waveNum >= 15) weights.push({ type: ETYPE.CAPITAL, weight: Math.min(5, 1 + (waveNum - 15) * 0.3) });
-
   const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
-
-  // Distribute enemies by weighted selection
   const typeCounts = {};
   for (let i = 0; i < totalEnemies; i++) {
     let roll = Math.random() * totalWeight;
@@ -88,7 +69,6 @@ function getWaveDefinition(waveNum) {
     }
     typeCounts[selectedType] = (typeCounts[selectedType] || 0) + 1;
   }
-
   const result = [];
   for (const [type, count] of Object.entries(typeCounts)) {
     result.push({ type: parseInt(type), count });
@@ -97,44 +77,56 @@ function getWaveDefinition(waveNum) {
 }
 
 /**
- * Spawn enemies for a wave, distributing across planets at station-keeping positions.
- * Capitals spawn at specific larger planets for dramatic presence.
+ * Spawn enemies for a wave using fleet-based composition.
+ * Each fleet is placed at a different planet with role-based positioning.
  * @param {number} waveNum - 1-based wave number
  */
 function spawnWave(waveNum) {
-  const def = getWaveDefinition(waveNum);
-  const planetIndices = [0, 1, 2, 3, 4, 5, 6];
-  // Capital ships go on the 3 largest planets (Jupiter, Saturn, Uranus)
-  const capitalPlanets = [0, 1, 2];
-  let capitalPlanetIdx = 0;
+  const fleetSpecs = getFleetComposition(waveNum);
+
+  // Shuffle planet indices to ensure no two fleets share a planet (Pitfall 2)
+  const planetPool = [0, 1, 2, 3, 4, 5, 6];
+  for (let i = planetPool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [planetPool[i], planetPool[j]] = [planetPool[j], planetPool[i]];
+  }
 
   let totalSpawned = 0;
-  for (const group of def.enemies) {
-    for (let c = 0; c < group.count; c++) {
-      let pIdx;
-      if (group.type === ETYPE.CAPITAL) {
-        pIdx = capitalPlanets[capitalPlanetIdx % capitalPlanets.length];
-        capitalPlanetIdx++;
-      } else {
-        pIdx = planetIndices[(totalSpawned + c) % planetIndices.length];
-      }
-      const stPh = Math.random() * Math.PI * 2;
-      const bodyPos = getBodyPositionKm(pIdx, simTime);
-      const bodyR = getBodyRadiusKm(pIdx);
-      const stR = bodyR + STATION_KEEP_ALT;
-      const planetAngle = Math.atan2(bodyPos[0], bodyPos[2]);
-      const angle = planetAngle + stPh;
-      const x = bodyPos[0] + stR * Math.sin(angle);
-      const z = bodyPos[2] + stR * Math.cos(angle);
-      const spawnedIdx = spawnEnemy(x, 0, z, group.type, pIdx, stPh);
-      // Capital: set auxTimer to -1.0 for warp-in phase + spawn explosion flash
-      if (group.type === ETYPE.CAPITAL && spawnedIdx >= 0) {
-        enemies.auxTimer[spawnedIdx] = -1.0;
-        if (typeof spawnExplosion === 'function') spawnExplosion(x, 0, z, 4000); // km -- large warp-in flash
-      }
-      totalSpawned++;
+  _lastFleetResults = [];
+
+  for (let fleetIdx = 0; fleetIdx < Math.min(fleetSpecs.length, FLEET_MAX_PER_WAVE); fleetIdx++) {
+    const spec = fleetSpecs[fleetIdx];
+    const anchorBody = planetPool[fleetIdx % planetPool.length];
+    const basePhase = Math.random() * Math.PI * 2;
+
+    // Apply scaling if needed: create a scaled copy of the template
+    let template = spec.template;
+    if (spec.scale !== undefined && spec.scale < 1) {
+      template = {
+        name: spec.template.name,
+        callout: spec.template.callout,
+        isBoss: spec.template.isBoss,
+        composition: spec.template.composition.map(function(slot) {
+          if (slot.role === 'anchor') return slot; // never reduce anchor count
+          return {
+            role: slot.role,
+            type: slot.type,
+            count: Math.max(1, Math.floor(slot.count * spec.scale))
+          };
+        })
+      };
     }
+
+    const result = spawnFleet(template, anchorBody, basePhase);
+    totalSpawned += result.spawned.length;
+    _lastFleetResults.push({
+      callout: result.callout,
+      isBoss: result.isBoss,
+      centroidX: result.centroidX,
+      centroidZ: result.centroidZ
+    });
   }
+
   waveEnemyCount = totalSpawned;
 }
 
