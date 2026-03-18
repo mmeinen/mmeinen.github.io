@@ -3,29 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Realistic Scale & Fleet Combat
 status: in-progress
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-03-18T12:55:48.015Z"
-last_activity: 2026-03-18 -- Completed 11-02 Enemy LOD system (billboard dots)
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-18T16:11:33Z"
+last_activity: 2026-03-18 -- Completed 12-01 Body collision for enemies, projectiles, and missiles
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
----
-
----
-gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Realistic Scale & Fleet Combat
-status: in-progress
-stopped_at: Completed 11-02-PLAN.md
-last_updated: "2026-03-18T03:20:16Z"
-last_activity: 2026-03-18 -- Completed 11-02 Enemy LOD system (billboard dots)
-progress:
-  total_phases: 7
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -35,22 +20,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 11 (Simulation Rescaling & Viewport Cleanup) complete
+**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 12 (Body Collision & World Boundary)
 
 ## Current Position
 
-Phase: 11 of 16 (Simulation Rescaling & Viewport Cleanup)
-Plan: 3 of 3 complete
-Status: Phase Complete
-Last activity: 2026-03-18 -- Completed 11-02 Enemy LOD system (billboard dots)
+Phase: 12 of 16 (Body Collision & World Boundary)
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-18 -- Completed 12-01 Body collision for enemies, projectiles, and missiles
 
-Progress: [##########] 100% (7/7 plans)
+Progress: [█████████░] 89% (8/9 plans)
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 21 (v1.0)
-- v1.1 plans completed: 7
+- v1.1 plans completed: 8
 
 **By Phase:**
 
@@ -63,6 +48,7 @@ Progress: [##########] 100% (7/7 plans)
 | Phase 11 P01 | 5min | 2 tasks | 3 files |
 | Phase 11 P02 | 3min | 2 tasks | 2 files |
 | Phase 11 P03 | 2min | 1 tasks | 1 files |
+| Phase 12 P01 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -100,6 +86,9 @@ Recent decisions affecting current work:
 - [11-02]: Reuse trajPg shader for billboard rendering (GL_POINTS with uniform color/size)
 - [11-03]: closeupFactor = smoothstep(30.0, 5.0, u_camDist) drives all BH close-up enhancements
 - [11-03]: FBM octave gate uses u_camDist > 10.0 threshold directly (not closeupFactor) since fbm() is separate function
+- [12-01]: Station-keeping (AI_IDLE) enemies exempt from body collision to avoid false kills
+- [12-01]: Body positions cached once per frame in Float64Array for checkBodyCollisions performance
+- [12-01]: Scattered BH-only despawns consolidated into centralized checkBodyCollisions()
 
 ### Pending Todos
 
@@ -112,6 +101,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T03:20:16Z
-Stopped at: Completed 11-02-PLAN.md
-Resume file: .planning/phases/11-simulation-rescaling-viewport-cleanup/11-02-SUMMARY.md
+Last session: 2026-03-18T16:11:33Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: .planning/phases/12-body-collision-world-boundary/12-01-SUMMARY.md

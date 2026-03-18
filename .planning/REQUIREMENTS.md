@@ -53,10 +53,10 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Collision
 
-- [ ] **COLL-01**: Any entity (enemy, projectile) that contacts a planet surface or black hole event horizon is destroyed
+- [x] **COLL-01**: Any entity (enemy, projectile) that contacts a planet surface or black hole event horizon is destroyed
 - [ ] **COLL-02**: Player ship orbital mechanics prevent collision courses with planets and black hole — player can never hit a body
 - [ ] **COLL-03**: World boundary at 1.2x outermost orbit prevents entities from drifting beyond the play area
-- [ ] **COLL-04**: Enemy collision with a body counts as a kill toward wave counter
+- [x] **COLL-04**: Enemy collision with a body counts as a kill toward wave counter
 
 ### Rendering
 
@@ -138,10 +138,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WARP-03 | Phase 14 | Pending |
 | WARP-04 | Phase 14 | Pending |
 | WARP-05 | Phase 14 | Pending |
-| COLL-01 | Phase 12 | Pending |
+| COLL-01 | Phase 12 | Complete |
 | COLL-02 | Phase 12 | Pending |
 | COLL-03 | Phase 12 | Pending |
-| COLL-04 | Phase 12 | Pending |
+| COLL-04 | Phase 12 | Complete |
 | REND-01 | Phase 11 | Complete |
 | REND-02 | Phase 16 | Pending |
 | REND-03 | Phase 16 | Pending |
