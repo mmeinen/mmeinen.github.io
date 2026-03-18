@@ -308,10 +308,6 @@ function updateMissiles(simDt) {
       continue;
     }
 
-    // BH despawn (km-scale: BH_RADIUS_KM from scale.js)
-    const r2 = missile.posX[i] * missile.posX[i] + missile.posZ[i] * missile.posZ[i];
-    if (r2 < BH_RADIUS_KM * BH_RADIUS_KM) { removeMissile(i); continue; }
-
     // BH-only gravity at km scale (always active)
     const mx = missile.posX[i], mzg = missile.posZ[i];
     const mr2 = mx * mx + mzg * mzg;

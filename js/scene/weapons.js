@@ -516,9 +516,6 @@ function updateProjectiles(simDt, st) {
 
       // Despawn: lifetime exceeded
       if (proj.age[i] > KINETIC_LIFETIME) { removeProjectile(i); continue; }
-      // Despawn: fell into BH (radius < BH_RADIUS_KM)
-      const r2 = proj.posX[i] * proj.posX[i] + proj.posZ[i] * proj.posZ[i];
-      if (r2 < BH_RADIUS_KM * BH_RADIUS_KM) { removeProjectile(i); continue; }
 
     } else if (proj.type[i] === 1) {
       // PLASMA: straight line, no gravity, constant speed
@@ -726,4 +723,55 @@ function fireTacticalSalvo(st) {
 
   // Clear tactical assignments after firing (mode stays active)
   if (typeof clearTacTargets === 'function') clearTacTargets();
+}
+
+/**
+ * Check projectiles and missiles for collision with celestial bodies.
+ * Called once per frame after checkProjectileHits().
+ * Projectiles: silently removed. Missiles: detonate on impact.
+ * @param {number} sTime - current simulation time
+ */
+function checkBodyCollisions(sTime) {
+  // Cache body positions and squared radii for this frame
+  const _bpX = new Float64Array(7), _bpZ = new Float64Array(7), _br2 = new Float64Array(7);
+  for (let p = 0; p < 7; p++) {
+    const bp = getBodyPositionKm(p, sTime);
+    _bpX[p] = bp[0]; _bpZ[p] = bp[2];
+    const br = getBodyRadiusKm(p);
+    _br2[p] = br * br;
+  }
+  const _bhR2 = BH_RADIUS_KM * BH_RADIUS_KM;
+
+  // --- Projectiles vs bodies ---
+  for (let i = 0; i < MAX_PROJECTILES; i++) {
+    if (!proj.alive[i]) continue;
+    const px = proj.posX[i], pz = proj.posZ[i];
+    // BH check
+    if (px * px + pz * pz < _bhR2) { removeProjectile(i); continue; }
+    // Planet checks
+    for (let p = 0; p < 7; p++) {
+      const dx = px - _bpX[p], dz = pz - _bpZ[p];
+      if (dx * dx + dz * dz < _br2[p]) { removeProjectile(i); break; }
+    }
+  }
+
+  // --- Missiles vs bodies ---
+  for (let i = 0; i < MAX_MISSILES_ACTIVE; i++) {
+    if (!missile.alive[i]) continue;
+    const mx = missile.posX[i], mz = missile.posZ[i];
+    // BH check
+    if (mx * mx + mz * mz < _bhR2) { removeMissile(i); continue; }
+    // Planet checks
+    for (let p = 0; p < 7; p++) {
+      const dx = mx - _bpX[p], dz = mz - _bpZ[p];
+      if (dx * dx + dz * dz < _br2[p]) {
+        if (missile.type[i] === 1) {
+          detonateMissileNuke(i);
+        } else {
+          onMissileDetonate(i);
+        }
+        break;
+      }
+    }
+  }
 }

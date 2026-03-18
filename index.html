@@ -1220,6 +1220,7 @@
       }
       updateProjectiles(simDtSec, simTime);
       checkProjectileHits();
+      checkBodyCollisions(simTime);
       updateParticles(simDtSec);
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
