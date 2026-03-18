@@ -65,7 +65,11 @@ Plans:
   3. Orbital height is displayed in the HUD in km with up/down altitude adjustment controls
   4. Black hole dominates the viewport when nearby with rendering tuned for close-up detail
   5. Enemy LOD transitions (full geometry, billboard, skip) occur at appropriate km-scale distances without visible popping
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 11-01-PLAN.md — Mode simplification, viewport purification, and altitude km formatting
+- [ ] 11-02-PLAN.md — Enemy LOD system (full geometry, billboard, skip)
+- [ ] 11-03-PLAN.md — Black hole close-up rendering with distance-adaptive shader parameters
 
 ### Phase 12: Body Collision & World Boundary
 **Goal**: Celestial bodies and the play area boundary are physical obstacles that destroy entities on contact
@@ -139,7 +143,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 8. Combat HUD | v1.0 | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
-| 11. Simulation Rescaling & Viewport Cleanup | v1.1 | 0/? | Not started | - |
+| 11. Simulation Rescaling & Viewport Cleanup | v1.1 | 0/3 | Planned | - |
 | 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
