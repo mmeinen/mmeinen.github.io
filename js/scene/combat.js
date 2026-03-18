@@ -12,6 +12,12 @@ const ARCHETYPE_COLORS = [
 const ARCHETYPE_SCALES = [1.0, 1.0, 1.3, 1.2, 16.0]; // km-scale: Grunt=0.5km, Swarm=0.5km, Bomber=0.65km, Sniper=0.6km, Capital=8km
 const ARCHETYPE_HP = [100, 30, 200, 60, 800]; // Swarm fragile, Capital beefy
 
+/* ---- LOD System (REND-04) ---- */
+const LOD_FULL_DIST = 10000;       // km: full 3D mesh below this
+const LOD_BILLBOARD_DIST = 50000;  // km: billboard dots up to this, skip beyond
+const BILLBOARD_SIZES = [3.0, 2.5, 4.0, 3.5, 8.0]; // px: Grunt, Swarm, Bomber, Sniper, Capital
+const BILLBOARD_FLOATS = 3; // xyz per billboard entry
+
 /* Entity Store (Structure of Arrays) */
 const MAX_ENEMIES = 64;
 
@@ -43,6 +49,8 @@ const AI_IDLE=0, AI_ALERT=1, AI_TRANSFER=2, AI_ATTACK=3, AI_DISENGAGE=4, AI_REOR
 /* Instance buffer: 10 floats per instance (pos.xyz + heading + color.rgba + scale + flash) */
 const ENEMY_INST_FLOATS = 10;
 const instanceData = new Float32Array(MAX_ENEMIES * ENEMY_INST_FLOATS);
+const billboardData = new Float32Array(MAX_ENEMIES * BILLBOARD_FLOATS);
+const _bbTypeCounts = [0, 0, 0, 0, 0];
 
 /* Free-list for O(1) slot allocation */
 const freeSlots = [];
@@ -110,41 +118,63 @@ function removeEnemy(idx) {
 const _typeCounts = [0, 0, 0, 0, 0];
 function updateInstanceBuffer(simTime, camX, camY, camZ) {
   let offset = 0;
+  let bbOffset = 0;
   _typeCounts[0] = _typeCounts[1] = _typeCounts[2] = _typeCounts[3] = _typeCounts[4] = 0;
+  _bbTypeCounts[0] = _bbTypeCounts[1] = _bbTypeCounts[2] = _bbTypeCounts[3] = _bbTypeCounts[4] = 0;
   for (let t = 0; t < 5; t++) {
     for (let i = 0; i < MAX_ENEMIES; i++) {
       if (!enemies.alive[i] || enemies.type[i] !== t) continue;
-      const base = offset * ENEMY_INST_FLOATS;
-      // CRR: subtract camera world position (float64 arithmetic) before float32 store
-      instanceData[base]     = enemies.posX[i] - camX;
-      instanceData[base + 1] = enemies.posY[i] - camY;
-      instanceData[base + 2] = enemies.posZ[i] - camZ;
-      instanceData[base + 3] = enemies.heading[i];
-      const c = ARCHETYPE_COLORS[t];
-      instanceData[base + 4] = c[0];
-      instanceData[base + 5] = c[1];
-      instanceData[base + 6] = c[2];
-      // Low-HP flicker: below 30% HP, irregular alpha flicker
-      let alpha = c[3];
-      const hpRatio = enemies.hp[i] / ARCHETYPE_HP[t];
-      if (hpRatio < 0.3) {
-        const flicker = Math.sin(simTime * 15 + i * 7.3) * Math.sin(simTime * 23 + i * 13.1);
-        alpha *= 0.3 + 0.7 * Math.max(0, flicker);
+      // CRR: camera-relative position (float64 subtraction before float32 store)
+      const dx = enemies.posX[i] - camX;
+      const dy = enemies.posY[i] - camY;
+      const dz = enemies.posZ[i] - camZ;
+      const dist = Math.sqrt(dx * dx + dz * dz); // XZ plane distance for LOD
+
+      if (dist < LOD_FULL_DIST) {
+        // Full geometry: existing instanced mesh path
+        const base = offset * ENEMY_INST_FLOATS;
+        instanceData[base]     = dx;
+        instanceData[base + 1] = dy;
+        instanceData[base + 2] = dz;
+        instanceData[base + 3] = enemies.heading[i];
+        const c = ARCHETYPE_COLORS[t];
+        instanceData[base + 4] = c[0];
+        instanceData[base + 5] = c[1];
+        instanceData[base + 6] = c[2];
+        // Low-HP flicker: below 30% HP, irregular alpha flicker
+        let alpha = c[3];
+        const hpRatio = enemies.hp[i] / ARCHETYPE_HP[t];
+        if (hpRatio < 0.3) {
+          const flicker = Math.sin(simTime * 15 + i * 7.3) * Math.sin(simTime * 23 + i * 13.1);
+          alpha *= 0.3 + 0.7 * Math.max(0, flicker);
+        }
+        instanceData[base + 7] = alpha;
+        // Capital warp-in scale ramp: auxTimer from -1.0 to -0.5 maps scale 0 to 1
+        let finalScale = enemies.scale[i];
+        if (t === ETYPE.CAPITAL && enemies.auxTimer[i] < 0) {
+          const warpScale = Math.max(0, Math.min(1, (enemies.auxTimer[i] + 1.0) / 0.5));
+          finalScale *= warpScale;
+        }
+        instanceData[base + 8] = finalScale;
+        instanceData[base + 9] = enemies.flash[i];
+        offset++;
+        _typeCounts[t]++;
+      } else if (dist < LOD_BILLBOARD_DIST) {
+        // Billboard: pack CRR position for GL_POINTS rendering
+        const bbBase = bbOffset * BILLBOARD_FLOATS;
+        billboardData[bbBase]     = dx;
+        billboardData[bbBase + 1] = dy;
+        billboardData[bbBase + 2] = dz;
+        bbOffset++;
+        _bbTypeCounts[t]++;
       }
-      instanceData[base + 7] = alpha;
-      // Capital warp-in scale ramp: auxTimer from -1.0 to -0.5 maps scale 0 to 1
-      let finalScale = enemies.scale[i];
-      if (t === ETYPE.CAPITAL && enemies.auxTimer[i] < 0) {
-        const warpScale = Math.max(0, Math.min(1, (enemies.auxTimer[i] + 1.0) / 0.5));
-        finalScale *= warpScale;
-      }
-      instanceData[base + 8] = finalScale;
-      instanceData[base + 9] = enemies.flash[i];
-      offset++;
-      _typeCounts[t]++;
+      // else: beyond LOD_BILLBOARD_DIST -- skip (not rendered)
     }
   }
-  return { typeCounts: _typeCounts, totalCount: offset };
+  return {
+    typeCounts: _typeCounts, totalCount: offset,
+    bbTypeCounts: _bbTypeCounts, bbTotalCount: bbOffset
+  };
 }
 
 /* ---- Radial Bin Collision Structure ---- */
