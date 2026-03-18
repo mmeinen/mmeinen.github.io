@@ -65,7 +65,7 @@ Plans:
   3. Orbital height is displayed in the HUD in km with up/down altitude adjustment controls
   4. Black hole dominates the viewport when nearby with rendering tuned for close-up detail
   5. Enemy LOD transitions (full geometry, billboard, skip) occur at appropriate km-scale distances without visible popping
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [ ] 11-01-PLAN.md — Mode simplification, viewport purification, and altitude km formatting
 - [ ] 11-02-PLAN.md — Enemy LOD system (full geometry, billboard, skip)
@@ -143,7 +143,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 8. Combat HUD | v1.0 | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
-| 11. Simulation Rescaling & Viewport Cleanup | 1/3 | In Progress|  | - |
+| 11. Simulation Rescaling & Viewport Cleanup | 2/3 | In Progress|  | - |
 | 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |

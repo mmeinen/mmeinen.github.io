@@ -39,9 +39,9 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Viewport
 
-- [ ] **VIEW-01**: Player is always in combat mode — no separate nav/combat mode toggle
-- [ ] **VIEW-02**: Main 3D viewport is pure combat with no navigation overlays
-- [ ] **VIEW-03**: Orbital height displayed in HUD with up/down controls for altitude adjustment
+- [x] **VIEW-01**: Player is always in combat mode — no separate nav/combat mode toggle
+- [x] **VIEW-02**: Main 3D viewport is pure combat with no navigation overlays
+- [x] **VIEW-03**: Orbital height displayed in HUD with up/down controls for altitude adjustment
 
 ### Warp
 
@@ -130,9 +130,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RADAR-03 | Phase 15 | Pending |
 | RADAR-04 | Phase 15 | Pending |
 | RADAR-05 | Phase 15 | Pending |
-| VIEW-01 | Phase 11 | Pending |
-| VIEW-02 | Phase 11 | Pending |
-| VIEW-03 | Phase 11 | Pending |
+| VIEW-01 | Phase 11 | Complete |
+| VIEW-02 | Phase 11 | Complete |
+| VIEW-03 | Phase 11 | Complete |
 | WARP-01 | Phase 14 | Pending |
 | WARP-02 | Phase 14 | Pending |
 | WARP-03 | Phase 14 | Pending |
