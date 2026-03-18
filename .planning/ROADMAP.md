@@ -30,7 +30,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 10: Scale Foundation** — km coordinate system, CRR, log depth buffer, collision bins, time anchor
 - [x] **Phase 11: Simulation Rescaling & Viewport Cleanup** — All physics modules operating in km, viewport purified for combat, BH close-up tuning (completed 2026-03-18)
-- [ ] **Phase 12: Body Collision & World Boundary** — Kill zones on planets/BH, player protection, world boundary fence
+- [x] **Phase 12: Body Collision & World Boundary** — Kill zones on planets/BH, player protection, world boundary fence (completed 2026-03-18)
 - [ ] **Phase 13: Fleet Composition System** — Structured fleet spawning with roles, anchor orbiting, HUD announcements
 - [ ] **Phase 14: Warp Speed** — Time acceleration toggle, proximity locks, projectile suspension
 - [ ] **Phase 15: Radar System** — Mini-map and expanded panel with orbit navigation
@@ -80,7 +80,7 @@ Plans:
   2. Player ship orbital mechanics prevent collision courses -- the player can never fly into a planet or the black hole
   3. An invisible boundary at 1.2x the outermost orbit prevents entities from drifting beyond the play area
   4. Enemies destroyed by body collision count as kills toward the wave counter and trigger the next wave when thresholds are met
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 12-01-PLAN.md — Entity body collision (enemies, projectiles, missiles vs all 8 celestial bodies)
 - [ ] 12-02-PLAN.md — Player body protection and world boundary enforcement
@@ -147,7 +147,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete    | 2026-03-18 | - |
-| 12. Body Collision & World Boundary | 1/2 | In Progress|  | - |
+| 12. Body Collision & World Boundary | 2/2 | Complete   | 2026-03-18 | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
 | 15. Radar System | v1.1 | 0/? | Not started | - |
