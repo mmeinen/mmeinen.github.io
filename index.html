@@ -82,19 +82,19 @@
        <div class="planet-label" id="planet-label-6" data-planet="6">
          <span class="pl-bracket">[</span> CAT INVASION <span class="pl-bracket">]</span>
        </div>
-      <!-- L-point labels — positioned by JS, toggled with L key -->
-       <div class="lpoint-label" id="lpoint-label-0">Jupiter L1</div>
-       <div class="lpoint-label" id="lpoint-label-1">Jupiter L2</div>
-       <div class="lpoint-label" id="lpoint-label-2">Jupiter L4</div>
-       <div class="lpoint-label" id="lpoint-label-3">Jupiter L5</div>
-       <div class="lpoint-label" id="lpoint-label-4">Saturn L1</div>
-       <div class="lpoint-label" id="lpoint-label-5">Saturn L2</div>
-       <div class="lpoint-label" id="lpoint-label-6">Saturn L4</div>
-       <div class="lpoint-label" id="lpoint-label-7">Saturn L5</div>
-       <div class="lpoint-label" id="lpoint-label-8">Neptune L1</div>
-       <div class="lpoint-label" id="lpoint-label-9">Neptune L2</div>
-       <div class="lpoint-label" id="lpoint-label-10">Neptune L4</div>
-       <div class="lpoint-label" id="lpoint-label-11">Neptune L5</div>
+      <!-- L-point labels — VIEW-02: hidden until radar (Phase 15) -->
+       <div class="lpoint-label" id="lpoint-label-0" style="display:none">Jupiter L1</div>
+       <div class="lpoint-label" id="lpoint-label-1" style="display:none">Jupiter L2</div>
+       <div class="lpoint-label" id="lpoint-label-2" style="display:none">Jupiter L4</div>
+       <div class="lpoint-label" id="lpoint-label-3" style="display:none">Jupiter L5</div>
+       <div class="lpoint-label" id="lpoint-label-4" style="display:none">Saturn L1</div>
+       <div class="lpoint-label" id="lpoint-label-5" style="display:none">Saturn L2</div>
+       <div class="lpoint-label" id="lpoint-label-6" style="display:none">Saturn L4</div>
+       <div class="lpoint-label" id="lpoint-label-7" style="display:none">Saturn L5</div>
+       <div class="lpoint-label" id="lpoint-label-8" style="display:none">Neptune L1</div>
+       <div class="lpoint-label" id="lpoint-label-9" style="display:none">Neptune L2</div>
+       <div class="lpoint-label" id="lpoint-label-10" style="display:none">Neptune L4</div>
+       <div class="lpoint-label" id="lpoint-label-11" style="display:none">Neptune L5</div>
        <button class="nuke-btn" id="nuke-btn">
          <span class="nuke-icon">&#x2622;</span> DETONATE
        </button>
@@ -251,7 +251,7 @@
       // VIEW-01: combat mode always on, toggle disabled
     });
     // L-point state
-    let lagrangeVisible=false;
+    const lagrangeVisible=false; // VIEW-02: disabled until radar
     const LPOINT_PLANETS=[0,1,3]; // Jupiter, Saturn, Neptune
     const LPOINT_NAMES=['L1','L2','L4','L5'];
     const lPointPositions=new Float32Array(12*3); // 3 planets x 4 L-points x 3 floats
@@ -1599,96 +1599,10 @@
         gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
         gl.uniform1f(trajLocs.uPtSize,2.0);
 
-        // Orbit trajectory preview: hidden during combat mode (weapon preview replaces it)
-        if(!combatMode){
-        // Trajectory preview: show transfer path during TRANSFER, current velocity otherwise
-        if(orbitState===ORBIT_STATE.TRANSFER){
-          // During transfer: simulate with guidance correction toward target
-          const _tP=getBodyPositionKm(transferTarget,simTime);
-          const _gx=_tP[0]-flyPos[0],_gz=_tP[2]-flyPos[2];
-          const _gd=Math.sqrt(_gx*_gx+_gz*_gz);
-          const _gDir=_gd>0.1?[_gx/_gd,0,_gz/_gd]:null;
-          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,_gDir,1.5*ORBIT_SCALE,999);
-          // CRR: offset trajectory points
-          for(let ti=0;ti<n1;ti++){trajArray[ti*3]-=_camWX;trajArray[ti*3+1]-=_camWY;trajArray[ti*3+2]-=_camWZ;}
-          gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
-          gl.enableVertexAttribArray(trajLocs.aPos);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.4,0.7,1.0,0.6); // brighter blue for transfer
-          gl.drawArrays(gl.POINTS,0,n1);
-        }else{
-          // ORBITING or FREE: show current velocity trajectory
-          const n1=simulateTrajectory(flyPos,flyVel,simTime,TRAJ_STEPS,TRAJ_SIM_DT,trajArray,null,0,0);
-          // CRR: offset trajectory points
-          for(let ti=0;ti<n1;ti++){trajArray[ti*3]-=_camWX;trajArray[ti*3+1]-=_camWY;trajArray[ti*3+2]-=_camWZ;}
-          gl.bindBuffer(gl.ARRAY_BUFFER,trajBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,trajArray.subarray(0,n1*3),gl.DYNAMIC_DRAW);
-          gl.enableVertexAttribArray(trajLocs.aPos);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.3);
-          gl.drawArrays(gl.POINTS,0,n1);
-        }
-        } // end !combatMode gate
+        // VIEW-02: orbit trajectory preview removed (combat mode always on, weapon preview replaces it)
 
-        // Orbit ring rendering: around target body or current orbited body
+        // VIEW-01: L-point position computation (runs every frame for orbit capture, regardless of visibility)
         {
-          let ringBodyIdx=-2, ringRadius=0;
-          if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=100){
-            // Orbiting L-point: show ring around L-point position
-            ringBodyIdx=orbitBody;
-            ringRadius=orbitAltitude+LPOINT_MARKER_RADIUS;
-          }else if(orbitState===ORBIT_STATE.ORBITING && orbitBody>=-1){
-            // Show ring at current orbit altitude
-            ringBodyIdx=orbitBody;
-            ringRadius=orbitAltitude+getBodyRadius(orbitBody);
-          }else if(transferTarget>=100){
-            // Transfer to L-point: show ring at target orbit altitude
-            ringBodyIdx=transferTarget;
-            ringRadius=LPOINT_MARKER_RADIUS+targetOrbitAlt;
-          }else if(transferTarget>=-1){
-            // Show ring at target orbit altitude around target body
-            ringBodyIdx=transferTarget;
-            ringRadius=getBodyRadius(transferTarget)+targetOrbitAlt;
-          }
-          if(ringBodyIdx>=-1 || ringBodyIdx>=100){
-            let bodyPos;
-            if(ringBodyIdx>=100){
-              // L-point position from the flat array
-              const fi=ringBodyIdx-100;
-              bodyPos=[lPointPositions[fi*3],lPointPositions[fi*3+1],lPointPositions[fi*3+2]];
-            }else{
-              bodyPos=getBodyPosition(ringBodyIdx);
-            }
-            // CRR: camera-relative body position for ring center
-            const _crrBpX=bodyPos[0]-_camWX,_crrBpY=0-_camWY,_crrBpZ=bodyPos[2]-_camWZ;
-            for(let ri=0;ri<RING_SEGMENTS;ri++){
-              const angle=(ri/RING_SEGMENTS)*Math.PI*2;
-              ringArray[ri*3]=_crrBpX+ringRadius*Math.cos(angle);
-              ringArray[ri*3+1]=_crrBpY;
-              ringArray[ri*3+2]=_crrBpZ+ringRadius*Math.sin(angle);
-            }
-            gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
-            gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.4); // blue HUD with transparency
-            gl.uniform1f(trajLocs.uPtSize,1.5);
-            gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
-            // Draw target crosshair at center of ring for visual reference
-            const _crossSize=ringRadius*0.3;
-            const _crossArr=new Float32Array([
-              _crrBpX-_crossSize,_crrBpY,_crrBpZ, _crrBpX+_crossSize,_crrBpY,_crrBpZ,
-              _crrBpX,_crrBpY,_crrBpZ-_crossSize, _crrBpX,_crrBpY,_crrBpZ+_crossSize
-            ]);
-            gl.bufferData(gl.ARRAY_BUFFER,_crossArr,gl.DYNAMIC_DRAW);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,0.4,0.7,1.0,0.6);
-            gl.drawArrays(gl.LINES,0,4);
-          }
-        }
-
-        // L-point marker rendering
-        if(lagrangeVisible){
           let lIdx=0;
           for(let pi=0;pi<LPOINT_PLANETS.length;pi++){
             const lpData=computeLagrangePoints(LPOINT_PLANETS[pi],simTime);
@@ -1702,34 +1616,9 @@
               lIdx++;
             }
           }
-          // CRR: offset L-point positions for GL upload (keep lPointPositions in world space for labels)
-          const _crrLP=new Float32Array(36);
-          for(let li=0;li<12;li++){_crrLP[li*3]=lPointPositions[li*3]-_camWX;_crrLP[li*3+1]=lPointPositions[li*3+1]-_camWY;_crrLP[li*3+2]=lPointPositions[li*3+2]-_camWZ;}
-          gl.bindBuffer(gl.ARRAY_BUFFER,lPointBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,_crrLP,gl.DYNAMIC_DRAW);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.706,0.863,1.0,0.6); // light blue
-          gl.uniform1f(trajLocs.uPtSize,4.0);
-          gl.drawArrays(gl.POINTS,0,12);
-          // Position L-point HTML labels
-          const mDL=Math.min(baseWidth,baseHeight);
-          for(let i=0;i<12;i++){
-            const lb=lPointLabels[i];
-            const px=lPointPositions[i*3],py=lPointPositions[i*3+1],pz=lPointPositions[i*3+2];
-            const dx=px-_camP[0],dy=py-_camP[1],dz=pz-_camP[2];
-            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
-            if(dp>0){
-              const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mDL;
-              const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mDL;
-              if(sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){
-                lb.style.display='block';
-                lb.style.transform='translate(calc('+sx.toFixed(0)+'px - 50%),'+(sy-14).toFixed(0)+'px)';
-              }else{lb.style.display='none';}
-            }else{lb.style.display='none';}
-          }
-        }else{
-          for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
         }
+
+        // VIEW-02: orbit ring, transfer crosshair, and L-point marker rendering removed (navigation overlays)
 
         if(aimDir&&orbitState===ORBIT_STATE.FREE){
           const lineLen=2.0;
@@ -1806,26 +1695,7 @@
           gl.drawArrays(gl.POINTS,0,1);
         }
 
-        // Tactical range rings (Phase 9) - shown in combat mode
-        if(combatMode){
-          gl.bindBuffer(gl.ARRAY_BUFFER,ringBuf);
-          gl.enableVertexAttribArray(trajLocs.aPos);
-          for(let rr=0;rr<_tacRingRadii.length;rr++){
-            const radius=_tacRingRadii[rr];
-            // CRR: offset ring center from origin to camera-relative origin
-            for(let s=0;s<RING_SEGMENTS;s++){
-              const angle=(s/RING_SEGMENTS)*Math.PI*2;
-              ringArray[s*3]=radius*Math.cos(angle)-_camWX;
-              ringArray[s*3+1]=0-_camWY;
-              ringArray[s*3+2]=radius*Math.sin(angle)-_camWZ;
-            }
-            gl.bufferData(gl.ARRAY_BUFFER,ringArray,gl.DYNAMIC_DRAW);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,0.235,0.549,1.0,0.08);
-            gl.uniform1f(trajLocs.uPtSize,1.0);
-            gl.drawArrays(gl.LINE_LOOP,0,RING_SEGMENTS);
-          }
-        }
+        // VIEW-02: tactical range rings removed (navigation overlay)
 
         gl.disableVertexAttribArray(trajLocs.aPos);
         gl.disable(gl.BLEND);
@@ -1862,23 +1732,28 @@
           else if(hpRatio<0.5){hudHpFillEl.className='hud-hp-bar-fill warning';}
           else{hudHpFillEl.className='hud-hp-bar-fill';}
         }
+        // VIEW-03: km altitude formatting helper
+        function fmtKm(val) {
+          if (val < 1000) return val.toFixed(1) + ' km';
+          return Math.round(val).toLocaleString() + ' km';
+        }
         // Altitude HUD readout
         if(orbitState===ORBIT_STATE.ORBITING){
           const bodyName=getTargetName(orbitBody);
-          altValEl.textContent=orbitAltitude.toFixed(1)+(bodyName?' · '+bodyName:'');
+          altValEl.textContent=fmtKm(orbitAltitude)+(bodyName?' · '+bodyName:'');
         }else if(orbitState===ORBIT_STATE.TRANSFER){
           const tgtName=getTargetName(transferTarget);
-          altValEl.textContent='→ '+(tgtName||'TRANSFER')+' alt:'+targetOrbitAlt.toFixed(1);
+          altValEl.textContent='\u2192 '+(tgtName||'TRANSFER')+' '+fmtKm(targetOrbitAlt);
         }else{
           altValEl.textContent='FREE';
         }
         // Bottom bar orbit info
         if(orbitState===ORBIT_STATE.ORBITING){
           const bodyName=getTargetName(orbitBody).toUpperCase();
-          hudOrbitEl.textContent=bodyName+' \u00B7 '+orbitAltitude.toFixed(0)+'u \u00B7 ORBITING';
+          hudOrbitEl.textContent=bodyName+' \u00B7 '+fmtKm(orbitAltitude)+' \u00B7 ORBITING';
         }else if(orbitState===ORBIT_STATE.TRANSFER){
           const tgtName=getTargetName(transferTarget).toUpperCase();
-          hudOrbitEl.textContent=tgtName+' \u00B7 '+targetOrbitAlt.toFixed(0)+'u \u00B7 TRANSFER';
+          hudOrbitEl.textContent=tgtName+' \u00B7 '+fmtKm(targetOrbitAlt)+' \u00B7 TRANSFER';
         }else{
           hudOrbitEl.textContent='FREE FLIGHT';
         }

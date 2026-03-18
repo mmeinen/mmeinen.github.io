@@ -475,7 +475,7 @@ function exitNavMode(){
   orbitState=ORBIT_STATE.FREE; orbitBody=-2; transferTarget=-2;
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
   transferBurnMag=0; targetOrbitAlt=-1;
-  lagrangeVisible=false;
+  // VIEW-02: lagrangeVisible is const false, no need to reset
   for(let i=0;i<12;i++)lPointLabels[i].style.display='none';
   clearLocks();for(let _mi=0;_mi<MAX_MISSILES_ACTIVE;_mi++){if(missile.alive[_mi])removeMissile(_mi);}
   for(let i=0;i<6;i++){detSlots[i].active=false;}
