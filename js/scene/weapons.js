@@ -753,6 +753,11 @@ function checkBodyCollisions(sTime) {
       const dx = px - _bpX[p], dz = pz - _bpZ[p];
       if (dx * dx + dz * dz < _br2[p]) { removeProjectile(i); break; }
     }
+    // World boundary: despawn projectiles beyond play area
+    if (proj.alive[i]) {
+      const _wr2 = proj.posX[i] * proj.posX[i] + proj.posZ[i] * proj.posZ[i];
+      if (_wr2 > WORLD_BOUNDARY_KM * WORLD_BOUNDARY_KM) { removeProjectile(i); }
+    }
   }
 
   // --- Missiles vs bodies ---
@@ -772,6 +777,11 @@ function checkBodyCollisions(sTime) {
         }
         break;
       }
+    }
+    // World boundary: despawn missiles beyond play area
+    if (missile.alive[i]) {
+      const _wr2 = missile.posX[i] * missile.posX[i] + missile.posZ[i] * missile.posZ[i];
+      if (_wr2 > WORLD_BOUNDARY_KM * WORLD_BOUNDARY_KM) { removeMissile(i); }
     }
   }
 }

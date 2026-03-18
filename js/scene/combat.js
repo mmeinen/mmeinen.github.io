@@ -689,7 +689,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       // Planet checks (7 planets)
       let hitPlanet = false;
       for (let p = 0; p < 7; p++) {
-        const bp = getBodyPositionKm(p, sTime);
+        const bp = getBodyPositionKm(p, simTime);
         const br = getBodyRadiusKm(p);
         const dx = ex - bp[0], dz = ez - bp[2];
         if (dx * dx + dz * dz < br * br) {
@@ -701,6 +701,14 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         }
       }
       if (hitPlanet) continue;
+    }
+
+    // World boundary: despawn enemies beyond play area (no kill credit -- they drifted off)
+    if (enemies.alive[i]) { // guard: may have been removed by body collision above
+      const _wr2 = enemies.posX[i] * enemies.posX[i] + enemies.posZ[i] * enemies.posZ[i];
+      if (_wr2 > WORLD_BOUNDARY_KM * WORLD_BOUNDARY_KM) {
+        removeEnemy(i);
+      }
     }
   }
 }
