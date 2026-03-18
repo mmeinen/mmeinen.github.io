@@ -147,7 +147,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete    | 2026-03-18 | - |
-| 12. Body Collision & World Boundary | 2/2 | Complete   | 2026-03-18 | - |
+| 12. Body Collision & World Boundary | 2/2 | Complete    | 2026-03-18 | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
 | 15. Radar System | v1.1 | 0/? | Not started | - |
