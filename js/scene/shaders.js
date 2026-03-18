@@ -112,7 +112,7 @@ const fsSource = `
                     -0.60, -0.48, 0.64);
     for (int i = 0; i < 4; i++) {
       v += a * noiseLUT(p);
-      if (i >= 2 && u_camDist < 50.0) break;
+      if (i >= 2 && u_camDist < 50.0 && u_camDist > 10.0) break;
       p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
       a *= 0.5;
     }
@@ -171,7 +171,8 @@ const fsSource = `
 
     float warpX = noiseLUT(diskUV * 0.7);
     float warpY = (u_camDist < 50.0) ? warpX * 0.7 : noiseLUT(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
-    vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * 1.5;
+    float warpIntensity = 1.5 + smoothstep(30.0, 5.0, u_camDist) * 0.5;
+    vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * warpIntensity;
 
     float density = fbm(warpedUV);
 
@@ -537,6 +538,7 @@ const fsSource = `
     float escapeR = max(50.0 * u_orbitScale, u_camDist + 20.0);
     float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
     float convThresh = pixelAngle * pixelAngle * 0.0625;
+    float closeupFactor = smoothstep(30.0, 5.0, u_camDist);
 
     for (int i = 0; i < 250; i++) {
       float r = length(pos);
@@ -684,13 +686,15 @@ const fsSource = `
 
     if (accumulatedAlpha < 1.0) {
       float photonR = 3.0 * (1.0 - absSpin * 0.3);
-      float pTmp1 = (minR - photonR) * 2.0;
+      float ringWidth = 2.0 + closeupFactor * 1.5;
+      float pTmp1 = (minR - photonR) * ringWidth;
       float proximity = exp(-pTmp1 * pTmp1);
       vec3 ringCol = mix(vec3(1.0, 0.7, 0.3), vec3(1.0, 0.95, 0.9), proximity);
-      bgCol += ringCol * proximity * 0.4;
+      float glowBoost = 1.0 + closeupFactor * 0.5;
+      bgCol += ringCol * proximity * 0.4 * glowBoost;
       float pTmp2 = (minR - photonR) * 0.8;
       float haze = exp(-pTmp2 * pTmp2);
-      bgCol += vec3(0.15, 0.06, 0.02) * haze;
+      bgCol += vec3(0.15, 0.06, 0.02) * haze * glowBoost;
 
       if (didEscape) {
         vec3 finalRd = normalize(vel);
