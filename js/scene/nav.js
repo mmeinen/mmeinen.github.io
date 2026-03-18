@@ -556,6 +556,63 @@ function updateNav(simDt, sTime){
   }
   // Lock to ecliptic plane
   flyPos[1]=0; flyVel[1]=0;
+
+  // --- Player body protection (COLL-02) ---
+  // Safety redirect: prevent player from entering any celestial body.
+  // This is a last-resort catch after SOI capture and altitude management.
+  // BH protection: 500 km safety margin outside event horizon
+  const _bhDist2 = flyPos[0] * flyPos[0] + flyPos[2] * flyPos[2];
+  const _bhSafe = BH_RADIUS_KM + 500;
+  if (_bhDist2 < _bhSafe * _bhSafe) {
+    const _bhDist = Math.sqrt(_bhDist2);
+    const _bAngle = Math.atan2(flyPos[0], flyPos[2]);
+    flyPos[0] = _bhSafe * Math.sin(_bAngle);
+    flyPos[2] = _bhSafe * Math.cos(_bAngle);
+    // Circularize: set velocity to circular orbit at safe radius
+    const _vorb = Math.sqrt(BH_GM_KM / _bhSafe);
+    const _rx = flyPos[0] / _bhSafe, _rz = flyPos[2] / _bhSafe;
+    flyVel[0] = -_rz * _vorb;
+    flyVel[2] = _rx * _vorb;
+  }
+  // Planet protection: 200 km safety margin outside each planet surface
+  for (let _p = 0; _p < 7; _p++) {
+    const _bp = getBodyPositionKm(_p, sTime);
+    const _br = getBodyRadiusKm(_p);
+    const _safeR = _br + 200;
+    const _dx = flyPos[0] - _bp[0], _dz = flyPos[2] - _bp[2];
+    const _d2 = _dx * _dx + _dz * _dz;
+    if (_d2 < _safeR * _safeR) {
+      const _dist = Math.sqrt(_d2);
+      const _ang = Math.atan2(_dx, _dz);
+      flyPos[0] = _bp[0] + _safeR * Math.sin(_ang);
+      flyPos[2] = _bp[2] + _safeR * Math.cos(_ang);
+      // Circularize around the planet
+      const _gm = getBodyGMKm(_p);
+      const _vOrb = Math.sqrt(_gm / _safeR);
+      const _nrx = (flyPos[0] - _bp[0]) / _safeR;
+      const _nrz = (flyPos[2] - _bp[2]) / _safeR;
+      flyVel[0] = -_nrz * _vOrb;
+      flyVel[2] = _nrx * _vOrb;
+      break; // can only be inside one planet at a time
+    }
+  }
+
+  // --- World boundary clamp (COLL-03 -- player) ---
+  // Soft clamp: stop outward drift, preserve tangential velocity
+  const _playerR2 = flyPos[0] * flyPos[0] + flyPos[2] * flyPos[2];
+  if (_playerR2 > WORLD_BOUNDARY_KM * WORLD_BOUNDARY_KM) {
+    const _playerR = Math.sqrt(_playerR2);
+    const _nx = flyPos[0] / _playerR, _nz = flyPos[2] / _playerR;
+    flyPos[0] = _nx * WORLD_BOUNDARY_KM;
+    flyPos[2] = _nz * WORLD_BOUNDARY_KM;
+    // Remove outward radial velocity (keep tangential)
+    const _radV = flyVel[0] * _nx + flyVel[2] * _nz;
+    if (_radV > 0) {
+      flyVel[0] -= _radV * _nx;
+      flyVel[2] -= _radV * _nz;
+    }
+  }
+
   // Update forward direction from velocity
   const spd=v3len(flyVel);
   if(spd>0.1){
