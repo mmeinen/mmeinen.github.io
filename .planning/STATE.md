@@ -3,29 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Realistic Scale & Fleet Combat
 status: in-progress
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-03-18T16:22:31.457Z"
-last_activity: 2026-03-18 -- Completed 12-02 Player body protection and world boundary
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-03-18T21:10:36.974Z"
+last_activity: 2026-03-18 -- Completed 13-01 Fleet composition module and wave integration
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
----
-
----
-gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Realistic Scale & Fleet Combat
-status: in-progress
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-03-18T16:18:31.941Z"
-last_activity: 2026-03-18 -- Completed 12-02 Player body protection and world boundary
-progress:
-  total_phases: 7
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -35,22 +20,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 12 Complete, ready for Phase 13
+**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 13 Plan 01 Complete
 
 ## Current Position
 
-Phase: 12 of 16 (Body Collision & World Boundary) -- COMPLETE
-Plan: 2 of 2 complete
-Status: Phase Complete
-Last activity: 2026-03-18 -- Completed 12-02 Player body protection and world boundary
+Phase: 13 of 16 (Fleet Composition System) -- IN PROGRESS
+Plan: 1 of 2 complete
+Status: Plan 01 Complete
+Last activity: 2026-03-18 -- Completed 13-01 Fleet composition module and wave integration
 
-Progress: [██████████] 100% (9/9 plans)
+Progress: [█████████░] 91% (10/11 plans)
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 21 (v1.0)
-- v1.1 plans completed: 9
+- v1.1 plans completed: 10
 
 **By Phase:**
 
@@ -59,6 +44,7 @@ Progress: [██████████] 100% (9/9 plans)
 | 10-scale-foundation | 4/4 | 55min | ~14min |
 | 11-simulation-rescaling-viewport-cleanup | 3/3 | 10min | ~3min |
 | 12-body-collision-world-boundary | 2/2 | 4min | ~2min |
+| 13-fleet-composition-system | 1/2 | 3min | ~3min |
 
 *Updated after each plan completion*
 | Phase 11 P01 | 5min | 2 tasks | 3 files |
@@ -66,6 +52,7 @@ Progress: [██████████] 100% (9/9 plans)
 | Phase 11 P03 | 2min | 1 tasks | 1 files |
 | Phase 12 P01 | 2min | 2 tasks | 5 files |
 | Phase 12 P02 | 2min | 2 tasks | 3 files |
+| Phase 13 P01 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -109,6 +96,10 @@ Recent decisions affecting current work:
 - [12-02]: BH safety margin 500 km, planet safety margin 200 km -- generous buffers for forgiving gameplay
 - [12-02]: Player boundary clamp strips outward radial velocity only, preserving tangential orbit
 - [12-02]: Enemy boundary despawn gives no kill credit -- drifting off is not a combat event
+- [13-01]: Fleet is spawn-time only -- no fleetId on enemies, no runtime fleet tracking
+- [13-01]: Role-based arc widths: anchor=0rad, screen=0.5rad, striker=1.0rad for visual spread
+- [13-01]: getWaveDefinition() preserved as legacy reference but no longer called by spawnWave()
+- [13-01]: Fisher-Yates shuffle on planet pool prevents same-planet fleet clustering
 
 ### Pending Todos
 
@@ -121,6 +112,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:18:31.938Z
-Stopped at: Completed 12-02-PLAN.md
-Resume file: .planning/phases/12-body-collision-world-boundary/12-02-SUMMARY.md
+Last session: 2026-03-18T21:10:00Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: .planning/phases/13-fleet-composition-system/13-02-PLAN.md

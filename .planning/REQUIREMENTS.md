@@ -24,9 +24,9 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Fleet
 
-- [ ] **FLEET-01**: Enemies spawn as structured fleets with max 3 fleets per wave
-- [ ] **FLEET-02**: Fleet compositions have defined roles (anchor, screen, striker) with named templates that scale with difficulty
-- [ ] **FLEET-03**: Fleet members orbit near a shared anchor body within ±15% of anchor radius
+- [x] **FLEET-01**: Enemies spawn as structured fleets with max 3 fleets per wave
+- [x] **FLEET-02**: Fleet compositions have defined roles (anchor, screen, striker) with named templates that scale with difficulty
+- [x] **FLEET-03**: Fleet members orbit near a shared anchor body within ±15% of anchor radius
 - [ ] **FLEET-04**: Fleet spawn announced in HUD with 3-second callout and directional indicator
 
 ### Radar
@@ -121,9 +121,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCALE-07 | Phase 10 | Complete |
 | TIME-01 | Phase 10 | Complete |
 | TIME-02 | Phase 10 | Complete |
-| FLEET-01 | Phase 13 | Pending |
-| FLEET-02 | Phase 13 | Pending |
-| FLEET-03 | Phase 13 | Pending |
+| FLEET-01 | Phase 13 | Complete |
+| FLEET-02 | Phase 13 | Complete |
+| FLEET-03 | Phase 13 | Complete |
 | FLEET-04 | Phase 13 | Pending |
 | RADAR-01 | Phase 15 | Pending |
 | RADAR-02 | Phase 15 | Pending |
