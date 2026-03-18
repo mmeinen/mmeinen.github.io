@@ -2,30 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Realistic Scale & Fleet Combat
-status: completed
-stopped_at: Phase 11 context gathered
-last_updated: "2026-03-17T19:29:33.196Z"
-last_activity: 2026-03-16 -- Completed 10-04 Combat rebalancing for km scale
+status: in-progress
+stopped_at: Completed 11-03-PLAN.md
+last_updated: "2026-03-18T03:12:37.966Z"
+last_activity: 2026-03-18 -- Completed 11-03 BH close-up detail
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
----
-
----
-gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Realistic Scale & Fleet Combat
-status: phase-complete
-stopped_at: "Completed 10-04-PLAN.md — Phase 10 complete"
-last_updated: "2026-03-16T21:28:00Z"
-last_activity: 2026-03-16 -- Completed 10-04 Combat rebalancing for km scale
-progress:
-  total_phases: 7
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
 ---
 
 # Project State
@@ -35,30 +20,32 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 10 (Scale Foundation) COMPLETE, ready for Phase 11
+**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 11 (Simulation Rescaling & Viewport Cleanup) in progress
 
 ## Current Position
 
-Phase: 10 of 16 (Scale Foundation) -- COMPLETE
-Plan: 4 of 4 complete
-Status: Phase Complete
-Last activity: 2026-03-16 -- Completed 10-04 Combat rebalancing for km scale
+Phase: 11 of 16 (Simulation Rescaling & Viewport Cleanup)
+Plan: 1 of 3 complete
+Status: In Progress
+Last activity: 2026-03-18 -- Completed 11-03 BH close-up detail
 
-Progress: [##########] 100% (4/4 plans)
+Progress: [###░░░░░░░] 33% (1/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 21 (v1.0)
-- v1.1 plans completed: 4
+- v1.1 plans completed: 5
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 10-scale-foundation | 4/4 | 55min | ~14min |
+| 11-simulation-rescaling-viewport-cleanup | 1/3 | 2min | ~2min |
 
 *Updated after each plan completion*
+| Phase 11 P03 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -86,6 +73,8 @@ Recent decisions affecting current work:
 - [10-04]: Float32Array kept for enemy positions -- 8m precision adequate at max orbit
 - [10-04]: Gravity for combat entities uses computeGravAccelKm, not abstract computeGravAccel
 - [10-04]: Collision bins reference scale.js constants (BIN_WIDTH_KM, NUM_BINS_KM) as single source of truth
+- [11-03]: closeupFactor = smoothstep(30.0, 5.0, u_camDist) drives all BH close-up enhancements
+- [11-03]: FBM octave gate uses u_camDist > 10.0 threshold directly (not closeupFactor) since fbm() is separate function
 
 ### Pending Todos
 
@@ -98,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-17T19:29:33.193Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-simulation-rescaling-viewport-cleanup/11-CONTEXT.md
+Last session: 2026-03-18T03:12:37.963Z
+Stopped at: Completed 11-03-PLAN.md
+Resume file: None

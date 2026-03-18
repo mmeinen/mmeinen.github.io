@@ -60,7 +60,7 @@ Requirements for the Realistic Scale & Fleet Combat milestone. Each maps to road
 
 ### Rendering
 
-- [ ] **REND-01**: Black hole dominates the viewport with rendering tuned for close-up detail
+- [x] **REND-01**: Black hole dominates the viewport with rendering tuned for close-up detail
 - [ ] **REND-02**: Far planets rendered as 2D billboards when beyond a distance threshold
 - [ ] **REND-03**: Planets transition to 3D rendering as player approaches
 - [ ] **REND-04**: Enemy LOD thresholds recalibrated for km-scale distances
@@ -142,7 +142,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-02 | Phase 12 | Pending |
 | COLL-03 | Phase 12 | Pending |
 | COLL-04 | Phase 12 | Pending |
-| REND-01 | Phase 11 | Pending |
+| REND-01 | Phase 11 | Complete |
 | REND-02 | Phase 16 | Pending |
 | REND-03 | Phase 16 | Pending |
 | REND-04 | Phase 11 | Pending |
