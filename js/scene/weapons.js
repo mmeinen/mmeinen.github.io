@@ -18,7 +18,7 @@ const PLASMA_DAMAGE = 35;           // damage per plasma hit (scale-independent)
 const ENEMY_KINETIC_SPEED = 10000;  // enemy projectile speed in km/s
 
 /* Combat mode state */
-let combatMode = false;
+let combatMode = true;  // VIEW-01: always combat mode in nav
 let selectedWeapon = 0;   // 0=kinetic, 1=plasma, 2=regular missile, 3=nuclear missile
 
 /* Weapon cooldown state (simTime-based) */

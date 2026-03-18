@@ -449,6 +449,13 @@ function enterNavMode(){
   orbitAltitude=0; altUpHeld=false; altDownHeld=false;
   transferBurnMag=0; targetOrbitAlt=-1; transferBurnDir[0]=0; transferBurnDir[1]=0; transferBurnDir[2]=0;
   if(!enemiesSpawned){spawnTestEnemies();enemiesSpawned=true;if(typeof initShieldWall==='function')initShieldWall();}
+  // VIEW-01: combat always on -- enable HUD immediately
+  combatMode = true;
+  canvas.style.cursor = 'crosshair';
+  combatIndicatorEl.style.display = 'block';
+  weaponIndicatorEl.style.display = 'block';
+  tacMarkerContainer.style.display = 'block';
+  for(let i=0;i<MAX_ENEMIES;i++) indicatorEls[i].classList.add('tac-hidden');
   clearLocks();for(let _mi=0;_mi<MAX_MISSILES_ACTIVE;_mi++){if(missile.alive[_mi])removeMissile(_mi);}
   hudOverlay.classList.add('nav-active');
   flyNavGroup.classList.add('active');
@@ -458,7 +465,7 @@ function enterNavMode(){
   flyHudAltEl.classList.add('active');
   flyNavGroup.appendChild(missileFireBtn);
   updateMissileUI();
-  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; ZOOM<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; FIRE SALVO<br>C &mdash; CLEAR LOCKS<br>L &mdash; LAGRANGE PTS<br>F &mdash; COMBAT MODE<br>1-4 &mdash; WEAPON SELECT<br>` &mdash; EXIT</div>';
+  document.querySelector('.hud-readout-bl').innerHTML='<span class="readout-label">NAV CONTROLS</span><div class="readout-controls">CLICK BODY &mdash; ORBIT TARGET<br>UP/DOWN &mdash; ALTITUDE<br>SCROLL &mdash; ZOOM<br>DRAG &mdash; ORBIT CAM<br>RIGHT-CLICK &mdash; FIRE SALVO<br>C &mdash; CLEAR LOCKS<br>1-4 &mdash; WEAPON SELECT<br>` &mdash; EXIT</div>';
 }
 
 function exitNavMode(){
@@ -647,15 +654,15 @@ function resetCombat() {
   if (typeof resetWaveSystem === 'function') resetWaveSystem();
   enemiesSpawned = false;
   spawnTestEnemies();
-  // Reset combat mode
-  combatMode = false;
+  // VIEW-01: combat always on -- reset weapon but keep combat active
   selectedWeapon = 0;
-  // Reset tactical overlay state (unified with combat mode)
-  if (typeof tacMarkerContainer !== 'undefined' && tacMarkerContainer) tacMarkerContainer.style.display = 'none';
+  combatMode = true;
+  canvas.style.cursor = 'crosshair';
+  combatIndicatorEl.style.display = 'block';
+  weaponIndicatorEl.style.display = 'block';
+  tacMarkerContainer.style.display = 'block';
+  for(let i=0;i<MAX_ENEMIES;i++) indicatorEls[i].classList.add('tac-hidden');
   if (typeof tacTargets !== 'undefined') tacTargets.length = 0;
-  if (typeof indicatorEls !== 'undefined') {
-    for (let i = 0; i < MAX_ENEMIES; i++) indicatorEls[i].classList.remove('tac-hidden');
-  }
   // Reset vignette
   if (typeof vignetteEl !== 'undefined' && vignetteEl) {
     vignetteEl.style.setProperty('--vignette-alpha', '0');

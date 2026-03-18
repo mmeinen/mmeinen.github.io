@@ -248,11 +248,7 @@
       if(typeof updateMissileLimits==='function')updateMissileLimits(wIdx);
     });
     document.getElementById('hud-mode-toggle').addEventListener('click',function(){
-      combatMode=!combatMode;
-      if(!combatMode){
-        if(typeof clearLocks==='function')clearLocks();
-        selectedWeapon=0;
-      }
+      // VIEW-01: combat mode always on, toggle disabled
     });
     // L-point state
     let lagrangeVisible=false;
@@ -974,7 +970,6 @@
           playerState.alive=true;
           playerState.deathPhase=0;
           playerState.deathTimer=0;
-          combatMode=false;
           tacMarkerContainer.style.display='none';tacTargets.length=0;
           combatIndicatorEl.style.display='none';
           weaponIndicatorEl.style.display='none';
@@ -991,7 +986,7 @@
       if(e.key==='`'){
         if(!wf)return;
         if(playerState.deathPhase>0)return; // Can't exit during death
-        if(flyMode){exitNavMode();combatMode=false;tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else enterNavMode();
+        if(flyMode){exitNavMode();tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else enterNavMode();
         return;
       }
       if(flyMode){
@@ -999,41 +994,15 @@
         if(e.key==='b'||e.key==='B'){}
         // Gate combat/navigation input on player alive
         if(!playerState.alive){return;}
-        if(e.key==='f'||e.key==='F'){
-          combatMode=!combatMode;
-          if(combatMode){
-            canvas.style.cursor='crosshair';
-            combatIndicatorEl.style.display='block';
-            weaponIndicatorEl.style.display='block';
-            // Show tactical overlays with combat mode
-            tacMarkerContainer.style.display='block';
-            for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.add('tac-hidden');
-          }else{
-            canvas.style.cursor='crosshair';
-            combatIndicatorEl.style.display='none';
-            weaponIndicatorEl.style.display='none';
-            // Hide tactical overlays and clear targets
-            tacMarkerContainer.style.display='none';
-            tacTargets.length=0;
-            for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');
-          }
-        }
-        if(combatMode){
-          if(e.key==='1'){selectedWeapon=0;}
-          if(e.key==='2'){selectedWeapon=1;}
-          if(e.key==='3'){selectedWeapon=2;updateLockLimits();}
-          if(e.key==='4'){selectedWeapon=3;updateLockLimits();}
-        }else{
-          if(e.key==='1')navCamDist=3;
-          if(e.key==='2')navCamDist=120;
-        }
+        // VIEW-01: weapon select always available (combat always on)
+        if(e.key==='1'){selectedWeapon=0;}
+        if(e.key==='2'){selectedWeapon=1;}
+        if(e.key==='3'){selectedWeapon=2;updateLockLimits();}
+        if(e.key==='4'){selectedWeapon=3;updateLockLimits();}
         if(e.key==='c'||e.key==='C'){clearLocks();updateMissileUI();}
         if(e.key==='ArrowUp'){altUpHeld=true;e.preventDefault();}
         if(e.key==='ArrowDown'){altDownHeld=true;e.preventDefault();}
-        if(e.key==='l'||e.key==='L'){
-          lagrangeVisible=!lagrangeVisible;
-          if(!lagrangeVisible){for(let i=0;i<12;i++)lPointLabels[i].style.display='none';}
-        }
+        if(e.key==='l'||e.key==='L'){/* VIEW-02: L-points disabled until radar (Phase 15) */}
         return;
       }
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
@@ -1922,7 +1891,7 @@
           hudWaveEl.textContent='WAVE '+waveNumber+' \u00B7 '+enemyCount+(enemyCount===1?' ENEMY':' ENEMIES');
         }
         // Bottom bar mode toggle text
-        hudModeToggleEl.textContent=combatMode?'COMBAT':'NAV';
+        hudModeToggleEl.textContent='COMBAT';
         updateMissileUI();
         // Bottom bar weapon boxes (always updated, not gated on combatMode)
         {
@@ -1943,16 +1912,11 @@
             }
           }
         }
-        // Combat mode HUD updates (old indicators, hidden via CSS but kept for safety)
-        if(combatMode){
-          combatIndicatorEl.style.display='block';
-          weaponIndicatorEl.style.display='block';
-        }else{
-          combatIndicatorEl.style.display='none';
-          weaponIndicatorEl.style.display='none';
-        }
+        // VIEW-01: combat always on -- indicators always visible
+        combatIndicatorEl.style.display='block';
+        weaponIndicatorEl.style.display='block';
         // Lock reticle DOM update: project locked enemy positions to screen
-        if(combatMode&&selectedWeapon>=2&&lockState.targets.length>0){
+        if(selectedWeapon>=2&&lockState.targets.length>0){
           lockReticlesContainer.style.display='block';
           const mDR=Math.min(baseWidth,baseHeight);
           for(let ri=0;ri<lockReticleDivs.length;ri++){
