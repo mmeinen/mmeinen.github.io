@@ -152,6 +152,18 @@
          </div>
        </div>
        <div id="wave-announce" class="wave-announce"></div>
+       <div id="fleet-callout-0" class="fleet-callout">
+         <div class="fleet-callout-chevron"></div>
+         <span class="fleet-callout-text"></span>
+       </div>
+       <div id="fleet-callout-1" class="fleet-callout">
+         <div class="fleet-callout-chevron"></div>
+         <span class="fleet-callout-text"></span>
+       </div>
+       <div id="fleet-callout-2" class="fleet-callout">
+         <div class="fleet-callout-chevron"></div>
+         <span class="fleet-callout-text"></span>
+       </div>
      </div>
      <div class="damage-vignette" id="damage-vignette"></div>
      <div id="lock-reticles" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25;"></div>
@@ -1149,6 +1161,41 @@
           edgeX=Math.max(margin,Math.min(baseWidth-margin,edgeX));
         }
         positionIndicator(indicatorEls[i],edgeX,edgeY,angle,dist,enemies.type[i]);
+      }
+    }
+
+    /* ---- Fleet callout HUD ---- */
+    let _fleetCalloutEls = null;
+    function _ensureFleetCalloutEls() {
+      if (_fleetCalloutEls) return;
+      _fleetCalloutEls = [
+        document.getElementById('fleet-callout-0'),
+        document.getElementById('fleet-callout-1'),
+        document.getElementById('fleet-callout-2')
+      ];
+      for (const el of _fleetCalloutEls) {
+        if (el) el.addEventListener('animationend', function() { this.classList.remove('visible'); });
+      }
+    }
+    function showFleetCallouts(fleetResults) {
+      _ensureFleetCalloutEls();
+      if (!_fleetCalloutEls) return;
+      for (let i = 0; i < 3; i++) {
+        const el = _fleetCalloutEls[i];
+        if (!el) continue;
+        if (i >= fleetResults.length) { el.classList.remove('visible'); continue; }
+        const fr = fleetResults[i];
+        el.querySelector('.fleet-callout-text').textContent = fr.callout;
+        if (fr.isBoss) el.classList.add('boss'); else el.classList.remove('boss');
+        const dx = fr.centroidX - flyPos[0];
+        const dz = fr.centroidZ - flyPos[2];
+        const angle = Math.atan2(dx, dz);
+        const chevron = el.querySelector('.fleet-callout-chevron');
+        chevron.style.transform = 'rotate(' + ((angle * 180 / Math.PI) + 180) + 'deg)';
+        el.style.animationDelay = (i * 1.2) + 's';
+        el.classList.remove('visible');
+        void el.offsetWidth;
+        el.classList.add('visible');
       }
     }
 

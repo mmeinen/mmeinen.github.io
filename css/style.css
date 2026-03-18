@@ -1006,6 +1006,61 @@ body {
 }
 
 /* ============================================
+   FLEET CALLOUT
+   ============================================ */
+
+.fleet-callout {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 28;
+  pointer-events: none;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 0.875em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 160, 80, 0.95);
+  text-shadow: 0 0 12px rgba(255, 160, 80, 0.5);
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+#fleet-callout-1 { top: calc(38% + 32px); }
+#fleet-callout-2 { top: calc(38% + 64px); }
+
+.fleet-callout.boss {
+  color: rgba(255, 80, 60, 0.95);
+  text-shadow: 0 0 16px rgba(255, 80, 60, 0.6), 0 0 32px rgba(255, 80, 60, 0.3);
+}
+
+.fleet-callout.visible {
+  animation: fleetCallout 3s ease-in-out forwards;
+}
+
+@keyframes fleetCallout {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.8); }
+  10%  { opacity: 1; transform: translateX(-50%) scale(1.02); }
+  15%  { transform: translateX(-50%) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.fleet-callout-chevron {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid currentColor;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+/* ============================================
    GAME OVER SCREEN
    ============================================ */
 
@@ -1097,7 +1152,8 @@ body {
   .combat-hud-bar,
   .game-over-screen,
   .enemy-indicator,
-  .wave-announce {
+  .wave-announce,
+  .fleet-callout {
     display: none !important;
   }
 

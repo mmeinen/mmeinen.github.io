@@ -159,6 +159,9 @@ function updateWaveSystem(simDt) {
       if (waveBreatherTimer >= BREATHER_DURATION) {
         waveNumber++;
         spawnWave(waveNumber);
+        if (typeof showFleetCallouts === 'function' && _lastFleetResults.length > 0) {
+          showFleetCallouts(_lastFleetResults);
+        }
         waveState = WAVE_ACTIVE;
       }
       break;
@@ -177,6 +180,9 @@ function updateWaveSystem(simDt) {
 function startWaveSystem() {
   waveNumber = 1;
   spawnWave(1);
+  if (typeof showFleetCallouts === 'function' && _lastFleetResults.length > 0) {
+    showFleetCallouts(_lastFleetResults);
+  }
   waveState = WAVE_ACTIVE;
   showWaveAnnouncement(1);
 }
