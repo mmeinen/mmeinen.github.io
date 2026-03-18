@@ -676,10 +676,31 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       }
     }
 
-    // BH despawn: if enemy falls into black hole (km-scale)
-    const er = enemies.posX[i] * enemies.posX[i] + enemies.posZ[i] * enemies.posZ[i];
-    if (er < BH_RADIUS_KM * BH_RADIUS_KM) {
-      removeEnemy(i);
+    // Body collision: skip station-keeping enemies (AI_IDLE orbits near planets intentionally)
+    if (enemies.aiState[i] !== AI_IDLE) {
+      const ex = enemies.posX[i], ez = enemies.posZ[i];
+      // BH check (origin, radius BH_RADIUS_KM)
+      if (ex * ex + ez * ez < BH_RADIUS_KM * BH_RADIUS_KM) {
+        spawnExplosion(ex, 0, ez, EXPLOSION_BASE_SIZE);
+        recordEnemyKill();
+        removeEnemy(i);
+        continue;
+      }
+      // Planet checks (7 planets)
+      let hitPlanet = false;
+      for (let p = 0; p < 7; p++) {
+        const bp = getBodyPositionKm(p, sTime);
+        const br = getBodyRadiusKm(p);
+        const dx = ex - bp[0], dz = ez - bp[2];
+        if (dx * dx + dz * dz < br * br) {
+          spawnExplosion(ex, 0, ez, EXPLOSION_BASE_SIZE);
+          recordEnemyKill();
+          removeEnemy(i);
+          hitPlanet = true;
+          break;
+        }
+      }
+      if (hitPlanet) continue;
     }
   }
 }

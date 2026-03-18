@@ -66,10 +66,12 @@ const SWARM_SIZE_KM   = 0.5;     // 500 m
 
 // --- Collision bins (km-scale) ---
 const BIN_WIDTH_KM = 5000;   // Each bin covers 5,000 km radial band
-const NUM_BINS_KM  = 24;     // 24 bins covers 0-120,000 km (past Neptune)
+const NUM_BINS_KM  = 28;     // 28 bins covers 0-140,000 km (past world boundary)
 
 // --- World boundary ---
 const MAX_RADIUS_KM = 120000;  // ~1.06x Neptune orbit
+// World boundary: 1.2x outermost orbit (Neptune at 113,176 km)
+const WORLD_BOUNDARY_KM = Math.ceil(PLANET_ORBIT_KM[3] * 1.2); // ~135,812 km
 
 // --- Helper functions ---
 
