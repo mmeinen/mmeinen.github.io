@@ -747,6 +747,8 @@
     const _tacRingRadii=[30,50,70,90]; // Tactical range ring radii
     // L-point marker buffer
     const lPointBuf=gl.createBuffer();
+    // Billboard enemy LOD buffer (REND-04)
+    const billboardGlBuf=gl.createBuffer();
     // Projectile render buffer (pre-allocated for MAX_PROJECTILES)
     const projGlBuf=gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER,projGlBuf);
@@ -1476,6 +1478,31 @@
             gl.disableVertexAttribArray(enemyLocs.aInstScale);
             gl.disableVertexAttribArray(enemyLocs.aInstFlash);
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
+          }
+          // Billboard enemy rendering (LOD tier 2: 10,000-50,000 km)
+          if(instResult.bbTotalCount>0){
+            gl.useProgram(trajPg);
+            gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
+            gl.enable(gl.DEPTH_TEST);
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+            gl.bindBuffer(gl.ARRAY_BUFFER,billboardGlBuf);
+            gl.bufferData(gl.ARRAY_BUFFER,billboardData.subarray(0,instResult.bbTotalCount*3),gl.DYNAMIC_DRAW);
+            gl.enableVertexAttribArray(trajLocs.aPos);
+            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
+            // Render per-archetype group with distinct color and size
+            let bbDrawOffset=0;
+            for(let bt=0;bt<5;bt++){
+              const bbCount=instResult.bbTypeCounts[bt];
+              if(bbCount===0)continue;
+              const c=ARCHETYPE_COLORS[bt];
+              gl.uniform4f(trajLocs.uColor,c[0],c[1],c[2],1.0);
+              gl.uniform1f(trajLocs.uPtSize,BILLBOARD_SIZES[bt]);
+              gl.drawArrays(gl.POINTS,bbDrawOffset,bbCount);
+              bbDrawOffset+=bbCount;
+            }
+            gl.disableVertexAttribArray(trajLocs.aPos);
+            gl.disable(gl.BLEND);
           }
         }
 
