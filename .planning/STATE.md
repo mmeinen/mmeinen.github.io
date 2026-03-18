@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Realistic Scale & Fleet Combat
 status: in-progress
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-18T03:14:13Z"
-last_activity: 2026-03-18 -- Completed 11-01 Viewport purification and combat always-on
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-03-18T03:20:16Z"
+last_activity: 2026-03-18 -- Completed 11-02 Enemy LOD system (billboard dots)
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -20,32 +20,33 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Tactical orbital combat that feels physically grounded -- ship movement follows real transfer orbits, weapons obey momentum and fuel constraints, and the black hole's gravity shapes every engagement.
-**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 11 (Simulation Rescaling & Viewport Cleanup) in progress
+**Current focus:** v1.1 Realistic Scale & Fleet Combat -- Phase 11 (Simulation Rescaling & Viewport Cleanup) complete
 
 ## Current Position
 
 Phase: 11 of 16 (Simulation Rescaling & Viewport Cleanup)
-Plan: 2 of 3 complete
-Status: In Progress
-Last activity: 2026-03-18 -- Completed 11-01 Viewport purification and combat always-on
+Plan: 3 of 3 complete
+Status: Phase Complete
+Last activity: 2026-03-18 -- Completed 11-02 Enemy LOD system (billboard dots)
 
-Progress: [######░░░░] 67% (2/3 plans)
+Progress: [##########] 100% (7/7 plans)
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 21 (v1.0)
-- v1.1 plans completed: 6
+- v1.1 plans completed: 7
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 10-scale-foundation | 4/4 | 55min | ~14min |
-| 11-simulation-rescaling-viewport-cleanup | 2/3 | 7min | ~4min |
+| 11-simulation-rescaling-viewport-cleanup | 3/3 | 10min | ~3min |
 
 *Updated after each plan completion*
 | Phase 11 P01 | 5min | 2 tasks | 3 files |
+| Phase 11 P02 | 3min | 2 tasks | 2 files |
 | Phase 11 P03 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
@@ -78,6 +79,10 @@ Recent decisions affecting current work:
 - [11-01]: L-point position computation extracted to run unconditionally (orbit capture depends on it)
 - [11-01]: lagrangeVisible changed from let to const false -- prevents accidental re-enable
 - [11-01]: fmtKm(val): <1000 uses toFixed(1)+' km', >=1000 uses toLocaleString()+' km'
+- [11-02]: XZ-plane distance for LOD thresholds (Y near 0 in 2D orbital game)
+- [11-02]: Billboard sizes: Grunt=3.0px, Swarm=2.5px, Bomber=4.0px, Sniper=3.5px, Capital=8.0px
+- [11-02]: Hard LOD cuts (no cross-fade) -- simple and sufficient for distant dots
+- [11-02]: Reuse trajPg shader for billboard rendering (GL_POINTS with uniform color/size)
 - [11-03]: closeupFactor = smoothstep(30.0, 5.0, u_camDist) drives all BH close-up enhancements
 - [11-03]: FBM octave gate uses u_camDist > 10.0 threshold directly (not closeupFactor) since fbm() is separate function
 
@@ -92,6 +97,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T03:14:13Z
-Stopped at: Completed 11-01-PLAN.md
-Resume file: .planning/phases/11-simulation-rescaling-viewport-cleanup/11-01-SUMMARY.md
+Last session: 2026-03-18T03:20:16Z
+Stopped at: Completed 11-02-PLAN.md
+Resume file: .planning/phases/11-simulation-rescaling-viewport-cleanup/11-02-SUMMARY.md

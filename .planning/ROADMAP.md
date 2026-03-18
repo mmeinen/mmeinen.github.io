@@ -29,7 +29,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Transform the scene from abstract game-units to kilometer-scale space, restructure enemies into tactical fleets, and separate navigation (radar) from combat (main viewport).
 
 - [x] **Phase 10: Scale Foundation** — km coordinate system, CRR, log depth buffer, collision bins, time anchor
-- [ ] **Phase 11: Simulation Rescaling & Viewport Cleanup** — All physics modules operating in km, viewport purified for combat, BH close-up tuning
+- [x] **Phase 11: Simulation Rescaling & Viewport Cleanup** — All physics modules operating in km, viewport purified for combat, BH close-up tuning (completed 2026-03-18)
 - [ ] **Phase 12: Body Collision & World Boundary** — Kill zones on planets/BH, player protection, world boundary fence
 - [ ] **Phase 13: Fleet Composition System** — Structured fleet spawning with roles, anchor orbiting, HUD announcements
 - [ ] **Phase 14: Warp Speed** — Time acceleration toggle, proximity locks, projectile suspension
@@ -65,7 +65,7 @@ Plans:
   3. Orbital height is displayed in the HUD in km with up/down altitude adjustment controls
   4. Black hole dominates the viewport when nearby with rendering tuned for close-up detail
   5. Enemy LOD transitions (full geometry, billboard, skip) occur at appropriate km-scale distances without visible popping
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [ ] 11-01-PLAN.md — Mode simplification, viewport purification, and altitude km formatting
 - [ ] 11-02-PLAN.md — Enemy LOD system (full geometry, billboard, skip)
@@ -143,7 +143,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 8. Combat HUD | v1.0 | 1/1 | Complete | 2026-03-14 |
 | 9. Tactical Targeting System | v1.0 | 2/2 | Complete | 2026-03-14 |
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
-| 11. Simulation Rescaling & Viewport Cleanup | 2/3 | In Progress|  | - |
+| 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete   | 2026-03-18 | - |
 | 12. Body Collision & World Boundary | v1.1 | 0/? | Not started | - |
 | 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
