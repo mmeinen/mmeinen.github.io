@@ -94,7 +94,10 @@ Plans:
   2. Fleet compositions have visible role differentiation -- anchor ships are large and central, screen ships are numerous and close, strikers arrive from wider orbits
   3. Fleet members orbit near their shared anchor body within a tight radius band, maintaining spatial coherence
   4. Fleet spawn is announced in the HUD with a 3-second callout naming the fleet type and a directional indicator pointing toward the spawn location
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 13-01-PLAN.md — Fleet template module (fleets.js) and wave system integration
+- [ ] 13-02-PLAN.md — Fleet callout HUD with directional indicators
 
 ### Phase 14: Warp Speed
 **Goal**: Players can accelerate time to cross the km-scale scene without tedious transit waits
@@ -148,7 +151,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete    | 2026-03-18 | - |
 | 12. Body Collision & World Boundary | 2/2 | Complete    | 2026-03-18 | - |
-| 13. Fleet Composition System | v1.1 | 0/? | Not started | - |
+| 13. Fleet Composition System | v1.1 | 0/2 | Planned | - |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
 | 15. Radar System | v1.1 | 0/? | Not started | - |
 | 16. LOD & Visual Polish | v1.1 | 0/? | Not started | - |
