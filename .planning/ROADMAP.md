@@ -31,7 +31,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 10: Scale Foundation** — km coordinate system, CRR, log depth buffer, collision bins, time anchor
 - [x] **Phase 11: Simulation Rescaling & Viewport Cleanup** — All physics modules operating in km, viewport purified for combat, BH close-up tuning (completed 2026-03-18)
 - [x] **Phase 12: Body Collision & World Boundary** — Kill zones on planets/BH, player protection, world boundary fence (completed 2026-03-18)
-- [ ] **Phase 13: Fleet Composition System** — Structured fleet spawning with roles, anchor orbiting, HUD announcements
+- [x] **Phase 13: Fleet Composition System** — Structured fleet spawning with roles, anchor orbiting, HUD announcements (completed 2026-03-21)
 - [ ] **Phase 14: Warp Speed** — Time acceleration toggle, proximity locks, projectile suspension
 - [ ] **Phase 15: Radar System** — Mini-map and expanded panel with orbit navigation
 - [ ] **Phase 16: LOD & Visual Polish** — Planet billboard rendering, distance-based 3D transitions
@@ -94,10 +94,10 @@ Plans:
   2. Fleet compositions have visible role differentiation -- anchor ships are large and central, screen ships are numerous and close, strikers arrive from wider orbits
   3. Fleet members orbit near their shared anchor body within a tight radius band, maintaining spatial coherence
   4. Fleet spawn is announced in the HUD with a 3-second callout naming the fleet type and a directional indicator pointing toward the spawn location
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 13-01-PLAN.md — Fleet template module (fleets.js) and wave system integration
-- [ ] 13-02-PLAN.md — Fleet callout HUD with directional indicators
+- [x] 13-01-PLAN.md — Fleet template module (fleets.js) and wave system integration
+- [x] 13-02-PLAN.md — Fleet callout HUD with directional indicators
 
 ### Phase 14: Warp Speed
 **Goal**: Players can accelerate time to cross the km-scale scene without tedious transit waits
@@ -151,7 +151,7 @@ Phases execute in numeric order. Phases 12 and 16 can run in parallel with Phase
 | 10. Scale Foundation | v1.1 | Complete    | 2026-03-17 | 2026-03-16 |
 | 11. Simulation Rescaling & Viewport Cleanup | 3/3 | Complete    | 2026-03-18 | - |
 | 12. Body Collision & World Boundary | 2/2 | Complete    | 2026-03-18 | - |
-| 13. Fleet Composition System | 1/2 | In Progress|  | - |
+| 13. Fleet Composition System | 1/2 | 2/2 | Complete   | 2026-03-21 |
 | 14. Warp Speed | v1.1 | 0/? | Not started | - |
 | 15. Radar System | v1.1 | 0/? | Not started | - |
 | 16. LOD & Visual Polish | v1.1 | 0/? | Not started | - |
