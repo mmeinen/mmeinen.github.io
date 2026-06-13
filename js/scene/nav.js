@@ -27,7 +27,7 @@ const previewArray=new Float32Array(TRAJ_STEPS*3);
 let navCamAz=0, navCamEl=0.5;
 let navCamDist=3;
 // Nav camera distances in km (flyPos is km during flyMode)
-const NAV_CAM_DIST_MIN=50, NAV_CAM_DIST_MAX=5000;
+const NAV_CAM_DIST_MIN=30, NAV_CAM_DIST_MAX=50000;
 // Cached aim direction (updated each frame from mouse)
 let aimDir=null;
 // Orbit state machine (uses ORBIT_STATE from orbital.js)
@@ -43,11 +43,11 @@ let altDownHeld=false;      // down arrow key held
 
 /* ---- Gravity & trajectory simulation ---- */
 // Precomputed planet GMs -- abstract units (radius-cubed * constant)
-const _planetGM=new Float32Array(7);
-for(let i=0;i<7;i++){const pr=planetData[i].radius;_planetGM[i]=PLANET_GM_K*pr*pr*pr;}
+const _planetGM=new Float32Array(5);
+for(let i=0;i<5;i++){const pr=planetData[i].radius;_planetGM[i]=PLANET_GM_K*pr*pr*pr;}
 // Precomputed planet GMs -- km scale
-const _planetGM_km=new Float64Array(7);
-for(let i=0;i<7;i++){const pr_km=planetData[i].radius*BODY_SCALE;_planetGM_km[i]=_PLANET_GM_K_KM*pr_km*pr_km*pr_km;}
+const _planetGM_km=new Float64Array(5);
+for(let i=0;i<5;i++){const pr_km=planetData[i].radius*BODY_SCALE;_planetGM_km[i]=_PLANET_GM_K_KM*pr_km*pr_km*pr_km;}
 
 function planetPosAtTime(p,t){
   const a=p.sp*t+p.ph;
@@ -61,16 +61,12 @@ function computeGravAccel(pos){
   let r3=r2*r;
   let ax=0,ay=0,az=0;
   if(r3>0.001){ax+=BH_GM*dx/r3;ay+=BH_GM*dy/r3;az+=BH_GM*dz/r3;}
-  for(let i=0;i<6;i++){
+  for(let i=0;i<5;i++){
     const b=0x070+i*12;
     dx=dv.getFloat32(b,true)-pos[0];dy=dv.getFloat32(b+4,true)-pos[1];dz=dv.getFloat32(b+8,true)-pos[2];
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
     if(r3>0.001){ax+=_planetGM[i]*dx/r3;ay+=_planetGM[i]*dy/r3;az+=_planetGM[i]*dz/r3;}
   }
-  {const pp=planetPosAtTime(planetData[6],simTime);
-   dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
-   r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
-   if(r3>0.001){ax+=_planetGM[6]*dx/r3;ay+=_planetGM[6]*dy/r3;az+=_planetGM[6]*dz/r3;}}
   return [ax,ay,az];
 }
 // Gravity at arbitrary time (for trajectory prediction -- km scale)
@@ -81,7 +77,7 @@ function computeGravAccelAtTime(pos,time){
   let r3=r2*r;
   let ax=0,ay=0,az=0;
   if(r3>0.001){ax+=BH_GM_KM*dx/r3;ay+=BH_GM_KM*dy/r3;az+=BH_GM_KM*dz/r3;}
-  for(let i=0;i<7;i++){
+  for(let i=0;i<5;i++){
     const pp=planetPosKm(planetData[i],time);
     dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
@@ -97,7 +93,7 @@ function computeGravAccelKm(pos, time){
   let r3=r2*r;
   let ax=0,ay=0,az=0;
   if(r3>0.001){ax+=BH_GM_KM*dx/r3;ay+=BH_GM_KM*dy/r3;az+=BH_GM_KM*dz/r3;}
-  for(let i=0;i<7;i++){
+  for(let i=0;i<5;i++){
     const pp=planetPosKm(planetData[i],time);
     dx=pp[0]-pos[0];dy=pp[1]-pos[1];dz=pp[2]-pos[2];
     r2=dx*dx+dy*dy+dz*dz;r=Math.sqrt(r2);r3=r2*r;
@@ -185,11 +181,11 @@ function getLPointPositionKm(flatIndex) {
 
 function getBodyPosition(bodyIndex) {
   // Returns current position of body in abstract units (for shader/HUD).
-  // Planets 0-5: read from WASM memory (same source as shader uniforms)
-  // Planet 6: JS-computed (not in WASM). BH: origin. L-points: from lPointPositions.
+  // Planets 0-4: read from WASM memory (same source as shader uniforms).
+  // BH: origin. L-points: from lPointPositions.
   if (bodyIndex >= 100) return getLPointPosition(bodyIndex - 100);
   if (bodyIndex === -1) return [0, 0, 0];
-  if (bodyIndex >= 0 && bodyIndex < 6) {
+  if (bodyIndex >= 0 && bodyIndex < 5) {
     const b = 0x070 + bodyIndex * 12;
     return [dv.getFloat32(b, true), dv.getFloat32(b + 4, true), dv.getFloat32(b + 8, true)];
   }
@@ -424,7 +420,7 @@ function enterNavMode(){
   const tNow=simTime;
   // Recompute planet angular speeds to Keplerian values (using BH_GM_KM at km scale)
   // No oR doubling -- planetData.oR stays at its original abstract value
-  for(let i=0;i<6;i++){
+  for(let i=0;i<5;i++){
     const p=planetData[i],b=0x100+i*16;
     p._origSp=p.sp;p._origPh=p.ph;
     const oR_km=p.oR*ORBIT_SCALE;
@@ -435,12 +431,6 @@ function enterNavMode(){
     dv.setFloat32(b+4,p.ph,true);
     dv.setFloat32(b+8,p.sp,true);
   }
-  {const p=planetData[6];
-   p._origSp=p.sp;p._origPh=p.ph;
-   const oR_km=p.oR*ORBIT_SCALE;
-   const spKep=Math.sqrt(BH_GM_KM)/Math.pow(oR_km,1.5);
-   p.ph+=(p.sp-spKep)*tNow;
-   p.sp=spKep;}
   flyMode=true;
   // Initialize orbital data tables (SOI, default orbit altitudes) -- now km-scale
   initOrbitalData();
@@ -480,14 +470,13 @@ function exitNavMode(){
   clearLocks();for(let _mi=0;_mi<MAX_MISSILES_ACTIVE;_mi++){if(missile.alive[_mi])removeMissile(_mi);}
   for(let i=0;i<6;i++){detSlots[i].active=false;}
   // Restore original sp/ph (no oR change needed -- oR was never mutated)
-  for(let i=0;i<6;i++){
+  for(let i=0;i<5;i++){
     const p=planetData[i],b=0x100+i*16;
     p.sp=p._origSp;p.ph=p._origPh;
     dv.setFloat32(b,p.oR,true);
     dv.setFloat32(b+4,p.ph,true);
     dv.setFloat32(b+8,p.sp,true);
   }
-  {const p=planetData[6];p.sp=p._origSp;p.ph=p._origPh;}
   // Convert flyPos from km back to abstract units for camera restoration
   const dx=flyPos[0]/ORBIT_SCALE,dy=flyPos[1]/ORBIT_SCALE,dz=flyPos[2]/ORBIT_SCALE;
   camDist=Math.sqrt(dx*dx+dy*dy+dz*dz);
@@ -530,7 +519,7 @@ function updateNav(simDt, sTime){
     const ALT_ADJ_RATE=12.0*ORBIT_SCALE;
     const maxAlt=transferTarget>=100?LPOINT_SOI_KM*0.8:getBodySOI(transferTarget)*0.8;
     if(altUpHeld) targetOrbitAlt=Math.min(targetOrbitAlt+ALT_ADJ_RATE*simDt, maxAlt);
-    if(altDownHeld) targetOrbitAlt=Math.max(targetOrbitAlt-ALT_ADJ_RATE*simDt, 500);
+    if(altDownHeld) targetOrbitAlt=Math.max(targetOrbitAlt-ALT_ADJ_RATE*simDt, 5000);
     // Mid-course guidance: correct for multi-body perturbations (km-scale)
     const tPos=getBodyPositionKm(transferTarget, sTime);
     const toX=tPos[0]-flyPos[0], toZ=tPos[2]-flyPos[2];
@@ -562,7 +551,7 @@ function updateNav(simDt, sTime){
   // This is a last-resort catch after SOI capture and altitude management.
   // BH protection: 500 km safety margin outside event horizon
   const _bhDist2 = flyPos[0] * flyPos[0] + flyPos[2] * flyPos[2];
-  const _bhSafe = BH_RADIUS_KM + 500;
+  const _bhSafe = BH_RADIUS_KM + 2500;
   if (_bhDist2 < _bhSafe * _bhSafe) {
     const _bhDist = Math.sqrt(_bhDist2);
     const _bAngle = Math.atan2(flyPos[0], flyPos[2]);
@@ -575,10 +564,10 @@ function updateNav(simDt, sTime){
     flyVel[2] = _rx * _vorb;
   }
   // Planet protection: 200 km safety margin outside each planet surface
-  for (let _p = 0; _p < 7; _p++) {
+  for (let _p = 0; _p < 5; _p++) {
     const _bp = getBodyPositionKm(_p, sTime);
     const _br = getBodyRadiusKm(_p);
-    const _safeR = _br + 200;
+    const _safeR = _br + 1000;
     const _dx = flyPos[0] - _bp[0], _dz = flyPos[2] - _bp[2];
     const _d2 = _dx * _dx + _dz * _dz;
     if (_d2 < _safeR * _safeR) {
@@ -682,7 +671,7 @@ function resetCombat() {
   // Deactivate all detonation slots
   for (let i = 0; i < 6; i++) detSlots[i].active = false;
   // Reposition ship at current orbit body (km scale) or reset to a safe default orbit
-  if (orbitBody >= 0 && orbitBody < 7) {
+  if (orbitBody >= 0 && orbitBody < 5) {
     const bp = getBodyPositionKm(orbitBody, simTime);
     const br = getBodyRadiusKm(orbitBody);
     const alt = getDefaultOrbitAlt(orbitBody);

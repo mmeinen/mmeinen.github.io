@@ -45,7 +45,7 @@ const FLEET_TEMPLATES = {
 /**
  * Spawn a fleet at a specific planet with role-based arc placement.
  * @param {object} template - Fleet template from FLEET_TEMPLATES (may have scaled counts)
- * @param {number} anchorBodyIdx - Planet index (0-6) for station-keeping
+ * @param {number} anchorBodyIdx - Planet index (0-4) for station-keeping
  * @param {number} basePhase - Base angle offset for fleet placement
  * @returns {{ spawned: number[], centroidX: number, centroidZ: number, callout: string, isBoss: boolean }}
  */

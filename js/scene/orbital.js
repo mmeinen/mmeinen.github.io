@@ -157,19 +157,16 @@ function initOrbitalData() {
   DEFAULT_ORBIT_ALT[0] = 5000;
 
   // Planets (index 0-6 -> table index 1-7) -- km
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 5; i++) {
     const soi = computeSOI(i);
     BODY_SOI[i + 1] = soi;
     // Default orbit altitude in km, tuned per planet
-    const r_km = planetData[i].radius * BODY_SCALE;
     let alt;
-    if (i === 0)      alt = 3200;   // Jupiter (4000 km diameter)
-    else if (i === 1) alt = 2800;   // Saturn (3200 km diameter)
-    else if (i === 2) alt = 2400;   // Uranus (2400 km diameter)
-    else if (i === 3) alt = 2400;   // Neptune (2240 km diameter)
-    else if (i === 4) alt = 800;    // Venus (864 km diameter)
-    else if (i === 5) alt = 960;    // Earth (960 km diameter)
-    else              alt = 2000;   // Mars (2080 km diameter)
+    if (i === 0)      alt = 3200;   // Jupiter (Dad)
+    else if (i === 1) alt = 2800;   // Saturn (Beatrix)
+    else if (i === 2) alt = 2400;   // Uranus (Edmund)
+    else if (i === 3) alt = 2400;   // Neptune (Madeline)
+    else              alt = 2000;   // Mars (Theo)
     DEFAULT_ORBIT_ALT[i + 1] = alt;
   }
 }

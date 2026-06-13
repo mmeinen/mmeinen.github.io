@@ -733,8 +733,8 @@ function fireTacticalSalvo(st) {
  */
 function checkBodyCollisions(sTime) {
   // Cache body positions and squared radii for this frame
-  const _bpX = new Float64Array(7), _bpZ = new Float64Array(7), _br2 = new Float64Array(7);
-  for (let p = 0; p < 7; p++) {
+  const _bpX = new Float64Array(5), _bpZ = new Float64Array(5), _br2 = new Float64Array(5);
+  for (let p = 0; p < 5; p++) {
     const bp = getBodyPositionKm(p, sTime);
     _bpX[p] = bp[0]; _bpZ[p] = bp[2];
     const br = getBodyRadiusKm(p);
@@ -749,7 +749,7 @@ function checkBodyCollisions(sTime) {
     // BH check
     if (px * px + pz * pz < _bhR2) { removeProjectile(i); continue; }
     // Planet checks
-    for (let p = 0; p < 7; p++) {
+    for (let p = 0; p < 5; p++) {
       const dx = px - _bpX[p], dz = pz - _bpZ[p];
       if (dx * dx + dz * dz < _br2[p]) { removeProjectile(i); break; }
     }
@@ -767,7 +767,7 @@ function checkBodyCollisions(sTime) {
     // BH check
     if (mx * mx + mz * mz < _bhR2) { removeMissile(i); continue; }
     // Planet checks
-    for (let p = 0; p < 7; p++) {
+    for (let p = 0; p < 5; p++) {
       const dx = mx - _bpX[p], dz = mz - _bpZ[p];
       if (dx * dx + dz * dz < _br2[p]) {
         if (missile.type[i] === 1) {

@@ -25,8 +25,6 @@ const fsSource = `
   uniform vec4 u_planet2;
   uniform vec4 u_planet3;
   uniform vec4 u_planet4;
-  uniform vec4 u_planet5;
-  uniform vec4 u_planet6;
   uniform sampler2D u_bbTex;
   uniform sampler2D u_noiseTex;
   uniform vec3  u_detPos[6];
@@ -341,30 +339,7 @@ const fsSource = `
       col += vec3(0.15, 0.15, 0.10) * cirrus;
       col += vec3(0.04, 0.04, 0.02) * smoothstep(0.60, 0.85, -lat);
     } else if (idx == 4) {
-      float rLon = lon - u_time * 0.003;
-      float turb = noiseLUT2(vec2(lat * 8.0, rLon * 3.0)) * 0.04;
-      float latN = lat + turb;
-      float bands = sin(latN * 18.0) * 0.05 + sin(latN * 8.0) * 0.08;
-      col = vec3(0.92, 0.85, 0.65) + vec3(-0.02, 0.01, 0.03) * bands;
-      col *= 1.0 - smoothstep(0.6, 0.95, abs(lat)) * 0.15;
-      float yPat = sin(rLon * 2.0 + lat * 3.0) * 0.03;
-      col += vec3(-0.01, -0.01, 0.01) * yPat * smoothstep(0.5, 0.0, abs(lat));
-    } else if (idx == 5) {
-      float rLon = lon - u_time * 0.08;
-      float turb = noiseLUT2(vec2(lat * 10.0, rLon * 3.0)) * 0.05;
-      float latN = lat + turb;
-      float land = noiseLUT2(vec2(rLon * 1.5 + 2.0, latN * 2.0));
-      land += noiseLUT2(vec2(rLon * 3.0 + 5.0, latN * 4.0)) * 0.4;
-      land = smoothstep(0.55, 0.75, land);
-      vec3 ocean = mix(vec3(0.05, 0.15, 0.45), vec3(0.10, 0.28, 0.55), noiseLUT2(vec2(rLon * 4.0, latN * 3.0)));
-      vec3 landCol = mix(vec3(0.18, 0.38, 0.12), vec3(0.42, 0.32, 0.18), smoothstep(0.2, 0.6, abs(latN)));
-      col = mix(ocean, landCol, land);
-      float polar = smoothstep(0.70, 0.90, abs(lat));
-      col = mix(col, vec3(0.90, 0.92, 0.95), polar);
-      float clouds = noiseLUT2(vec2(rLon * 3.0 + u_time * 0.02, latN * 2.5));
-      clouds = smoothstep(0.50, 0.70, clouds) * 0.45;
-      col = mix(col, vec3(0.95, 0.95, 0.97), clouds);
-    } else if (idx == 6) {
+      // Mars (Theo) -- moved to slot 4 after planet-count reduction to 5
       float rLon = lon - u_time * 0.06;
       float turb = noiseLUT2(vec2(lat * 8.0, rLon * 2.5)) * 0.04;
       float latN = lat + turb;
@@ -616,8 +591,8 @@ const fsSource = `
         float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
         float segLen = sqrt(segL2);
         vec3 segMid = 0.5 * (prevPos + pos);
-        for (int p = 0; p < 7; p++) {
-          vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : (p == 4) ? u_planet4 : (p == 5) ? u_planet5 : u_planet6;
+        for (int p = 0; p < 5; p++) {
+          vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : u_planet4;
           vec3 pC = pl.xyz;
           float pr = pl.w;
           vec3 dP = segMid - pC;
@@ -808,9 +783,9 @@ void main(){
   vec3 worldPos=rotated+a_instPos;
   vec3 toBH=u_bhPos-worldPos;
   float bhDist=length(toBH);
-  float warpFactor=smoothstep(8.0,2.0,bhDist)*0.3;
+  float warpFactor=smoothstep(80000.0,20000.0,bhDist)*3000.0;
   worldPos+=normalize(toBH)*warpFactor;
-  float diskProximity=exp(-worldPos.y*worldPos.y*0.5)*smoothstep(14.0,4.0,length(worldPos.xz));
+  float diskProximity=exp(-worldPos.y*worldPos.y*0.000001)*smoothstep(140000.0,40000.0,length(worldPos.xz));
   vec3 rotNormal=vec3(
     a_normal.x*c+a_normal.z*s,
     a_normal.y,

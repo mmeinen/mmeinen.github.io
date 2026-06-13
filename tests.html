@@ -1009,12 +1009,13 @@
           'Scale Foundation: SCALE-01 BODY_SCALE === 800',
           `BODY_SCALE = ${typeof BODY_SCALE === 'number' ? BODY_SCALE : 'undefined'}`);
 
-        const expectedDiameters = [4000, 3200, 2400, 2240, 864, 960, 2080];
-        const names = ['Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Venus', 'Earth', 'Mars'];
-        let allMatch = Array.isArray(PLANET_DIAMETER_KM) && PLANET_DIAMETER_KM.length === 7;
+        // 5 planets (one per family member) at BODY_SCALE=4000: radius * 2 * 4000
+        const expectedDiameters = [20000, 16000, 12000, 11200, 10400];
+        const names = ['Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Mars'];
+        let allMatch = Array.isArray(PLANET_DIAMETER_KM) && PLANET_DIAMETER_KM.length === 5;
         let mismatch = '';
         if (allMatch) {
-          for (let i = 0; i < 7; i++) {
+          for (let i = 0; i < 5; i++) {
             if (PLANET_DIAMETER_KM[i] !== expectedDiameters[i]) {
               allMatch = false;
               mismatch = `${names[i]}: got ${PLANET_DIAMETER_KM[i]}, expected ${expectedDiameters[i]}`;
@@ -1024,7 +1025,7 @@
         }
         assert(allMatch,
           'Scale Foundation: SCALE-01 planet diameters correct',
-          allMatch ? 'all 7 planet diameters match' : (mismatch || 'PLANET_DIAMETER_KM missing or wrong length'));
+          allMatch ? 'all 5 planet diameters match' : (mismatch || 'PLANET_DIAMETER_KM missing or wrong length'));
       }
 
       // SCALE-02: Jupiter orbit at ~50,000 km

@@ -85,7 +85,7 @@ function spawnWave(waveNum) {
   const fleetSpecs = getFleetComposition(waveNum);
 
   // Shuffle planet indices to ensure no two fleets share a planet (Pitfall 2)
-  const planetPool = [0, 1, 2, 3, 4, 5, 6];
+  const planetPool = [0, 1, 2, 3, 4];
   for (let i = planetPool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [planetPool[i], planetPool[j]] = [planetPool[j], planetPool[i]];

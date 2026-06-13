@@ -13,8 +13,8 @@ const ARCHETYPE_SCALES = [1.0, 1.0, 1.3, 1.2, 16.0]; // km-scale: Grunt=0.5km, S
 const ARCHETYPE_HP = [100, 30, 200, 60, 800]; // Swarm fragile, Capital beefy
 
 /* ---- LOD System (REND-04) ---- */
-const LOD_FULL_DIST = 10000;       // km: full 3D mesh below this
-const LOD_BILLBOARD_DIST = 50000;  // km: billboard dots up to this, skip beyond
+const LOD_FULL_DIST = 100000;      // km: full 3D mesh below this (10x)
+const LOD_BILLBOARD_DIST = 500000; // km: billboard dots up to this, skip beyond (10x)
 const BILLBOARD_SIZES = [3.0, 2.5, 4.0, 3.5, 8.0]; // px: Grunt, Swarm, Bomber, Sniper, Capital
 const BILLBOARD_FLOATS = 3; // xyz per billboard entry
 
@@ -284,7 +284,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
       case AI_IDLE: {
         // Station-keeping: hover near assigned planet (km-scale positions)
         const bodyIdx = enemies.assignBody[i];
-        if (bodyIdx >= 0 && bodyIdx < 7) {
+        if (bodyIdx >= 0 && bodyIdx < 5) {
           const bodyPos = getBodyPositionKm(bodyIdx, simTime);
           const bodyR = getBodyRadiusKm(bodyIdx);
           const stationR = bodyR + STATION_KEEP_ALT;
@@ -530,7 +530,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           if (enemies.auxTimer[i] < 0) {
             // Station-keep at assigned body during warp-in
             const capBody = enemies.assignBody[i];
-            if (capBody >= 0 && capBody < 7) {
+            if (capBody >= 0 && capBody < 5) {
               const bodyP = getBodyPositionKm(capBody, simTime);
               const bodyRc = getBodyRadiusKm(capBody);
               const stR = bodyRc + STATION_KEEP_ALT;
@@ -550,7 +550,7 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
           // auxTimer >= 0: Capital is fully materialized
           // Station-keep at assigned body
           const capBody2 = enemies.assignBody[i];
-          if (capBody2 >= 0 && capBody2 < 7) {
+          if (capBody2 >= 0 && capBody2 < 5) {
             const bodyP2 = getBodyPositionKm(capBody2, simTime);
             const bodyR2 = getBodyRadiusKm(capBody2);
             const stR2 = bodyR2 + STATION_KEEP_ALT;
@@ -686,9 +686,9 @@ function updateEnemyAI(simDt, simTime, playerPos, playerVel, playerBody) {
         removeEnemy(i);
         continue;
       }
-      // Planet checks (7 planets)
+      // Planet checks (5 planets)
       let hitPlanet = false;
-      for (let p = 0; p < 7; p++) {
+      for (let p = 0; p < 5; p++) {
         const bp = getBodyPositionKm(p, simTime);
         const br = getBodyRadiusKm(p);
         const dx = ex - bp[0], dz = ez - bp[2];
