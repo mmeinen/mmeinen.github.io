@@ -822,8 +822,11 @@
       dv=new DataView(mem.buffer);
       wf=W.frame;
       for(let i=0;i<5;i++){const p=planetData[i],b=0x100+i*16;dv.setFloat32(b,p.oR,true);dv.setFloat32(b+4,p.ph,true);dv.setFloat32(b+8,p.sp,true);dv.setFloat32(b+12,p.radius,true)}
-      // WASM always computes 6 planets; slot 5 is unused -- park it far out with zero radius so it never renders or interacts
-      {const b=0x100+5*16;dv.setFloat32(b,1000.0,true);dv.setFloat32(b+4,0,true);dv.setFloat32(b+8,0,true);dv.setFloat32(b+12,0,true)}
+      // WASM always computes 6 planets; slot 5 is unused. Feed it well-formed params
+      // (a duplicate of planet 4) so the WASM never processes a degenerate radius-0 body
+      // -- a radius-0 / r=1000 planet can NaN the WASM projection and corrupt shared
+      // render state. Slot 5 is never uploaded to the shader, labeled, or hovered (i<5).
+      {const p=planetData[4],b=0x100+5*16;dv.setFloat32(b,p.oR,true);dv.setFloat32(b+4,p.ph,true);dv.setFloat32(b+8,p.sp,true);dv.setFloat32(b+12,p.radius,true)}
       dv.setFloat32(0x000,camAz,true);dv.setFloat32(0x004,camEl,true);dv.setFloat32(0x008,camDist,true);
       dv.setFloat32(0x00C,sp,true);dv.setFloat32(0x014,-1,true);dv.setFloat32(0x024,renderScale,true);
       render();
