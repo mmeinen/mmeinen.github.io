@@ -625,7 +625,12 @@ const fsSource = `
         }
       }
       float aDt2 = dot(a, a) * dt * dt;
-      if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 3025.0 * u_orbitScale * u_orbitScale
+      // Convergence escape: ray has straightened to a near-straight line and is leaving.
+      // Threshold must sit BEYOND the farthest planet orbit, else outbound rays bound for
+      // far-side planets get killed before reaching them (flat-bottom planet clipping).
+      // 8100 = 90^2 (orbitScale 1.0); outermost planet Neptune reaches oR 86 + r 1.4 = 87.4.
+      // Scales with orbitScale^2 so nav mode (oS 2.0) -> r>180, beyond its 172 outer orbit.
+      if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 8100.0 * u_orbitScale * u_orbitScale
           && dot(pos, vel) > 0.0 && pos.y * vel.y > 0.0) {
         break;
       }

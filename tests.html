@@ -164,9 +164,9 @@
         showError('Could not fetch combat files: ' + e.message);
       }
 
-      // --- Extract shader source (everything between the fsSource backticks) ---
-      const shaderMatch = text.match(/const\s+fsSource\s*=\s*`([\s\S]*?)`;/);
-      if (!shaderMatch) { showError('Could not extract fragment shader source.'); render(); return; }
+      // --- Extract shader source (fsSource lives in js/scene/shaders.js, NOT index.html) ---
+      const shaderMatch = (shadersText || '').match(/const\s+fsSource\s*=\s*`([\s\S]*?)`;/);
+      if (!shaderMatch) { showError('Could not extract fragment shader source from js/scene/shaders.js.'); render(); return; }
       const shader = shaderMatch[1];
 
       // --- Extract JS (everything in the <script> block) ---
@@ -178,9 +178,10 @@
       // 1. Early escape threshold > renderable objects
       // =============================================
 
-      // Pattern: if (r > THRESHOLD && dot(pos, vel) > 0.0) break;
+      // Pattern: if (r > mix(LOW, HIGH, step(...)) && dot(pos, vel) > 0.0) break;
+      // Extracts LOW (menu-mode / orbitScale 1.0 value).
       const escapeThreshold = extractShaderFloat(
-        shader, /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
+        shader, /if\s*\(\s*r\s*>\s*mix\(\s*([\d.]+)\s*,\s*[\d.]+\s*,\s*step\([^)]*\)\s*\)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
       );
       assert(escapeThreshold !== null,
         'Extraction: early escape threshold found',
@@ -219,13 +220,34 @@
           `threshold ${escapeThreshold} vs outerEdge ${outerEdge} + ${margin} = ${outerEdge + margin}`);
       }
 
+      // Invariant 1c: convergence escape threshold > farthest planet edge
+      // Line: ... && dot(pos, pos) > N * u_orbitScale * u_orbitScale && ... break;
+      // N = R^2 at orbitScale 1.0. A too-low N kills outbound rays bound for far-side
+      // planets before they arrive -> flat-bottom planet clipping (the bug this guards).
+      const convergenceSq = extractShaderFloat(
+        shader, /dot\s*\(\s*pos\s*,\s*pos\s*\)\s*>\s*([\d.]+)\s*\*\s*u_orbitScale/
+      );
+      assert(convergenceSq !== null,
+        'Extraction: convergence escape threshold found',
+        convergenceSq !== null
+          ? `value = ${convergenceSq} (r > ${Math.sqrt(convergenceSq).toFixed(1)})`
+          : 'regex matched nothing');
+      if (convergenceSq !== null && planets.length > 0) {
+        const convergenceR = Math.sqrt(convergenceSq);
+        const maxPlanetReach = Math.max(...planets.map(p => p.oR + p.radius));
+        assert(convergenceR > maxPlanetReach,
+          'Convergence escape: threshold > farthest planet edge',
+          `r > ${convergenceR.toFixed(1)} vs max planet reach ${maxPlanetReach}`);
+      }
+
       // =============================================
       // 2. Iteration budget sufficient for camera dist
       // =============================================
 
-      // Loop count: for (int i = 0; i < N; i++)
+      // Loop count: the ray-march loop specifically (anchored on its first statement
+      // `float r = length(pos)` so it isn't confused with fbm/galaxy `for (int i ...)`).
       const loopCount = extractShaderInt(
-        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)/
+        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)\s*\{\s*float\s+r\s*=\s*length\s*\(\s*pos\s*\)/
       );
       assert(loopCount !== null,
         'Extraction: ray march loop count found',
@@ -237,16 +259,19 @@
         'Extraction: default camDist found',
         defaultCamDist !== null ? `value = ${defaultCamDist}` : 'regex matched nothing');
 
-      // Step: max(0.002, min(MULT * (r - r_h), CAP))
+      // Step: max(0.002, min(MULT * (r - r_h), stepCap)) where stepCap = mix(CAP, ...).
+      // The cap is now a variable (nav-mode adaptive), so extract it from its mix() def;
+      // CAP is the first mix arg = normal/menu-mode cap.
       const stepMatch = shader.match(
-        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*([\d.]+)\s*\)\s*\)/
+        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*stepCap\s*\)\s*\)/
       );
+      const stepCapMatch = shader.match(/float\s+stepCap\s*=\s*mix\(\s*([\d.]+)\s*,/);
       const stepMin = stepMatch ? parseFloat(stepMatch[1]) : null;
       const stepMult = stepMatch ? parseFloat(stepMatch[2]) : null;
-      const stepCap = stepMatch ? parseFloat(stepMatch[3]) : null;
-      assert(stepMatch !== null,
+      const stepCap = stepCapMatch ? parseFloat(stepCapMatch[1]) : null;
+      assert(stepMatch !== null && stepCapMatch !== null,
         'Extraction: step size parameters found',
-        stepMatch ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
+        (stepMatch && stepCapMatch) ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
 
       // Invariant 2: conservative budget > 2 × camDist
       // Most of the path is at r >> r_h, so step ≈ cap for distant segments.
@@ -280,9 +305,10 @@
       // 4. Planet check range covers all orbits
       // =============================================
 
-      // Pattern: if (r > LOW && r < HIGH && accumulatedAlpha ...
+      // Pattern: if (r > LOW && r < mix(HIGH, ..., step(...)) && accumulatedAlpha ...
+      // Extracts LOW and HIGH (menu-mode / orbitScale 1.0 value).
       const rangeMatch = shader.match(
-        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
+        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*mix\(\s*([\d.]+)\s*,\s*[\d.]+\s*,\s*step\([^)]*\)\s*\)\s*&&\s*accumulatedAlpha/
       );
       const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
       const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
