@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turtle Tide Racers</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --deep:#02233b; --mid:#06405f; --teal:#0c9bb0; --aqua:#3fe0d0;
+    --sand:#e7d3a1; --coral:#ff7e6b; --gold:#ffd76b; --ink:#04161f;
+  }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#02101c; }
+  body{
+    font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+    color:#eafcff; user-select:none; cursor:default;
+  }
+  #app{ position:relative; width:100vw; height:100vh; overflow:hidden; }
+  canvas{ position:absolute; inset:0; display:block; }
+
+  /* ---------- Overlay screens ---------- */
+  .screen{
+    position:absolute; inset:0; z-index:10;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center;
+    background:radial-gradient(120% 120% at 50% 20%, rgba(12,90,120,.55), rgba(2,20,38,.92));
+    backdrop-filter:blur(2px);
+  }
+  .screen.active{ display:flex; }
+  .title{
+    font-size:clamp(34px,7vw,76px); font-weight:800; letter-spacing:2px;
+    background:linear-gradient(180deg,#aef6ff,#3fe0d0 55%,#0c9bb0);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 6px 30px rgba(63,224,208,.25); margin-bottom:6px;
+  }
+  .subtitle{ color:#9fd8e6; font-size:clamp(13px,1.8vw,18px); margin-bottom:26px; max-width:680px; line-height:1.5; }
+  .hint{ color:#7fb8c9; font-size:13px; margin-top:18px; line-height:1.6; }
+  .hint b{ color:#ffd76b; }
+
+  .cards{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; max-width:980px; }
+  .card{
+    width:210px; background:linear-gradient(180deg,rgba(8,64,95,.85),rgba(3,30,52,.9));
+    border:2px solid rgba(63,224,208,.25); border-radius:18px; padding:16px;
+    cursor:pointer; transition:transform .15s, border-color .15s, box-shadow .15s;
+    position:relative; overflow:hidden;
+  }
+  .card:hover{ transform:translateY(-6px); border-color:var(--aqua); box-shadow:0 14px 36px rgba(0,0,0,.45); }
+  .card.sel{ border-color:var(--gold); box-shadow:0 0 0 3px rgba(255,215,107,.35),0 14px 36px rgba(0,0,0,.45); }
+  .card canvas{ position:static; width:120px; height:120px; margin:0 auto 6px; display:block; }
+  .card h3{ font-size:18px; margin-bottom:2px; }
+  .card .sp{ color:#8fd0df; font-size:11px; margin-bottom:10px; min-height:26px; }
+  .stat{ display:flex; align-items:center; gap:8px; font-size:11px; margin:5px 0; color:#bfe9f2; }
+  .stat span{ width:46px; text-align:left; opacity:.8; }
+  .bar{ flex:1; height:7px; background:rgba(255,255,255,.12); border-radius:4px; overflow:hidden; }
+  .bar i{ display:block; height:100%; border-radius:4px;
+          background:linear-gradient(90deg,#3fe0d0,#ffd76b); }
+
+  .course .card{ width:260px; }
+  .course .card .map{ width:228px; height:130px; background:rgba(2,20,38,.6); border-radius:12px; margin:0 auto 10px; }
+  .badge{ display:inline-block; font-size:11px; padding:2px 10px; border-radius:20px; margin-top:4px; font-weight:700; }
+  .b-easy{ background:rgba(80,220,140,.2); color:#7df0a8; }
+  .b-med{ background:rgba(255,215,107,.18); color:#ffd76b; }
+  .b-hard{ background:rgba(255,126,107,.2); color:#ff9b8c; }
+
+  .btn{
+    margin-top:8px; padding:12px 30px; font-size:16px; font-weight:700; letter-spacing:1px;
+    border:none; border-radius:30px; cursor:pointer; color:#04222f;
+    background:linear-gradient(180deg,#7af0e0,#16b8c8); transition:transform .12s, filter .12s;
+    box-shadow:0 8px 22px rgba(22,184,200,.35);
+  }
+  .btn:hover{ transform:translateY(-2px); filter:brightness(1.08); }
+  .btn.ghost{ background:rgba(255,255,255,.08); color:#cdeef5; box-shadow:none; border:1px solid rgba(255,255,255,.18); }
+  .row{ display:flex; gap:14px; margin-top:22px; flex-wrap:wrap; justify-content:center; }
+
+  /* ---------- HUD ---------- */
+  #hud{ position:absolute; inset:0; z-index:5; pointer-events:none; display:none; }
+  #hud.active{ display:block; }
+  .hud-tl{ position:absolute; top:16px; left:18px; }
+  .hud-tr{ position:absolute; top:16px; right:18px; text-align:right; }
+  .pill{
+    display:inline-block; background:rgba(2,24,40,.62); border:1px solid rgba(63,224,208,.3);
+    border-radius:14px; padding:8px 14px; margin:0 0 8px 0; backdrop-filter:blur(3px);
+  }
+  .pill .lbl{ font-size:10px; letter-spacing:2px; color:#85c6d6; display:block; }
+  .pill .val{ font-size:24px; font-weight:800; line-height:1.1; }
+  .pos1{ color:#ffd76b; } .pos2{ color:#dfe9ee; } .pos3{ color:#ff9b8c; }
+  #turboWrap{ position:absolute; bottom:22px; left:50%; transform:translateX(-50%);
+    width:min(320px,46vw); }
+  #turboWrap .lbl{ font-size:11px; letter-spacing:3px; color:#bfe9f2; text-align:center; margin-bottom:5px; text-shadow:0 1px 4px #000; }
+  #turboBar{ height:16px; border-radius:10px; background:rgba(2,24,40,.6);
+    border:1px solid rgba(63,224,208,.35); overflow:hidden; }
+  #turboFill{ height:100%; width:0%;
+    background:linear-gradient(90deg,#16b8c8,#3fe0d0 60%,#ffd76b);
+    transition:width .08s linear; }
+  #countdown{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:clamp(70px,20vw,200px); font-weight:900; color:#fff;
+    text-shadow:0 0 40px rgba(63,224,208,.8),0 8px 30px rgba(0,0,0,.6); }
+  #lapMsg{ position:absolute; top:22%; left:50%; transform:translateX(-50%);
+    font-size:clamp(26px,5vw,46px); font-weight:900; color:#ffd76b;
+    text-shadow:0 0 24px rgba(255,215,107,.7),0 4px 14px #000; opacity:0; }
+  #minimap{ position:absolute; bottom:18px; right:18px; background:rgba(2,20,38,.55);
+    border:1px solid rgba(63,224,208,.3); border-radius:12px; }
+
+  .standings{ list-style:none; text-align:left; margin:14px 0; min-width:300px; }
+  .standings li{ display:flex; align-items:center; gap:12px; padding:9px 14px; margin:6px 0;
+    background:rgba(8,64,95,.6); border-radius:12px; border:1px solid rgba(63,224,208,.18); }
+  .standings li.you{ border-color:var(--gold); background:rgba(60,40,10,.45); }
+  .standings .pl{ font-size:20px; font-weight:900; width:34px; }
+  .standings .nm{ flex:1; font-weight:700; }
+  .standings .tm{ color:#9fd8e6; font-variant-numeric:tabular-nums; }
+  @media (max-width:560px){ .card{ width:44vw; } .card canvas{ width:90px; height:90px; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- Turtle select -->
+  <div class="screen active" id="screenTurtle">
+    <div class="title">🐢 Turtle Tide Racers</div>
+    <div class="subtitle">Pick your racer and tear through neon reefs, kelp canyons and the deep dark abyss. Catch currents, grab air bubbles for turbo, and out-paddle five rival turtles over 3 laps.</div>
+    <div class="cards" id="turtleCards"></div>
+    <div class="hint">Choose a turtle to continue</div>
+  </div>
+
+  <!-- Course select -->
+  <div class="screen course" id="screenCourse">
+    <div class="title">Choose a Course</div>
+    <div class="subtitle">Each reef has its own twists. Faster turtles love the open water; nimble ones win the canyons.</div>
+    <div class="cards" id="courseCards"></div>
+    <div class="row"><button class="btn ghost" id="backToTurtle">← Change Turtle</button></div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-tl">
+      <div class="pill"><span class="lbl">POSITION</span><span class="val" id="hPos">1/6</span></div><br>
+      <div class="pill"><span class="lbl">LAP</span><span class="val" id="hLap">1/3</span></div>
+    </div>
+    <div class="hud-tr">
+      <div class="pill"><span class="lbl">TIME</span><span class="val" id="hTime">0:00.0</span></div><br>
+      <div class="pill"><span class="lbl">SPEED</span><span class="val" id="hSpeed">0</span></div>
+    </div>
+    <div id="turboWrap">
+      <div class="lbl">TURBO — hold <b style="color:#ffd76b">SPACE</b></div>
+      <div id="turboBar"><div id="turboFill"></div></div>
+    </div>
+    <canvas id="minimap" width="170" height="120"></canvas>
+    <div id="lapMsg"></div>
+    <div id="countdown"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="screen" id="screenResults">
+    <div class="title" id="resTitle">Race Complete</div>
+    <ul class="standings" id="resList"></ul>
+    <div class="row">
+      <button class="btn" id="raceAgain">Race Again</button>
+      <button class="btn ghost" id="toCourses">Pick Course</button>
+      <button class="btn ghost" id="toMenu">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   TURTLE TIDE RACERS — a self-contained underwater turtle racing game.
+   Canvas 2D, no dependencies. Arrow keys / WASD to steer, SPACE for turbo.
+   ========================================================================== */
+
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- tiny sound engine (Web Audio, no files) ---------- */
+let actx = null;
+function audio(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function beep(freq, dur, type='sine', vol=0.06){
+  const a = audio(); if(!a) return;
+  try{
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol; o.connect(g); g.connect(a.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    o.stop(a.currentTime + dur);
+  }catch(e){}
+}
+
+/* ---------- math helpers ---------- */
+const TAU = Math.PI * 2;
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const lerp = (a,b,t)=> a+(b-a)*t;
+function angDiff(a,b){ let d=(b-a)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d; }
+
+/* ---------- turtle roster ---------- */
+const TURTLES = [
+  { name:'Splash',  species:'Green Sea Turtle', body:'#37c96a', shell:'#1f8f47', belly:'#cdefae',
+    maxSpeed:452, accel:560, turn:2.45, flap:9,
+    desc:'Blazing top speed, lazy turns.' },
+  { name:'Coral',   species:'Loggerhead',       body:'#e98b5a', shell:'#b95a34', belly:'#ffd9b8',
+    maxSpeed:418, accel:650, turn:2.85, flap:10,
+    desc:'All-rounder. No bad habits.' },
+  { name:'Pixel',   species:'Hawksbill',        body:'#39c7d8', shell:'#1c8fb0', belly:'#c8f6ff',
+    maxSpeed:392, accel:820, turn:3.45, flap:12,
+    desc:'Darts and corners like a dream.' },
+  { name:'Tank',    species:'Leatherback',      body:'#7d6cf0', shell:'#4b3fb0', belly:'#dcd6ff',
+    maxSpeed:438, accel:470, turn:2.15, flap:8,
+    desc:'Heavy momentum, shrugs off rocks.' },
+  { name:'Sunny',   species:'Olive Ridley',     body:'#f0c63a', shell:'#c89a18', belly:'#fff0bf',
+    maxSpeed:408, accel:700, turn:3.05, flap:11,
+    desc:'Quick off the line, peppy handler.' },
+  { name:'Mango',   species:'Flatback',         body:'#ff7e9d', shell:'#cf4f73', belly:'#ffd5e2',
+    maxSpeed:425, accel:600, turn:2.95, flap:10,
+    desc:'Balanced with a cheeky boost.' },
+];
+
+/* ---------- courses (control points form a closed loop) ---------- */
+const COURSES = [
+  { name:'Coral Bay', diff:'easy', laps:3, water:['#0a4a63','#02233b'], accent:'#ff7e6b',
+    halfWidth:62, obstacles:7, boosts:5, bubbles:14,
+    pts:[[460,240],[1180,170],[1880,300],[2160,720],[1820,1080],[1100,1180],[460,1040],[210,620]] },
+  { name:'Kelp Canyon', diff:'med', laps:3, water:['#0a5a4e','#03241f'], accent:'#7df0a8',
+    halfWidth:54, obstacles:11, boosts:6, bubbles:16,
+    pts:[[320,320],[900,200],[1280,520],[1820,300],[2240,640],[1980,1040],[1340,920],[1040,1240],[520,1120],[250,720]] },
+  { name:'Abyss Run', diff:'hard', laps:3, water:['#241a52','#070418'], accent:'#b48cff',
+    halfWidth:48, obstacles:15, boosts:7, bubbles:18,
+    pts:[[420,260],[820,150],[1140,420],[1560,210],[1980,420],[2280,260],[2360,720],[2040,980],[1620,820],[1420,1200],[900,1080],[700,820],[420,980],[250,560]] },
+];
+
+/* ---------- catmull-rom closed-loop sampling ---------- */
+function buildTrack(course){
+  const cp = course.pts.map(p=>({x:p[0], y:p[1]}));
+  const n = cp.length, STEPS = 36;
+  const pts = [];
+  for(let i=0;i<n;i++){
+    const p0=cp[(i-1+n)%n], p1=cp[i], p2=cp[(i+1)%n], p3=cp[(i+2)%n];
+    for(let s=0;s<STEPS;s++){
+      const t=s/STEPS, t2=t*t, t3=t2*t;
+      pts.push({
+        x:0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+        y:0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3),
+        s:0
+      });
+    }
+  }
+  // arc length
+  let total=0;
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    a.s = total; total += Math.hypot(b.x-a.x, b.y-a.y);
+  }
+  // bbox
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+  for(const p of pts){ minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y); }
+  return { pts, total, N:pts.length, bbox:{minX,minY,maxX,maxY}, halfWidth:course.halfWidth };
+}
+
+function tangentAt(track, idx){
+  const a = track.pts[idx], b = track.pts[(idx+1)%track.N];
+  return Math.atan2(b.y-a.y, b.x-a.x);
+}
+// nearest dense index using a hint window (handles the loop)
+function nearestIndex(track, x, y, hint){
+  const N = track.N; let best=hint||0, bd=1e18;
+  const lo = (hint==null) ? 0 : -40, hi = (hint==null) ? N : 90;
+  const start = (hint==null) ? 0 : hint;
+  for(let k=lo;k<hi;k++){
+    const i=((start+k)%N+N)%N, p=track.pts[i];
+    const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);
+    if(d<bd){ bd=d; best=i; }
+  }
+  return { index:best, dist:Math.sqrt(bd) };
+}
+
+/* ============================================================================
+   GAME STATE
+   ========================================================================== */
+const keys = {};
+const G = {
+  mode:'menu', selTurtle:0, selCourse:0,
+  track:null, course:null,
+  racers:[], player:null,
+  obstacles:[], boosts:[], bubbles:[], particles:[],
+  cam:{x:0,y:0}, time:0, raceTime:0, countdown:0, running:false,
+  finishOrder:[], finished:false, resultShown:false, lastT:0,
+  bg:[], shake:0,
+};
+
+window.addEventListener('keydown', e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+  if(e.key===' ') keys[' ']=true;
+  audio(); // unlock on first key
+  if(e.key==='Escape' && (G.mode==='race')) quitToMenu();
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; if(e.key===' ') keys[' ']=false; });
+window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
+
+/* ============================================================================
+   RACER
+   ========================================================================== */
+function makeRacer(turtleDef, isPlayer, gridX, gridY, heading){
+  return {
+    def:turtleDef, isPlayer,
+    x:gridX, y:gridY, heading, speed:0,
+    flap:Math.random()*TAU,
+    turbo:isPlayer?40:0, turboActive:false,
+    hint:0, prevS:0, wraps:0, progress:0, place:0,
+    name:turtleDef.name,
+    skill: isPlayer?1 : 0.9 + Math.random()*0.12,
+    lineOffset: isPlayer?0 : (Math.random()*2-1)*track_safeOffset(),
+    finished:false, finishTime:0,
+    hitCool:0,
+  };
+}
+function track_safeOffset(){ return (G.track? G.track.halfWidth*0.5 : 20); }
+
+/* ============================================================================
+   START / SETUP RACE
+   ========================================================================== */
+function setupRace(){
+  const course = COURSES[G.selCourse];
+  G.course = course;
+  G.track = buildTrack(course);
+  const tr = G.track;
+
+  // place items along track
+  G.obstacles = []; G.boosts = []; G.bubbles = [];
+  const place = (frac, lateral)=>{
+    const idx = Math.floor(frac*tr.N)%tr.N;
+    const p = tr.pts[idx], ta = tangentAt(tr, idx);
+    const px = Math.cos(ta+Math.PI/2), py = Math.sin(ta+Math.PI/2);
+    return { x:p.x+px*lateral, y:p.y+py*lateral, idx };
+  };
+  for(let i=0;i<course.obstacles;i++){
+    const frac = (i+0.6)/course.obstacles;
+    const lat = (((i*37)%100)/100*2-1) * tr.halfWidth*0.55;
+    const o = place(frac, lat);
+    G.obstacles.push({ x:o.x, y:o.y, r:16+((i*53)%18), seed:i });
+  }
+  for(let i=0;i<course.boosts;i++){
+    const frac = (i+0.35)/course.boosts;
+    const o = place(frac, ((i%3)-1)*tr.halfWidth*0.35);
+    G.boosts.push({ x:o.x, y:o.y, r:30, dir:tangentAt(tr, o.idx) });
+  }
+  for(let i=0;i<course.bubbles;i++){
+    const frac = (i+0.15)/course.bubbles;
+    const o = place(frac, (((i*61)%100)/100*2-1)*tr.halfWidth*0.6);
+    G.bubbles.push({ x:o.x, y:o.y, r:13, active:true, respawn:0, ph:Math.random()*TAU });
+  }
+
+  // background plankton dots
+  G.bg = [];
+  const bb = tr.bbox, pad=400;
+  for(let i=0;i<160;i++){
+    G.bg.push({
+      x: bb.minX-pad + Math.random()*(bb.maxX-bb.minX+pad*2),
+      y: bb.minY-pad + Math.random()*(bb.maxY-bb.minY+pad*2),
+      r: 1+Math.random()*2.4, a:0.15+Math.random()*0.4, ph:Math.random()*TAU
+    });
+  }
+
+  // racers: player + 5 AI on a starting grid just ahead of the line
+  const startHeading = tangentAt(tr, 0);
+  const fx = Math.cos(startHeading), fy = Math.sin(startHeading);
+  const px = Math.cos(startHeading+Math.PI/2), py = Math.sin(startHeading+Math.PI/2);
+  const start = tr.pts[0];
+
+  const order = [G.selTurtle];
+  for(let i=0;i<TURTLES.length && order.length<6;i++) if(i!==G.selTurtle) order.push(i);
+
+  G.racers = [];
+  for(let i=0;i<order.length;i++){
+    const col = (i%2===0)? -1 : 1;
+    const rowAhead = Math.floor(i/2);
+    const fwd = 30 + rowAhead*60;            // ahead of start line
+    const lat = col * tr.halfWidth*0.42;
+    const rx = start.x + fx*fwd + px*lat;
+    const ry = start.y + fy*fwd + py*lat;
+    const r = makeRacer(TURTLES[order[i]], i===0, rx, ry, startHeading);
+    const ni = nearestIndex(tr, rx, ry, null);
+    r.hint = ni.index; r.prevS = tr.pts[ni.index].s;
+    G.racers.push(r);
+  }
+  G.player = G.racers[0];
+  G.cam.x = G.player.x; G.cam.y = G.player.y;
+
+  G.particles = [];
+  G.finishOrder = []; G.finished = false; G.resultShown=false; G._endTimer=0;
+  G.raceTime = 0; G.countdown = 3.0; G.shake=0;
+  G.mode = 'race';
+  show('hud');
+  beep(440,0.12,'triangle',0.05);
+}
+
+/* ============================================================================
+   UPDATE
+   ========================================================================== */
+function updateRacer(r, dt){
+  const tr = G.track, def = r.def;
+  // ---- nearest centerline & off-track ----
+  const ni = nearestIndex(tr, r.x, r.y, r.hint);
+  r.hint = ni.index;
+  const offTrack = ni.dist > tr.halfWidth;
+  const offFactor = offTrack ? clamp(1 - (ni.dist - tr.halfWidth)/200, 0.35, 0.6) : 1;
+
+  // ---- controls / AI ----
+  let throttle=0, steer=0, wantTurbo=false;
+  if(r.isPlayer){
+    if(G.countdown<=0){
+      if(keys['arrowup']||keys['w']) throttle = 1;
+      if(keys['arrowdown']||keys['s']) throttle = -1;
+      if(keys['arrowleft']||keys['a']) steer -= 1;
+      if(keys['arrowright']||keys['d']) steer += 1;
+      wantTurbo = !!keys[' '];
+    }
+  } else {
+    if(G.countdown<=0){
+      // aim at a lookahead point along the track, plus the racer's lane offset
+      const spacing = tr.total / tr.N;
+      const look = 150 + r.speed*0.28;
+      const k = Math.max(2, Math.round(look/spacing));
+      const ti = (ni.index + k) % tr.N;
+      const tp = tr.pts[ti], ta = tangentAt(tr, ti);
+      const ox = Math.cos(ta+Math.PI/2)*r.lineOffset, oy = Math.sin(ta+Math.PI/2)*r.lineOffset;
+      let tx = tp.x+ox, ty = tp.y+oy;
+      // gentle obstacle avoidance
+      for(const o of G.obstacles){
+        const dx=r.x-o.x, dy=r.y-o.y, d=Math.hypot(dx,dy);
+        if(d < o.r+90){ tx += dx/d*70; ty += dy/d*70; }
+      }
+      const desired = Math.atan2(ty-r.y, tx-r.x);
+      const diff = angDiff(r.heading, desired);
+      steer = clamp(diff*2.4, -1, 1);
+      throttle = 1 - Math.min(Math.abs(diff),1)*0.35;     // ease off on sharp turns
+      wantTurbo = r.turbo>15 && Math.abs(diff)<0.25;
+    }
+  }
+
+  // ---- turbo ----
+  r.turboActive = false;
+  if(wantTurbo && r.turbo>1){ r.turbo -= 42*dt; r.turboActive = true; if(r.turbo<0)r.turbo=0; }
+  else { r.turbo = Math.min(100, r.turbo + 4.5*dt); }
+
+  // ---- on a boost current? ----
+  let onBoost=false;
+  for(const b of G.boosts){
+    if(Math.hypot(r.x-b.x, r.y-b.y) < b.r){ onBoost=true; break; }
+  }
+
+  // ---- speed target ----
+  let curMax = def.maxSpeed * r.skill * offFactor;
+  if(r.turboActive) curMax *= 1.55;
+  if(onBoost) curMax = Math.max(curMax, def.maxSpeed*1.85);
+  // mild rubber-band so the pack stays close
+  if(!r.isPlayer && G.player){
+    const gap = G.player.progress - r.progress;
+    curMax *= clamp(1 + gap/6000, 0.9, 1.12);
+  }
+  let target = 0;
+  if(throttle>0) target = curMax*throttle;
+  else if(throttle<0) target = -def.maxSpeed*0.32;
+  const accel = (target>r.speed) ? def.accel*(onBoost?1.7:1) : def.accel*1.6;
+  r.speed += clamp(target - r.speed, -accel*dt, accel*dt);
+  if(offTrack) r.speed *= (1 - 0.9*dt);   // extra drag through the muck
+
+  // ---- steering (better grip with some speed) ----
+  const sp = Math.abs(r.speed);
+  const turnPower = def.turn * (0.45 + 0.55*Math.min(sp/def.maxSpeed,1));
+  r.heading += steer * turnPower * dt * (r.speed<0?-1:1);
+
+  // ---- integrate ----
+  r.x += Math.cos(r.heading)*r.speed*dt;
+  r.y += Math.sin(r.heading)*r.speed*dt;
+  r.flap += dt*(def.flap*(0.4+Math.min(sp/def.maxSpeed,1)));
+
+  // ---- obstacle collisions ----
+  if(r.hitCool>0) r.hitCool -= dt;
+  const tR = 18;
+  for(const o of G.obstacles){
+    const dx=r.x-o.x, dy=r.y-o.y, d=Math.hypot(dx,dy);
+    if(d < o.r+tR){
+      const nx=dx/(d||1), ny=dy/(d||1);
+      r.x = o.x+nx*(o.r+tR); r.y = o.y+ny*(o.r+tR);
+      const heavy = def.accel<520 ? 0.65 : 0.42;   // Tank shrugs it off
+      r.speed *= heavy;
+      if(r.hitCool<=0){
+        r.hitCool = 0.25;
+        spawnBurst(r.x,r.y, '#cdb', 8);
+        if(r.isPlayer){ beep(120,0.14,'sawtooth',0.05); G.shake=8; }
+      }
+    }
+  }
+
+  // ---- bubble pickups ----
+  for(const b of G.bubbles){
+    if(!b.active) continue;
+    if(Math.hypot(r.x-b.x, r.y-b.y) < b.r+tR){
+      b.active=false; b.respawn=5;
+      r.turbo = Math.min(100, r.turbo+34);
+      if(r.isPlayer){ beep(880,0.1,'sine',0.05); beep(1320,0.08,'sine',0.04); spawnBurst(b.x,b.y,'#bff',12); }
+    }
+  }
+
+  // ---- boost particles + sound ----
+  if((onBoost||r.turboActive) && Math.random()<0.6){
+    spawnBubble(r.x - Math.cos(r.heading)*16, r.y - Math.sin(r.heading)*16, r.def.body);
+  }
+
+  // ---- progress / laps ----
+  const s = tr.pts[ni.index].s;
+  let ds = s - r.prevS;
+  if(ds < -tr.total*0.5){ r.wraps++; if(r.isPlayer && !r.finished) onLap(); }
+  else if(ds > tr.total*0.5){ r.wraps--; }
+  r.prevS = s;
+  r.progress = r.wraps*tr.total + s;
+
+  // ---- finish ----
+  if(!r.finished && r.wraps >= G.course.laps){
+    r.finished = true; r.finishTime = G.raceTime;
+    r.place = G.finishOrder.length+1;
+    G.finishOrder.push(r);
+    if(r.isPlayer){ G.finished=true; beep(660,0.5,'triangle',0.06); }
+  }
+}
+
+function onLap(){
+  const left = G.course.laps - G.player.wraps;
+  if(left>0){
+    const m = document.getElementById('lapMsg');
+    m.textContent = left===1 ? 'FINAL LAP!' : 'LAP ' + (G.player.wraps+1);
+    m.style.opacity = 1; m.style.transition='none';
+    requestAnimationFrame(()=>{ m.style.transition='opacity 1.2s'; m.style.opacity=0; });
+    beep(740,0.18,'triangle',0.05);
+  }
+}
+
+function spawnBurst(x,y,color,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*TAU, sp=40+Math.random()*120;
+    G.particles.push({x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:0.5+Math.random()*0.4, t:0, r:2+Math.random()*3, color, kind:'spark'});
+  }
+}
+function spawnBubble(x,y,color){
+  G.particles.push({x,y, vx:(Math.random()*2-1)*20, vy:(Math.random()*2-1)*20, life:0.6+Math.random()*0.5, t:0, r:2+Math.random()*4, color:'rgba(255,255,255,.5)', kind:'bub'});
+}
+
+function update(dt){
+  if(G.mode!=='race') return;
+  if(G.countdown>0){
+    const before = Math.ceil(G.countdown);
+    G.countdown -= dt;
+    const after = Math.ceil(G.countdown);
+    if(after!==before && after>=1) beep(520,0.14,'triangle',0.06);
+    if(G.countdown<=0){ beep(880,0.4,'triangle',0.07); }
+    document.getElementById('countdown').textContent = G.countdown>0 ? (Math.ceil(G.countdown)||'') : '';
+  } else {
+    document.getElementById('countdown').textContent = '';
+    if(!G.finished || G.finishOrder.length<G.racers.length) G.raceTime += dt;
+  }
+
+  for(const r of G.racers){ if(!(r.finished && !r.isPlayer && G.finished)) updateRacer(r, dt); }
+
+  // respawn bubbles
+  for(const b of G.bubbles){ if(!b.active){ b.respawn-=dt; if(b.respawn<=0) b.active=true; } b.ph+=dt*2; }
+
+  // ranking
+  const sorted = [...G.racers].sort((a,b)=> b.progress - a.progress);
+  sorted.forEach((r,i)=> r.place = i+1);
+
+  // particles
+  for(let i=G.particles.length-1;i>=0;i--){
+    const p=G.particles[i]; p.t+=dt;
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    if(p.kind==='bub') p.vy-=30*dt;
+    p.vx*=(1-1.5*dt); p.vy*=(1-1.5*dt);
+    if(p.t>=p.life) G.particles.splice(i,1);
+  }
+
+  // camera follow with a little lead
+  const lead = 0.18;
+  const tx = G.player.x + Math.cos(G.player.heading)*G.player.speed*lead;
+  const ty = G.player.y + Math.sin(G.player.heading)*G.player.speed*lead;
+  G.cam.x = lerp(G.cam.x, tx, clamp(dt*4,0,1));
+  G.cam.y = lerp(G.cam.y, ty, clamp(dt*4,0,1));
+  if(G.shake>0) G.shake = Math.max(0, G.shake - dt*40);
+
+  updateHUD();
+
+  // end the race shortly after the player finishes
+  if(G.finished && !G.resultShown){
+    G._endTimer = (G._endTimer||0) + dt;
+    if(G._endTimer>1.4){ showResults(); }
+  }
+}
+
+/* ============================================================================
+   DRAW
+   ========================================================================== */
+function drawTurtle(c, def, flap, scale){
+  c.save(); c.scale(scale,scale);
+  // shadow
+  c.fillStyle='rgba(0,0,0,.18)';
+  c.beginPath(); c.ellipse(2,4,20,15,0,0,TAU); c.fill();
+  // flippers
+  const f1 = Math.sin(flap)*0.5, f2 = Math.sin(flap+Math.PI)*0.5;
+  c.fillStyle = def.body;
+  function flipper(px,py,ang,len,wid){
+    c.save(); c.translate(px,py); c.rotate(ang);
+    c.beginPath(); c.ellipse(len*0.5,0,len,wid,0,0,TAU); c.fill(); c.restore();
+  }
+  flipper(7,-9,-0.7+f1, 13,6);     // front L
+  flipper(7, 9, 0.7-f1, 13,6);     // front R
+  flipper(-10,-8,-2.4+f2,10,5);    // rear L
+  flipper(-10, 8, 2.4-f2,10,5);    // rear R
+  // head
+  c.fillStyle = def.body;
+  c.beginPath(); c.ellipse(20,0,7,5.5,0,0,TAU); c.fill();
+  c.fillStyle='#04202b';
+  c.beginPath(); c.arc(22,-2.4,1.4,0,TAU); c.fill();
+  c.beginPath(); c.arc(22, 2.4,1.4,0,TAU); c.fill();
+  // shell
+  c.fillStyle = def.shell;
+  c.beginPath(); c.ellipse(-1,0,18,14,0,0,TAU); c.fill();
+  c.fillStyle = def.belly;
+  c.beginPath(); c.ellipse(-1,0,12,9,0,0,TAU); c.fill();
+  // scutes
+  c.strokeStyle = def.shell; c.lineWidth=1.6;
+  c.beginPath();
+  for(let a=0;a<6;a++){ const an=a/6*TAU; c.moveTo(-1,0); c.lineTo(-1+Math.cos(an)*12,0+Math.sin(an)*9); }
+  c.stroke();
+  c.fillStyle = def.shell;
+  c.beginPath(); c.ellipse(-1,0,5,4,0,0,TAU); c.fill();
+  c.restore();
+}
+
+function draw(){
+  // water gradient backdrop (screen space)
+  const wc = (G.course && G.course.water) || ['#0a4a63','#02233b'];
+  const grd = ctx.createLinearGradient(0,0,0,H);
+  grd.addColorStop(0, wc[0]); grd.addColorStop(1, wc[1]);
+  ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
+
+  if(G.mode!=='race'){ drawMenuWater(); return; }
+
+  // caustic light shafts
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<4;i++){
+    const x = (Math.sin(G.time*0.15+i*1.7)*0.5+0.5)*W;
+    const g = ctx.createRadialGradient(x,-100,40, x,-100,H*0.9);
+    g.addColorStop(0,'rgba(120,230,230,.10)'); g.addColorStop(1,'rgba(120,230,230,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+  ctx.restore();
+
+  // world transform
+  let shx=0, shy=0;
+  if(G.shake>0){ shx=(Math.random()*2-1)*G.shake; shy=(Math.random()*2-1)*G.shake; }
+  ctx.save();
+  ctx.translate(W/2 - G.cam.x + shx, H/2 - G.cam.y + shy);
+
+  drawWorld();
+
+  ctx.restore();
+
+  // vignette
+  const vg = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.45, W/2,H/2,Math.max(W,H)*0.75);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,10,20,.55)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+
+  drawMinimap();
+}
+
+function inView(x,y,m){
+  return x > G.cam.x-W/2-m && x < G.cam.x+W/2+m && y > G.cam.y-H/2-m && y < G.cam.y+H/2+m;
+}
+
+function drawWorld(){
+  const tr = G.track, pts = tr.pts;
+
+  // plankton
+  for(const d of G.bg){
+    if(!inView(d.x,d.y,40)) continue;
+    ctx.globalAlpha = d.a*(0.6+0.4*Math.sin(G.time+d.ph));
+    ctx.fillStyle='#bdeefc';
+    ctx.beginPath(); ctx.arc(d.x,d.y,d.r,0,TAU); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // track: glow edge then sandy surface
+  function tracePath(){
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  // dark reef border
+  tracePath(); ctx.strokeStyle='rgba(10,40,55,.9)'; ctx.lineWidth=tr.halfWidth*2+26; ctx.stroke();
+  // accent glow
+  tracePath(); ctx.strokeStyle=(G.course.accent||'#3fe0d0')+'55'; ctx.lineWidth=tr.halfWidth*2+10; ctx.stroke();
+  // sandy track
+  tracePath(); ctx.strokeStyle='#dcc792'; ctx.lineWidth=tr.halfWidth*2; ctx.stroke();
+  tracePath(); ctx.strokeStyle='#e9d7a6'; ctx.lineWidth=tr.halfWidth*2-12; ctx.stroke();
+  // center guide
+  ctx.save(); ctx.setLineDash([14,22]);
+  tracePath(); ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=3; ctx.stroke();
+  ctx.restore();
+
+  // start / finish line
+  drawStartLine();
+
+  // boost currents
+  for(const b of G.boosts){
+    if(!inView(b.x,b.y,80)) continue;
+    ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.dir);
+    const pulse = 0.5+0.5*Math.sin(G.time*5);
+    ctx.globalAlpha=0.55+0.35*pulse;
+    for(let k=-1;k<=1;k++){
+      ctx.fillStyle='#7af0ff';
+      ctx.beginPath();
+      const ox=(G.time*120 + k*22)%44 - 22;
+      ctx.moveTo(ox-10,-12); ctx.lineTo(ox+8,0); ctx.lineTo(ox-10,12); ctx.lineTo(ox-3,0);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha=1; ctx.restore();
+  }
+
+  // bubble pickups
+  for(const b of G.bubbles){
+    if(!b.active || !inView(b.x,b.y,40)) continue;
+    const yo = Math.sin(b.ph)*3;
+    ctx.save(); ctx.globalAlpha=0.85;
+    ctx.fillStyle='rgba(180,245,255,.35)';
+    ctx.beginPath(); ctx.arc(b.x,b.y+yo,b.r,0,TAU); ctx.fill();
+    ctx.strokeStyle='rgba(220,255,255,.9)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(b.x,b.y+yo,b.r,0,TAU); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.arc(b.x-4,b.y+yo-4,3,0,TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // obstacles (coral / rocks)
+  for(const o of G.obstacles){
+    if(!inView(o.x,o.y,60)) continue;
+    ctx.save(); ctx.translate(o.x,o.y);
+    ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(3,4,o.r,o.r*0.8,0,0,TAU); ctx.fill();
+    // lumpy rock
+    ctx.fillStyle = o.seed%2 ? '#7a5a4a' : '#566b6b';
+    ctx.beginPath();
+    for(let a=0;a<10;a++){ const an=a/10*TAU; const rr=o.r*(0.8+0.25*Math.sin(an*3+o.seed)); const fx=Math.cos(an)*rr, fy=Math.sin(an)*rr; a?ctx.lineTo(fx,fy):ctx.moveTo(fx,fy); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.12)';
+    ctx.beginPath(); ctx.arc(-o.r*0.3,-o.r*0.3,o.r*0.35,0,TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  // particles (under turtles)
+  for(const p of G.particles){
+    const a = 1-p.t/p.life;
+    ctx.globalAlpha = clamp(a,0,1)*0.9;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // racers (sorted so player draws on top)
+  const drawList = [...G.racers].sort((a,b)=> (a.isPlayer?1:0)-(b.isPlayer?1:0));
+  for(const r of drawList){
+    if(!inView(r.x,r.y,80)) continue;
+    ctx.save(); ctx.translate(r.x,r.y); ctx.rotate(r.heading);
+    drawTurtle(ctx, r.def, r.flap, 1.0);
+    ctx.restore();
+    // name + position tag
+    ctx.save();
+    ctx.translate(r.x, r.y-30);
+    ctx.font='bold 12px Trebuchet MS,sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle = r.isPlayer ? '#ffd76b' : 'rgba(220,245,255,.85)';
+    ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=3;
+    const tag = (r.isPlayer?'★ ':'') + r.name;
+    ctx.strokeText(tag,0,0); ctx.fillText(tag,0,0);
+    ctx.restore();
+    if(r.turboActive){
+      ctx.save(); ctx.globalAlpha=0.5; ctx.translate(r.x,r.y);
+      ctx.fillStyle='#7af0ff';
+      ctx.beginPath(); ctx.arc(-Math.cos(r.heading)*18,-Math.sin(r.heading)*18,8,0,TAU); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function drawStartLine(){
+  const tr=G.track, p=tr.pts[0], ta=tangentAt(tr,0);
+  ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(ta);
+  const hw=tr.halfWidth;
+  const sq=12;
+  for(let i=0;i<2;i++){
+    for(let j=-Math.floor(hw/sq); j<Math.ceil(hw/sq); j++){
+      ctx.fillStyle = ((i+j)%2===0)?'#fff':'#1a2a33';
+      ctx.fillRect(i*sq-sq, j*sq, sq, sq);
+    }
+  }
+  ctx.restore();
+}
+
+function drawMinimap(){
+  const mm = document.getElementById('minimap');
+  const mc = mm.getContext('2d');
+  const mw=mm.width, mh=mm.height, pad=12;
+  mc.clearRect(0,0,mw,mh);
+  if(!G.track) return;
+  const bb=G.track.bbox;
+  const sx=(mw-pad*2)/(bb.maxX-bb.minX), sy=(mh-pad*2)/(bb.maxY-bb.minY);
+  const sc=Math.min(sx,sy);
+  const ox=pad+((mw-pad*2)-(bb.maxX-bb.minX)*sc)/2;
+  const oy=pad+((mh-pad*2)-(bb.maxY-bb.minY)*sc)/2;
+  const M=(x,y)=>[ox+(x-bb.minX)*sc, oy+(y-bb.minY)*sc];
+  // track
+  mc.beginPath();
+  const pts=G.track.pts;
+  for(let i=0;i<pts.length;i++){ const [x,y]=M(pts[i].x,pts[i].y); i?mc.lineTo(x,y):mc.moveTo(x,y); }
+  mc.closePath();
+  mc.strokeStyle='rgba(160,235,245,.5)'; mc.lineWidth=Math.max(3,G.track.halfWidth*sc*1.4); mc.stroke();
+  mc.strokeStyle='#e9d7a6'; mc.lineWidth=Math.max(1.5,G.track.halfWidth*sc); mc.stroke();
+  // racers
+  for(const r of G.racers){
+    const [x,y]=M(r.x,r.y);
+    mc.fillStyle = r.isPlayer ? '#ffd76b' : r.def.body;
+    mc.beginPath(); mc.arc(x,y, r.isPlayer?4:3, 0,TAU); mc.fill();
+    if(r.isPlayer){ mc.strokeStyle='#fff'; mc.lineWidth=1.5; mc.stroke(); }
+  }
+}
+
+/* decorative water for menu screens */
+let menuBubbles=[];
+function drawMenuWater(){
+  if(menuBubbles.length===0){
+    for(let i=0;i<40;i++) menuBubbles.push({x:Math.random()*W,y:Math.random()*H,r:2+Math.random()*8,sp:10+Math.random()*40,ph:Math.random()*TAU});
+  }
+  ctx.save();
+  for(const b of menuBubbles){
+    b.y -= b.sp*0.016; b.x += Math.sin(G.time+b.ph)*0.3;
+    if(b.y<-10){ b.y=H+10; b.x=Math.random()*W; }
+    ctx.globalAlpha=0.18; ctx.fillStyle='#bdeefc';
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ============================================================================
+   HUD / SCREENS
+   ========================================================================== */
+function fmtTime(t){
+  const m=Math.floor(t/60), s=t-m*60;
+  return m+':'+s.toFixed(1).padStart(4,'0');
+}
+function updateHUD(){
+  const p=G.player;
+  const posEl=document.getElementById('hPos');
+  posEl.textContent = p.place+'/'+G.racers.length;
+  posEl.className='val '+(p.place===1?'pos1':p.place===2?'pos2':p.place===3?'pos3':'');
+  document.getElementById('hLap').textContent = clamp(p.wraps+1,1,G.course.laps)+'/'+G.course.laps;
+  document.getElementById('hTime').textContent = fmtTime(G.raceTime);
+  document.getElementById('hSpeed').textContent = Math.round(Math.abs(p.speed)/2);
+  document.getElementById('turboFill').style.width = clamp(p.turbo,0,100)+'%';
+}
+
+function show(which){
+  document.getElementById('hud').classList.toggle('active', which==='hud');
+  ['screenTurtle','screenCourse','screenResults'].forEach(id=>{
+    document.getElementById(id).classList.toggle('active',
+      (which==='turtle'&&id==='screenTurtle')||
+      (which==='course'&&id==='screenCourse')||
+      (which==='results'&&id==='screenResults'));
+  });
+}
+
+function buildTurtleCards(){
+  const wrap=document.getElementById('turtleCards'); wrap.innerHTML='';
+  TURTLES.forEach((t,i)=>{
+    const card=document.createElement('div'); card.className='card'+(i===G.selTurtle?' sel':'');
+    const cvs=document.createElement('canvas'); cvs.width=120; cvs.height=120;
+    const cc=cvs.getContext('2d'); cc.translate(60,60); cc.rotate(-0.35); drawTurtle(cc,t,0.6,2.4);
+    card.appendChild(cvs);
+    const stat=(label,val,max)=>`<div class="stat"><span>${label}</span><div class="bar"><i style="width:${Math.round(val/max*100)}%"></i></div></div>`;
+    const info=document.createElement('div');
+    info.innerHTML = `<h3>${t.name}</h3><div class="sp">${t.species}<br>${t.desc}</div>`+
+      stat('Speed', t.maxSpeed, 470)+
+      stat('Accel', t.accel, 850)+
+      stat('Handle', t.turn, 3.6);
+    card.appendChild(info);
+    card.onclick=()=>{ G.selTurtle=i; buildTurtleCards(); beep(660,0.08,'sine',0.05); setTimeout(()=>{ show('course'); G.mode='menu'; }, 120); };
+    wrap.appendChild(card);
+  });
+}
+
+function buildCourseCards(){
+  const wrap=document.getElementById('courseCards'); wrap.innerHTML='';
+  COURSES.forEach((c,i)=>{
+    const card=document.createElement('div'); card.className='card';
+    const cvs=document.createElement('canvas'); cvs.className='map'; cvs.width=228; cvs.height=130;
+    drawCourseThumb(cvs.getContext('2d'), c, 228,130);
+    card.appendChild(cvs);
+    const b = c.diff==='easy'?'<span class="badge b-easy">EASY</span>':c.diff==='med'?'<span class="badge b-med">MEDIUM</span>':'<span class="badge b-hard">HARD</span>';
+    const info=document.createElement('div');
+    info.innerHTML=`<h3>${c.name}</h3>${b}<div class="sp" style="margin-top:8px">${c.laps} laps · ${c.obstacles} hazards · ${c.boosts} currents</div>`;
+    card.appendChild(info);
+    card.onclick=()=>{ G.selCourse=i; beep(740,0.1,'triangle',0.05); setupRace(); };
+    wrap.appendChild(card);
+  });
+}
+function drawCourseThumb(c, course, w, h){
+  const tr=buildTrack(course), bb=tr.bbox, pad=16;
+  const sc=Math.min((w-pad*2)/(bb.maxX-bb.minX),(h-pad*2)/(bb.maxY-bb.minY));
+  const ox=pad+((w-pad*2)-(bb.maxX-bb.minX)*sc)/2, oy=pad+((h-pad*2)-(bb.maxY-bb.minY)*sc)/2;
+  c.clearRect(0,0,w,h);
+  c.beginPath();
+  for(let i=0;i<tr.pts.length;i++){ const x=ox+(tr.pts[i].x-bb.minX)*sc, y=oy+(tr.pts[i].y-bb.minY)*sc; i?c.lineTo(x,y):c.moveTo(x,y); }
+  c.closePath();
+  c.lineJoin='round'; c.lineCap='round';
+  c.strokeStyle=course.accent+'66'; c.lineWidth=tr.halfWidth*sc*2; c.stroke();
+  c.strokeStyle='#e9d7a6'; c.lineWidth=tr.halfWidth*sc*1.3; c.stroke();
+}
+
+function showResults(){
+  G.resultShown=true;
+  // anyone not finished, rank by progress after the finishers
+  const remaining = G.racers.filter(r=>!r.finished).sort((a,b)=>b.progress-a.progress);
+  const order = [...G.finishOrder, ...remaining];
+  const list=document.getElementById('resList'); list.innerHTML='';
+  const medals=['🥇','🥈','🥉'];
+  order.forEach((r,i)=>{
+    const li=document.createElement('li'); if(r.isPlayer) li.className='you';
+    const place=medals[i]||(i+1)+'.';
+    const tm = r.finished ? fmtTime(r.finishTime) : 'DNF';
+    li.innerHTML=`<span class="pl">${place}</span><span class="nm">${(r.isPlayer?'★ ':'')+r.name} <small style="color:#8fd0df">${r.def.species}</small></span><span class="tm">${tm}</span>`;
+    list.appendChild(li);
+  });
+  const me = order.findIndex(r=>r.isPlayer)+1;
+  const t=document.getElementById('resTitle');
+  t.textContent = me===1 ? '🏆 You Win!' : me<=3 ? 'Podium Finish! ('+me+(me===2?'nd':'rd')+')' : 'You placed '+me+'th';
+  G.mode='menu'; show('results'); G._endTimer=0;
+  beep(me===1?880:520, 0.4, 'triangle', 0.06);
+}
+
+function quitToMenu(){ G.mode='menu'; show('turtle'); }
+
+/* buttons */
+document.getElementById('backToTurtle').onclick=()=>{ show('turtle'); G.mode='menu'; };
+document.getElementById('raceAgain').onclick=()=> setupRace();
+document.getElementById('toCourses').onclick=()=>{ show('course'); G.mode='menu'; };
+document.getElementById('toMenu').onclick=()=>{ show('turtle'); G.mode='menu'; };
+
+/* ============================================================================
+   MAIN LOOP
+   ========================================================================== */
+function frame(now){
+  const dt = Math.min(0.05, (now - (G.lastT||now))/1000);
+  G.lastT = now; G.time += dt;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+buildTurtleCards();
+buildCourseCards();
+show('turtle');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
