@@ -190,7 +190,10 @@
 
    <script>
     const canvas = document.getElementById('canvas');
-    const gl = canvas.getContext('webgl', { antialias: true });
+    // antialias:false -- MSAA only smooths polygon edges, but the scene is a single fullscreen
+    // ray-marched quad (no geometry edges in menu mode), so MSAA just wastes bandwidth.
+    // Anti-aliasing is done by the FXAA resolve pass instead (see the render pipeline below).
+    const gl = canvas.getContext('webgl', { antialias: false });
     gl.getExtension('OES_standard_derivatives');
     const iExt = gl.getExtension('ANGLE_instanced_arrays');
     if (!iExt) console.error('ANGLE_instanced_arrays not supported');
@@ -202,12 +205,52 @@
     let baseHeight = window.innerHeight;
     let renderScale = 1.0;
 
+    // --- Anti-aliasing pipeline ------------------------------------------------------------
+    // The scene is one fullscreen ray-marched quad. The GPU is maxed, so the WASM adaptive
+    // resolver renders it at renderScale (often ~0.35). Instead of letting the compositor
+    // stretch that low-res image (chunky, shimmery edges -- the "aliasing all over"), we render
+    // the raymarch into a low-res offscreen target (lowW x lowH) and then run a full-resolution
+    // FXAA pass that anti-aliases WHILE it upscales. Because each raymarch pixel runs ~250 heavy
+    // iterations, the full-res FXAA pass (a handful of texture taps, with a flat-region early-out)
+    // costs only a few percent on top.
+    const SCENE_TEX_UNIT = 2;              // unit 0 = blackbody/noise, unit 1 = explosion sprite
+    let lowW = 1, lowH = 1;                // low-res raymarch dimensions (offscreen target size)
+    let sceneFBO = null, sceneTex = null, sceneDepth = null, sceneTexW = 0, sceneTexH = 0;
+    function ensureSceneTarget() {
+      if (sceneFBO && sceneTexW === lowW && sceneTexH === lowH) return;  // dims unchanged -> no realloc
+      if (!sceneFBO) { sceneFBO = gl.createFramebuffer(); sceneTex = gl.createTexture(); sceneDepth = gl.createRenderbuffer(); }
+      // Bind the scene texture on its own unit so we never clobber the raymarch's unit 0.
+      gl.activeTexture(gl.TEXTURE0 + SCENE_TEX_UNIT);
+      gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lowW, lowH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);  // bilinear upscale for free
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.activeTexture(gl.TEXTURE0);        // leave unit 0 active for the raymarch program
+      // Depth attachment keeps fly-mode geometry (disabled, but present) depth-testing correctly.
+      gl.bindRenderbuffer(gl.RENDERBUFFER, sceneDepth);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, lowW, lowH);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, sceneDepth);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) console.warn('scene FBO incomplete');
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      sceneTexW = lowW; sceneTexH = lowH;
+    }
+
     function resize() {
       baseWidth = window.innerWidth;
       baseHeight = window.innerHeight;
-      canvas.width = Math.round(baseWidth * renderScale);
-      canvas.height = Math.round(baseHeight * renderScale);
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      // Presentation surface is full-resolution; the heavy raymarch runs at renderScale into the
+      // offscreen target and the FXAA pass resolves it up to here. (Per-pass viewports are set in
+      // the render loop, so resize() doesn't touch gl.viewport.)
+      canvas.width = baseWidth;
+      canvas.height = baseHeight;
+      lowW = Math.max(1, Math.round(baseWidth * renderScale));
+      lowH = Math.max(1, Math.round(baseHeight * renderScale));
+      ensureSceneTarget();
     }
     window.addEventListener('resize', resize);
     resize();
@@ -612,6 +655,15 @@
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.uniform1i(uBB,0);
     }
+
+    /* ---- FXAA post-process program (resolves the low-res scene up to full resolution) ---- */
+    const fxVS=cS(gl,fxaaVS,gl.VERTEX_SHADER),fxFS=cS(gl,fxaaFS,gl.FRAGMENT_SHADER),fxaaPg=gl.createProgram();
+    gl.attachShader(fxaaPg,fxVS);gl.attachShader(fxaaPg,fxFS);gl.linkProgram(fxaaPg);
+    if(!gl.getProgramParameter(fxaaPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(fxaaPg));
+    const fxaaAPos=gl.getAttribLocation(fxaaPg,'a_pos');
+    const uFxTex=gl.getUniformLocation(fxaaPg,'u_tex'),uFxInv=gl.getUniformLocation(fxaaPg,'u_invRes');
+    gl.useProgram(fxaaPg);gl.uniform1i(uFxTex,SCENE_TEX_UNIT);
+    gl.useProgram(pg);                   // restore raymarch program as the active default
 
     /* ---- Ship shader program ---- */
     const sVS=cS(gl,shipVS,gl.VERTEX_SHADER),sFS=cS(gl,shipFS,gl.FRAGMENT_SHADER),shipPg=gl.createProgram();
@@ -1249,14 +1301,18 @@
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
       hF=document.getElementById('hud-fps'),hSc=document.getElementById('hud-scale');
     let fC=0,lFT=performance.now(),lFrT=performance.now();
-    let simTime=0;
+    let simTime=0, ftSmooth=16.7;   // ftSmooth: EMA of the frame-time we hand the WASM (0x028).
+                                    // The WASM derives the camera basis from this, and a raw
+                                    // per-frame delta is noisy -> the whole scene "buzzes" at idle.
+                                    // Smoothing it removes the buzz while still tracking real load.
 
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
       const dtSec=Math.min(ft*0.001,0.1);
       const simDtSec=dtSec;
       simTime+=simDtSec;
-      dv.setFloat32(0x028,ft,true);
+      ftSmooth+=(Math.min(ft,100.0)-ftSmooth)*0.15;   // low-pass the jittery frame-time
+      dv.setFloat32(0x028,ftSmooth,true);
       dv.setFloat32(0x010,simTime,true);
       wMem();
       wf();
@@ -1440,7 +1496,10 @@
       const flyDist=flyMode?Math.sqrt(
         dv.getFloat32(0x030,true)**2+dv.getFloat32(0x034,true)**2+dv.getFloat32(0x038,true)**2
       ):camDist;
-      gl.uniform2f(uR,canvas.width,canvas.height);
+      // --- Pass 1: render the scene into the low-res offscreen target ---
+      gl.bindFramebuffer(gl.FRAMEBUFFER,sceneFBO);
+      gl.viewport(0,0,lowW,lowH);
+      gl.uniform2f(uR,lowW,lowH);          // raymarch frames against its actual (low-res) grid
       gl.uniform1f(uT,simTime);
       gl.uniform1f(uCD,flyDist);
       gl.uniform1f(uSp,sp);
@@ -1823,6 +1882,20 @@
         gl.enableVertexAttribArray(aP);
         gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
       }
+      // --- Pass 2: FXAA resolve the low-res scene up to the full-res canvas ---
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.viewport(0,0,canvas.width,canvas.height);
+      gl.useProgram(fxaaPg);
+      gl.uniform2f(uFxInv,1.0/lowW,1.0/lowH);
+      gl.bindBuffer(gl.ARRAY_BUFFER,bf);
+      gl.enableVertexAttribArray(fxaaAPos);
+      gl.vertexAttribPointer(fxaaAPos,2,gl.FLOAT,false,0,0);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+      // Restore raymarch program + quad attribute for next frame's pass 1.
+      gl.useProgram(pg);
+      gl.bindBuffer(gl.ARRAY_BUFFER,bf);
+      gl.enableVertexAttribArray(aP);
+      gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
       if(flyMode){
         for(let i=0;i<pL.length;i++)pL[i].classList.remove('visible','hovered');
         flySpdEl.textContent=v3len(flyVel).toFixed(1);

@@ -551,7 +551,13 @@ const fsSource = `
           float rfPx = ringPxW / 2.5;
           if (sd > 3.0 - ringPxW * 2.0 && sd < 5.5 + ringPxW * 2.0) {
             float rf = (sd - 3.0) / 2.5;
-            float w = max(0.02, rfPx * 1.0);
+            // Anti-alias the ring bands at the TRUE per-pixel rate of change of the ring
+            // radius. For grazing rays sd shifts fast across one pixel, so the distance-only
+            // estimate (rfPx) underestimates the footprint and the thin bands shimmer/jitter.
+            // fwidth(sd) measures the real screen-space derivative -> widen band edges to it.
+            float sdW = fwidth(sd);
+            float rfW = sdW / 2.5;
+            float w = max(0.02, max(rfPx, rfW * 0.8));
             float cR = smoothstep(-w, w, rf) * (1.0 - smoothstep(0.20 - w, 0.20 + w, rf));
             float bR = smoothstep(0.20 - w, 0.20 + w, rf) * (1.0 - smoothstep(0.56 - w, 0.56 + w, rf));
             float cas = smoothstep(0.56 - w, 0.56 + w, rf) * (1.0 - smoothstep(0.64 - w, 0.64 + w, rf));
@@ -559,7 +565,7 @@ const fsSource = `
             float ringBright = cR * 0.35 + bR * 1.0 + aR * 0.75;
             float ringAlpha = cR * 0.30 + bR * 0.85 + cas * 0.05 + aR * 0.65;
             vec3 ringCol = mix(vec3(0.50, 0.45, 0.38), vec3(0.93, 0.89, 0.81), ringBright);
-            float texAtten = 1.0 / (1.0 + ringPxW * ringPxW * 900.0);
+            float texAtten = 1.0 / (1.0 + (ringPxW * ringPxW + sdW * sdW) * 900.0);
             ringCol *= 0.88 + 0.12 * sin(sd * 30.0) * texAtten;
             // X-ray flash illumination from nearby detonations
             if (u_detCount > 0) for(int di=0; di<6; di++) {
@@ -700,6 +706,56 @@ const fsSource = `
     finalColor = acesToneMap(finalColor * 0.85);
     finalColor = pow(finalColor, vec3(0.4545));
     gl_FragColor = vec4(finalColor, 1.0);
+  }
+`;
+
+/* -- FXAA Post-Process Shader --
+   The scene is ray-marched into a low-resolution offscreen buffer (renderScale, often ~0.35
+   because the GPU is maxed). This pass anti-aliases that image while upscaling it to the
+   full-resolution canvas, removing the chunky/shimmery edges that a plain stretch leaves.
+   Edge detection + directional blend after the raymarch's tone-map/gamma (FXAA's native
+   input space). A flat-region early-out keeps the big black background nearly free. */
+const fxaaVS = `
+  attribute vec2 a_pos;
+  varying vec2 v_uv;
+  void main() {
+    v_uv = a_pos * 0.5 + 0.5;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }
+`;
+const fxaaFS = `
+  precision highp float;
+  uniform sampler2D u_tex;
+  uniform vec2 u_invRes;          // 1.0 / low-res source dimensions (texel step)
+  varying vec2 v_uv;
+  float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+  void main() {
+    vec2 inv = u_invRes;
+    vec3 rgbM  = texture2D(u_tex, v_uv).rgb;
+    vec3 rgbNW = texture2D(u_tex, v_uv + vec2(-1.0, -1.0) * inv).rgb;
+    vec3 rgbNE = texture2D(u_tex, v_uv + vec2( 1.0, -1.0) * inv).rgb;
+    vec3 rgbSW = texture2D(u_tex, v_uv + vec2(-1.0,  1.0) * inv).rgb;
+    vec3 rgbSE = texture2D(u_tex, v_uv + vec2( 1.0,  1.0) * inv).rgb;
+    float lM = luma(rgbM);
+    float lNW = luma(rgbNW), lNE = luma(rgbNE), lSW = luma(rgbSW), lSE = luma(rgbSE);
+    float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));
+    float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
+    // Flat region -> nothing to anti-alias. Skips the extra taps over the black background.
+    if (lMax - lMin < max(0.0312, lMax * 0.125)) { gl_FragColor = vec4(rgbM, 1.0); return; }
+    vec2 dir;
+    dir.x = -((lNW + lNE) - (lSW + lSE));
+    dir.y =  ((lNW + lSW) - (lNE + lSE));
+    float dirReduce = max((lNW + lNE + lSW + lSE) * 0.25 * 0.125, 1.0 / 128.0);
+    float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+    dir = clamp(dir * rcpDirMin, -8.0, 8.0) * inv;
+    vec3 rgbA = 0.5 * (
+      texture2D(u_tex, v_uv + dir * (1.0 / 3.0 - 0.5)).rgb +
+      texture2D(u_tex, v_uv + dir * (2.0 / 3.0 - 0.5)).rgb);
+    vec3 rgbB = rgbA * 0.5 + 0.25 * (
+      texture2D(u_tex, v_uv + dir * -0.5).rgb +
+      texture2D(u_tex, v_uv + dir *  0.5).rgb);
+    float lB = luma(rgbB);
+    gl_FragColor = vec4((lB < lMin || lB > lMax) ? rgbA : rgbB, 1.0);
   }
 `;
 

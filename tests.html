@@ -334,6 +334,48 @@
       // =============================================
 
       // =============================================
+      // 5. Scene render pipeline (anti-aliasing + camera-jitter work, Jun 2026)
+      // =============================================
+
+      // 5a. CAMERA-JITTER FIX. The WASM derives the camera basis (mem 0x030-0x05C) from the
+      //     frame-time it is handed at mem 0x028. Feeding it the RAW per-frame delta makes the
+      //     whole scene (black hole, disk, stars, planets, labels) buzz at idle, because the
+      //     delta is random frame-to-frame. The fix writes a low-pass (EMA) of the frame-time
+      //     instead. Regressing to `setFloat32(0x028, ft, ...)` reintroduces the buzz.
+      const ftWrite = js.match(/setFloat32\(\s*0x028\s*,\s*([A-Za-z_$][\w$]*)\s*,/);
+      assert(ftWrite !== null,
+        'Extraction: frame-time write to WASM (mem 0x028) found',
+        ftWrite ? `writes "${ftWrite[1]}"` : 'no setFloat32(0x028, ...) call found');
+
+      if (ftWrite) {
+        const ftVar = ftWrite[1];
+        assert(ftVar !== 'ft',
+          'Camera jitter: WASM is fed a smoothed frame-time, not the raw delta',
+          `0x028 <- "${ftVar}" (must NOT be the raw "ft" — a raw delta reintroduces the whole-scene buzz)`);
+
+        // The written var must be a recursive low-pass filter: it appears on both sides of its
+        // own update (e.g. `ftSmooth += (… - ftSmooth) * k`), tolerant of the exact coefficient.
+        const lowPass = new RegExp(ftVar + '\\s*\\+?=\\s*[^;]*\\b' + ftVar + '\\b').test(js);
+        assert(lowPass,
+          'Camera jitter: frame-time is low-pass filtered (EMA) before the WASM',
+          lowPass ? `"${ftVar}" is updated from its own previous value each frame` : `no recursive smoothing of "${ftVar}" found`);
+      }
+
+      // 5b. ANTI-ALIASING / FPS. The scene is one fullscreen ray-marched quad (no polygon edges),
+      //     so context MSAA does nothing but cost framebuffer bandwidth (~15 FPS on test hardware).
+      //     It must stay off; the FXAA resolve pass handles edge AA. Guard against antialias:true.
+      assert(/getContext\(\s*['"]webgl['"]\s*,\s*\{[^}]*antialias\s*:\s*false/.test(js),
+        'Render pipeline: WebGL context requests antialias:false (FXAA handles AA)',
+        'getContext must pass { antialias: false } — MSAA is wasted bandwidth on a fullscreen raymarch');
+
+      // 5c. The FXAA resolve shaders (which replaced MSAA) must exist in shaders.js.
+      if (shadersText) {
+        assert(/const\s+fxaaVS\s*=/.test(shadersText) && /const\s+fxaaFS\s*=/.test(shadersText),
+          'Render pipeline: FXAA resolve shaders present in shaders.js',
+          'fxaaVS/fxaaFS must exist — they anti-alias the upscaled low-res scene');
+      }
+
+      // =============================================
       // PONG BEHAVIORAL TESTS — JS sandbox
       // =============================================
 
