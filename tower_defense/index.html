@@ -162,11 +162,15 @@
       </button>
       <button class="twr-btn" data-type="cannon">
         <span class="nm">[2] CANNON</span><span class="cost">120g</span>
-        <span class="desc">Slow, splash damage.</span>
+        <span class="desc">Slow splash, up to 5 targets.</span>
       </button>
       <button class="twr-btn" data-type="frost">
         <span class="nm">[3] FROST</span><span class="cost">80g</span>
         <span class="desc">Slows enemies in beam.</span>
+      </button>
+      <button class="twr-btn" data-type="rail">
+        <span class="nm">[4] RAIL GUN</span><span class="cost">150g</span>
+        <span class="desc">Pierces first 5 in a line.</span>
       </button>
       <button class="ctrl-btn" id="startBtn">START WAVE</button>
       <button class="ctrl-btn" id="pauseBtn">PAUSE</button>
@@ -176,7 +180,8 @@
 
     <div class="hint">
       Select a tower, click an empty cell to build &nbsp;|&nbsp; Click a tower to upgrade / sell &nbsp;|&nbsp;
-      Keys: 1 2 3 select &middot; SPACE start wave &middot; P pause &middot; ESC deselect &middot; R restart
+      Send the next wave early any time &middot; auto-advances 5s after a wave clears<br>
+      Keys: 1 2 3 select &middot; SPACE send wave &middot; P pause &middot; ESC deselect &middot; R restart
     </div>
   </div>
   <script src="game.js"></script>

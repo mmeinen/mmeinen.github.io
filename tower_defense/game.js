@@ -30,12 +30,15 @@
   }
 
   // ── Config ──────────────────────────────────────────────────────────────────
-  const START_GOLD = 160, START_LIVES = 20, MAX_WAVES = 15;
+  const START_GOLD = 160, START_LIVES = 20, MAX_WAVES = 100, AUTO_DELAY = 5;
+  const MAX_IN_FLIGHT = 3;  // most waves allowed on the field at once
+  const SPLASH_MAX = 5;     // most enemies a single Cannon shell can hit
 
   const TOWERS = {
     blaster: { name: 'Blaster', cost: 50, range: 118, fireRate: 340, damage: 11, projSpeed: 420, kind: 'bolt', color: 'rgba(60,140,255,1)' },
     cannon:  { name: 'Cannon',  cost: 120, range: 108, fireRate: 1150, damage: 34, splash: 48, projSpeed: 300, kind: 'shell', color: 'rgba(255,160,80,1)' },
     frost:   { name: 'Frost',   cost: 80, range: 104, fireRate: 520, damage: 5, slowMul: 0.45, slowDur: 1200, kind: 'beam', color: 'rgba(120,220,255,1)' },
+    rail:    { name: 'Rail Gun', cost: 150, range: 175, fireRate: 1000, damage: 30, kind: 'rail', pierce: 5, beamWidth: 9, color: 'rgba(190,120,255,1)' },
   };
   // Per-level multipliers (index by tower level 1..3).
   const LVL_DMG = [0, 1, 1.65, 2.5], LVL_RANGE = [0, 0, 12, 24], LVL_RATE = [0, 1, 0.85, 0.72];
@@ -43,14 +46,15 @@
   const ENEMIES = {
     drone: { name: 'Drone', hp: 32, speed: 62, reward: 7, leak: 1, size: 11, shape: 'diamond', color: 'rgba(90,200,255,1)' },
     scout: { name: 'Scout', hp: 18, speed: 118, reward: 6, leak: 1, size: 9, shape: 'tri', color: 'rgba(240,220,90,1)' },
+    racer: { name: 'Racer', hp: 14, speed: 178, reward: 9, leak: 1, size: 8, shape: 'dart', color: 'rgba(120,255,160,1)' },
     tank:  { name: 'Tank',  hp: 150, speed: 38, reward: 18, leak: 2, size: 14, shape: 'square', color: 'rgba(255,135,70,1)' },
     boss:  { name: 'Boss',  hp: 1300, speed: 30, reward: 180, leak: 10, size: 21, shape: 'hex', color: 'rgba(230,90,220,1)' },
   };
 
   // ── State ───────────────────────────────────────────────────────────────────
   let gold, lives, score, wave, towers, enemies, projectiles, effects;
-  let waveActive, started, paused, ended, victory;
-  let spawnQueue, spawnIndex, spawnTimer;
+  let started, paused, ended, victory;
+  let spawnGroups, lastBonusedWave, autoTimer;
   let selectedBuild, selectedTower;
   let mouseCell = { c: -1, r: -1 };
   let now = 0;
@@ -58,54 +62,71 @@
   function reset() {
     gold = START_GOLD; lives = START_LIVES; score = 0; wave = 0;
     towers = []; enemies = []; projectiles = []; effects = [];
-    waveActive = false; started = false; paused = false; ended = false; victory = false;
-    spawnQueue = []; spawnIndex = 0; spawnTimer = 0;
+    started = false; paused = false; ended = false; victory = false;
+    spawnGroups = []; lastBonusedWave = 0; autoTimer = -1;
     selectedBuild = null; selectedTower = null;
     syncHud(); syncPalette(); syncInfo();
   }
 
   // ── Waves ───────────────────────────────────────────────────────────────────
+  // Wave composition scales across 100 waves. Counts are *capped* so the field never
+  // floods (keeps it performant & readable); past the caps, difficulty comes from the
+  // per-wave HP scaling in spawnEnemy and from more frequent / multiple bosses.
   function buildWave(n) {
     const q = [];
     const push = (type, count, gap) => { for (let i = 0; i < count; i++) q.push({ type, gap }); };
-    push('drone', 5 + Math.floor(n * 1.4), 0.6);
-    if (n >= 2) push('scout', 2 + Math.floor(n * 0.8), 0.4);
-    if (n >= 4) push('tank', 1 + Math.floor(n / 3), 0.95);
-    if (n === 8 || n === 12) push('tank', 3, 0.8);
-    if (n === 10 || n === MAX_WAVES) push('boss', 1, 1.4);
+    const isBoss = n % 10 === 0;          // boss wave every 10th
+    const rush = n % 5 === 0 && !isBoss;  // scout rush on 5,15,25,...
+    const heavy = n % 7 === 0 && !isBoss; // tank-heavy on 7,14,...
+
+    push('drone', Math.min(8 + Math.floor(n * 0.9), 34), Math.max(0.26, 0.6 - n * 0.0035));
+    if (n >= 2) {
+      let scouts = 3 + Math.floor(n * 0.55) + (rush ? 14 : 0);
+      push('scout', Math.min(scouts, 34), Math.max(0.18, 0.4 - n * 0.0025));
+    }
+    if (n >= 6) {
+      let racers = 2 + Math.floor(n * 0.4) + (rush ? 8 : 0);
+      push('racer', Math.min(racers, 24), Math.max(0.2, 0.45 - n * 0.003));
+    }
+    if (n >= 4) {
+      let tanks = 1 + Math.floor(n / 5) + (heavy ? 6 : 0);
+      push('tank', Math.min(tanks, 20), Math.max(0.45, 0.95 - n * 0.005));
+    }
+    if (isBoss) push('boss', Math.min(1 + Math.floor(n / 30), 4), 2.0);
     return q;
   }
 
+  // A wave is "in flight" while it is still spawning OR still has a living enemy.
+  function wavesInFlight() {
+    const set = new Set();
+    for (const g of spawnGroups) if (g.index < g.queue.length) set.add(g.wave);
+    for (const e of enemies) set.add(e.wave);
+    return set.size;
+  }
+
   function startWave() {
-    if (ended) return;
-    if (waveActive || wave >= MAX_WAVES) return;
+    if (ended || wave >= MAX_WAVES) return;
+    if (wavesInFlight() >= MAX_IN_FLIGHT) return; // cap concurrent waves on the field
     started = true;
+    autoTimer = -1; // a manual send cancels any pending auto-start
     wave++;
-    spawnQueue = buildWave(wave);
-    spawnIndex = 0;
-    spawnTimer = 999; // spawn first enemy immediately
-    waveActive = true;
+    // Push a new spawn group. Groups run concurrently, so the player can send the
+    // next wave while the current one is still on the field. timer:999 = spawn now.
+    spawnGroups.push({ queue: buildWave(wave), index: 0, timer: 999, wave });
     syncHud();
   }
 
-  function spawnEnemy(type) {
+  function spawnEnemy(type, waveNum) {
     const base = ENEMIES[type];
-    const hpScale = type === 'boss' ? 1 + (wave - 1) * 0.05 : 1 + (wave - 1) * 0.12;
+    const hpScale = type === 'boss' ? 1 + (waveNum - 1) * 0.07 : 1 + (waveNum - 1) * 0.11;
     const hp = Math.round(base.hp * hpScale);
+    const reward = Math.round(base.reward * (1 + (waveNum - 1) * 0.035));
     enemies.push({
-      type, x: PATH[0].x, y: PATH[0].y, wp: 1,
-      hp, maxHp: hp, speed: base.speed, reward: base.reward, leak: base.leak,
+      type, wave: waveNum, x: PATH[0].x, y: PATH[0].y, wp: 1,
+      hp, maxHp: hp, speed: base.speed, reward, leak: base.leak,
       size: base.size, shape: base.shape, color: base.color,
       dist: 0, slowUntil: 0, slowMul: 1, dead: false, hitFlash: 0,
     });
-  }
-
-  function endWave() {
-    waveActive = false;
-    const bonus = 20 + wave * 5;
-    gold += bonus;
-    if (wave >= MAX_WAVES) { victory = true; ended = true; }
-    syncHud();
   }
 
   // ── Combat helpers ──────────────────────────────────────────────────────────
@@ -149,6 +170,22 @@
       damageEnemy(target, s.damage);
       target.slowUntil = now + b.slowDur; target.slowMul = b.slowMul;
       effects.push({ kind: 'beam', x1: t.x, y1: t.y, x2: target.x, y2: target.y, t0: now, dur: 130, color: b.color });
+    } else if (b.kind === 'rail') {
+      // Hitscan: fire a straight line toward the target; pierce the first `pierce`
+      // enemies it crosses (those within beamWidth of the ray, nearest first).
+      const dx = Math.cos(t.angle), dy = Math.sin(t.angle), range = s.range;
+      const hits = [];
+      for (const e of enemies) {
+        if (e.dead) continue;
+        const ex = e.x - t.x, ey = e.y - t.y;
+        const along = ex * dx + ey * dy;            // distance projected along the beam
+        if (along < 0 || along > range) continue;   // behind the tower or out of range
+        const perp = Math.abs(ex * dy - ey * dx);   // perpendicular offset from the beam
+        if (perp <= b.beamWidth + e.size * 0.5) hits.push({ e, along });
+      }
+      hits.sort((h1, h2) => h1.along - h2.along);
+      for (let i = 0; i < hits.length && i < b.pierce; i++) damageEnemy(hits[i].e, s.damage);
+      effects.push({ kind: 'rail', x1: t.x, y1: t.y, x2: t.x + dx * range, y2: t.y + dy * range, t0: now, dur: 200, color: b.color });
     } else {
       projectiles.push({
         x: t.x, y: t.y, target, tx: target.x, ty: target.y,
@@ -160,12 +197,13 @@
 
   // ── Update ──────────────────────────────────────────────────────────────────
   function update(dt) {
-    // Spawning
-    if (waveActive) {
-      spawnTimer += dt;
-      if (spawnIndex < spawnQueue.length && spawnTimer >= spawnQueue[spawnIndex].gap) {
-        spawnEnemy(spawnQueue[spawnIndex].type);
-        spawnIndex++; spawnTimer = 0;
+    // Spawning — each active group advances on its own clock, so waves overlap.
+    for (const g of spawnGroups) {
+      if (g.index >= g.queue.length) continue;
+      g.timer += dt;
+      if (g.timer >= g.queue[g.index].gap) {
+        spawnEnemy(g.queue[g.index].type, g.wave);
+        g.index++; g.timer = 0;
       }
     }
 
@@ -215,11 +253,16 @@
         if (p.kind === 'shell') {
           effects.push({ kind: 'boom', x: p.tx, y: p.ty, r0: 4, r1: p.splash, t0: now, dur: 300, color: p.color });
           const r2 = p.splash * p.splash;
+          // Splash hits at most SPLASH_MAX enemies — the ones closest to the impact.
+          const hits = [];
           for (const e of enemies) {
             if (e.dead) continue;
             const ex = e.x - p.tx, ey = e.y - p.ty;
-            if (ex * ex + ey * ey <= r2) damageEnemy(e, p.damage);
+            const d2 = ex * ex + ey * ey;
+            if (d2 <= r2) hits.push({ e, d2 });
           }
+          hits.sort((a, b) => a.d2 - b.d2);
+          for (let i = 0; i < hits.length && i < SPLASH_MAX; i++) damageEnemy(hits[i].e, p.damage);
         } else if (p.target && !p.target.dead) {
           damageEnemy(p.target, p.damage);
         }
@@ -233,8 +276,23 @@
     projectiles = projectiles.filter(p => !p.dead);
     effects = effects.filter(f => now - f.t0 < f.dur);
 
-    // Wave end
-    if (waveActive && spawnIndex >= spawnQueue.length && enemies.length === 0) endWave();
+    // Drop spawn groups that have finished emitting all their enemies.
+    if (spawnGroups.length && spawnGroups.every(g => g.index >= g.queue.length)) spawnGroups = [];
+
+    // Field clear = every sent wave fully emitted and no enemies left alive. Pay any
+    // not-yet-banked wave-clear bonuses (one per completed wave, covers early sends),
+    // then begin the 5s auto-advance countdown — unless that was the final wave.
+    const clear = spawnGroups.length === 0 && enemies.length === 0;
+    if (clear && started && !ended && lastBonusedWave < wave) {
+      for (let w = lastBonusedWave + 1; w <= wave; w++) gold += 40 + w * 8;
+      lastBonusedWave = wave;
+      if (wave >= MAX_WAVES) { victory = true; ended = true; }
+      else if (autoTimer < 0) autoTimer = AUTO_DELAY;
+    }
+    if (autoTimer >= 0 && !ended) {
+      autoTimer -= dt;
+      if (autoTimer <= 0) startWave(); // startWave resets autoTimer to -1
+    }
 
     syncHud();
   }
@@ -336,6 +394,11 @@
       ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
       ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.stroke();
+    } else if (type === 'rail') {
+      ctx.fillRect(0, -2.5, 23, 5);          // long thin barrel
+      ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(19, -1.5, 5, 3);          // bright muzzle tip
     } else {
       ctx.fillRect(0, -3, 17, 6);
       ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
@@ -353,6 +416,7 @@
     if (e.shape === 'diamond') { ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath(); }
     else if (e.shape === 'tri') { ctx.moveTo(s, 0); ctx.lineTo(-s, -s * 0.8); ctx.lineTo(-s, s * 0.8); ctx.closePath(); }
     else if (e.shape === 'square') { ctx.rect(-s, -s, s * 2, s * 2); }
+    else if (e.shape === 'dart') { ctx.moveTo(s * 1.4, 0); ctx.lineTo(-s, -s * 0.85); ctx.lineTo(-s * 0.3, 0); ctx.lineTo(-s, s * 0.85); ctx.closePath(); }
     else { for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const fn = i ? 'lineTo' : 'moveTo'; ctx[fn](Math.cos(a) * s, Math.sin(a) * s); } ctx.closePath(); }
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -370,10 +434,11 @@
   }
 
   function drawProjectile(p) {
+    // No shadowBlur here: projectiles are by far the most numerous draw in a dense
+    // late-wave maze, and glow is the costliest canvas op. Bright fill reads fine.
     ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.kind === 'shell' ? 5 : 3, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
+    if (p.kind === 'shell') { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.stroke(); }
   }
 
   function drawEffect(f) {
@@ -381,6 +446,14 @@
     if (f.kind === 'beam') {
       ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - k);
       ctx.globalAlpha = 1 - k;
+      ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (f.kind === 'rail') {
+      const a = 1 - k;
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = f.color; ctx.lineWidth = 4 * a + 1;
+      ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5 * a;
       ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (f.kind === 'boom') {
@@ -458,8 +531,16 @@
     $('livesVal').textContent = lives;
     $('waveVal').textContent = wave + '/' + MAX_WAVES;
     $('scoreVal').textContent = score;
-    $('startBtn').textContent = waveActive ? 'WAVE ' + wave : (wave >= MAX_WAVES ? 'DONE' : 'START WAVE');
-    $('startBtn').disabled = waveActive || ended;
+    const btn = $('startBtn');
+    const inProgress = enemies.length > 0 || spawnGroups.length > 0;
+    if (ended) { btn.textContent = 'DONE'; btn.disabled = true; }
+    else if (wave >= MAX_WAVES) { btn.textContent = 'ALL SENT'; btn.disabled = true; }
+    else if (autoTimer >= 0) { btn.textContent = 'NEXT IN ' + Math.ceil(autoTimer) + 's'; btn.disabled = false; }
+    else if (inProgress) {
+      if (wavesInFlight() >= MAX_IN_FLIGHT) { btn.textContent = 'MAX ' + MAX_IN_FLIGHT + ' IN FLIGHT'; btn.disabled = true; }
+      else { btn.textContent = 'SEND WAVE ' + (wave + 1); btn.disabled = false; }
+    }
+    else { btn.textContent = 'START WAVE'; btn.disabled = false; }
   }
   function syncPalette() {
     document.querySelectorAll('.twr-btn').forEach(btn => {
@@ -520,6 +601,7 @@
     if (k === '1') selectBuild('blaster');
     else if (k === '2') selectBuild('cannon');
     else if (k === '3') selectBuild('frost');
+    else if (k === '4') selectBuild('rail');
     else if (k === ' ') { e.preventDefault(); startWave(); }
     else if (k === 'p') { if (started && !ended) paused = !paused; }
     else if (k === 'escape') { selectedBuild = null; selectedTower = null; syncPalette(); syncInfo(); }
