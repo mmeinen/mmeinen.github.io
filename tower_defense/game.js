@@ -10,29 +10,128 @@
   const TILE = 40, COLS = 20, ROWS = 15;
   const W = COLS * TILE, H = ROWS * TILE;
 
-  // Enemy path as tile waypoints (axis-aligned segments). Off-grid ends let
-  // enemies slide on/off screen. Center coords are derived in PATH.
-  const WAYPOINTS = [
-    { c: -1, r: 7 }, { c: 4, r: 7 }, { c: 4, r: 11 }, { c: 9, r: 11 },
-    { c: 9, r: 3 }, { c: 14, r: 3 }, { c: 14, r: 11 }, { c: 20, r: 11 },
-  ];
+  // ── Pathfinding maze ─────────────────────────────────────────────────────────
+  // No fixed path: enemies flow from the ENTRY (left edge) to the EXIT (right edge),
+  // routing around whatever towers the player builds. A breadth-first flood from the
+  // EXIT gives every open cell its step-distance to the core (distField); enemies walk
+  // down that gradient. Towers reshape the maze but can never fully seal it — placeTower
+  // rejects any build that would strand the spawn or trap a live enemy.
   const center = (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 });
-  const PATH = WAYPOINTS.map(w => center(w.c, w.r));
+  const ENTRY = { c: 0, r: 7 };
+  const EXIT  = { c: COLS - 1, r: 7 };
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const idx = (c, r) => r * COLS + c;
+  const inBounds = (c, r) => c >= 0 && c < COLS && r >= 0 && r < ROWS;
 
-  // Cells covered by the path are not buildable.
-  const pathCells = new Set();
-  for (let i = 0; i < WAYPOINTS.length - 1; i++) {
-    const a = WAYPOINTS[i], b = WAYPOINTS[i + 1];
-    const dc = Math.sign(b.c - a.c), dr = Math.sign(b.r - a.r);
-    let c = a.c, r = a.r;
-    pathCells.add(c + ',' + r);
-    while (c !== b.c || r !== b.r) { c += dc; r += dr; pathCells.add(c + ',' + r); }
+  let distField = new Array(COLS * ROWS).fill(Infinity); // open cells → steps to EXIT
+  let routePts = [];                                      // cached ENTRY→EXIT guide line
+
+  // BFS flood from EXIT over all non-tower cells. (bc,br) optionally blocks one extra
+  // cell, to test a tentative tower placement without mutating the board.
+  function computeFlow(bc, br) {
+    const d = new Array(COLS * ROWS).fill(Infinity);
+    const blocked = (c, r) => (c === bc && r === br) || !!towerAt(c, r);
+    const q = [EXIT]; let head = 0;
+    d[idx(EXIT.c, EXIT.r)] = 0;
+    while (head < q.length) {
+      const cur = q[head++], base = d[idx(cur.c, cur.r)];
+      for (const [dc, dr] of DIRS) {
+        const nc = cur.c + dc, nr = cur.r + dr;
+        if (!inBounds(nc, nr) || blocked(nc, nr)) continue;
+        if (d[idx(nc, nr)] > base + 1) { d[idx(nc, nr)] = base + 1; q.push({ c: nc, r: nr }); }
+      }
+    }
+    return d;
+  }
+
+  const distAt = (c, r) => (inBounds(c, r) ? distField[idx(c, r)] : Infinity);
+
+  // Best neighbour to step to from (c,r): the open cell nearest the EXIT. Ties favour
+  // keeping the current heading, then horizontal motion, to keep routes from zig-zagging.
+  function flowNext(c, r, lastDir) {
+    const cands = [];
+    for (const [dc, dr] of DIRS) {
+      const nc = c + dc, nr = r + dr;
+      if (!inBounds(nc, nr) || towerAt(nc, nr)) continue;
+      const nd = distField[idx(nc, nr)];
+      if (nd === Infinity) continue;
+      cands.push({ c: nc, r: nr, dc, dr, nd });
+    }
+    if (!cands.length) return null;
+    let min = Infinity;
+    for (const k of cands) if (k.nd < min) min = k.nd;
+    const top = cands.filter(k => k.nd === min);
+    if (top.length > 1 && lastDir) {
+      const keep = top.find(k => k.dc === lastDir.dc && k.dr === lastDir.dr);
+      if (keep) return keep;
+    }
+    return top.find(k => k.dc !== 0) || top[0];
+  }
+
+  // The polyline the swarm currently takes, ENTRY→EXIT, for the on-screen guide.
+  function tracePath() {
+    const pts = [center(ENTRY.c, ENTRY.r)];
+    let c = ENTRY.c, r = ENTRY.r, last = null, guard = 0;
+    while (!(c === EXIT.c && r === EXIT.r) && guard++ < COLS * ROWS) {
+      const nx = flowNext(c, r, last);
+      if (!nx) break;
+      last = { dc: nx.dc, dr: nx.dr };
+      c = nx.c; r = nx.r;
+      pts.push(center(c, r));
+    }
+    return pts;
+  }
+
+  // Recompute the flow field + guide route after any tower change, and force live enemies
+  // to re-pick their next step so they re-route around new walls.
+  function recomputeFlow() {
+    distField = computeFlow(-1, -1);
+    routePts = tracePath();
+    for (const e of enemies) if (!e.dead) e.tgt = null;
+  }
+
+  // A tentative tower at (c,r) is legal only if the spawn AND every live enemy can still
+  // reach the EXIT afterward — the maze is never fully sealed and nothing gets trapped.
+  function pathOkWith(c, r) {
+    const d = computeFlow(c, r);
+    if (d[idx(ENTRY.c, ENTRY.r)] === Infinity) return false;
+    for (const e of enemies) {
+      if (e.dead) continue;
+      const ec = Math.max(0, Math.min(COLS - 1, Math.floor(e.x / TILE)));
+      const er = Math.max(0, Math.min(ROWS - 1, Math.floor(e.y / TILE)));
+      if (d[idx(ec, er)] === Infinity) return false;
+    }
+    return true;
+  }
+
+  // Pick the next cell-center target for an enemy from the flow field.
+  function assignTarget(e) {
+    if (e.cellC === EXIT.c && e.cellR === EXIT.r) {
+      // glide off the right edge through the core, then leak
+      e.tgt = { x: W + TILE, y: center(EXIT.c, EXIT.r).y, c: EXIT.c + 1, r: EXIT.r, dir: { dc: 1, dr: 0 }, leak: true };
+      return;
+    }
+    const nx = flowNext(e.cellC, e.cellR, e.lastDir);
+    const cell = nx || EXIT; // safety net: head straight for the core if boxed in
+    const p = center(cell.c, cell.r);
+    e.tgt = { x: p.x, y: p.y, c: cell.c, r: cell.r, dir: { dc: cell.c - e.cellC, dr: cell.r - e.cellR } };
   }
 
   // ── Config ──────────────────────────────────────────────────────────────────
-  const START_GOLD = 160, START_LIVES = 20, MAX_WAVES = 100, AUTO_DELAY = 5;
+  const MAX_WAVES = 100, AUTO_DELAY = 5;
   const MAX_IN_FLIGHT = 3;  // most waves allowed on the field at once
   const SPLASH_MAX = 5;     // most enemies a single Cannon shell can hit
+
+  // Difficulty tiers. "Easy" is the original tuning; harder tiers lean the economy
+  // (less starting gold/lives, smaller rewards & wave bonuses) and beef the swarm
+  // (more HP, faster movement). Picked before the first wave, then locked for the run.
+  const DIFFICULTIES = {
+    easy:   { name: 'EASY',   gold: 160, lives: 20, hpMul: 1.00, spdMul: 1.00, rewardMul: 1.00, bonusMul: 1.00, desc: 'Generous gold & lives. Forgiving swarm.' },
+    normal: { name: 'NORMAL', gold: 130, lives: 15, hpMul: 1.35, spdMul: 1.08, rewardMul: 0.90, bonusMul: 0.85, desc: 'Tougher, faster enemies. Leaner economy.' },
+    hard:   { name: 'HARD',   gold: 110, lives: 10, hpMul: 1.80, spdMul: 1.16, rewardMul: 0.80, bonusMul: 0.70, desc: 'Beefy swarms, few lives, tight gold.' },
+    insane: { name: 'INSANE', gold: 90,  lives: 5,  hpMul: 2.50, spdMul: 1.28, rewardMul: 0.72, bonusMul: 0.60, desc: 'Brutal HP & speed. Almost no margin.' },
+  };
+  const DIFF_ORDER = ['easy', 'normal', 'hard', 'insane'];
 
   const TOWERS = {
     blaster: { name: 'Blaster', cost: 50, range: 118, fireRate: 340, damage: 11, projSpeed: 420, kind: 'bolt', color: 'rgba(60,140,255,1)' },
@@ -58,14 +157,18 @@
   let selectedBuild, selectedTower;
   let mouseCell = { c: -1, r: -1 };
   let now = 0;
+  let diffKey = 'easy';                 // persists across reset() so R retries same tier
+  const diff = () => DIFFICULTIES[diffKey];
 
   function reset() {
-    gold = START_GOLD; lives = START_LIVES; score = 0; wave = 0;
+    const d = diff();
+    gold = d.gold; lives = d.lives; score = 0; wave = 0;
     towers = []; enemies = []; projectiles = []; effects = [];
     started = false; paused = false; ended = false; victory = false;
     spawnGroups = []; lastBonusedWave = 0; autoTimer = -1;
     selectedBuild = null; selectedTower = null;
-    syncHud(); syncPalette(); syncInfo();
+    recomputeFlow();
+    syncHud(); syncPalette(); syncInfo(); syncDiff();
   }
 
   // ── Waves ───────────────────────────────────────────────────────────────────
@@ -107,25 +210,32 @@
   function startWave() {
     if (ended || wave >= MAX_WAVES) return;
     if (wavesInFlight() >= MAX_IN_FLIGHT) return; // cap concurrent waves on the field
+    const wasIdle = !started && wave === 0;
     started = true;
     autoTimer = -1; // a manual send cancels any pending auto-start
     wave++;
     // Push a new spawn group. Groups run concurrently, so the player can send the
     // next wave while the current one is still on the field. timer:999 = spawn now.
     spawnGroups.push({ queue: buildWave(wave), index: 0, timer: 999, wave });
+    if (wasIdle) syncDiff(); // first send locks the difficulty selector
     syncHud();
   }
 
   function spawnEnemy(type, waveNum) {
-    const base = ENEMIES[type];
+    const base = ENEMIES[type], d = diff();
     const hpScale = type === 'boss' ? 1 + (waveNum - 1) * 0.07 : 1 + (waveNum - 1) * 0.11;
-    const hp = Math.round(base.hp * hpScale);
-    const reward = Math.round(base.reward * (1 + (waveNum - 1) * 0.035));
+    const hp = Math.round(base.hp * hpScale * d.hpMul);
+    const reward = Math.max(1, Math.round(base.reward * (1 + (waveNum - 1) * 0.035) * d.rewardMul));
+    const sp = center(ENTRY.c, ENTRY.r);
     enemies.push({
-      type, wave: waveNum, x: PATH[0].x, y: PATH[0].y, wp: 1,
-      hp, maxHp: hp, speed: base.speed, reward, leak: base.leak,
+      type, wave: waveNum,
+      x: sp.x - TILE, y: sp.y,           // slide in from off-screen left
+      cellC: ENTRY.c - 1, cellR: ENTRY.r,
+      tgt: { x: sp.x, y: sp.y, c: ENTRY.c, r: ENTRY.r, dir: { dc: 1, dr: 0 } },
+      lastDir: { dc: 1, dr: 0 },
+      hp, maxHp: hp, speed: base.speed * d.spdMul, reward, leak: base.leak,
       size: base.size, shape: base.shape, color: base.color,
-      dist: 0, slowUntil: 0, slowMul: 1, dead: false, hitFlash: 0,
+      traveled: 0, exitDist: Infinity, slowUntil: 0, slowMul: 1, dead: false, hitFlash: 0,
     });
   }
 
@@ -140,13 +250,17 @@
   }
 
   function findTarget(t, range) {
-    // Target the enemy furthest along the path within range (classic "first").
-    let best = null, bestDist = -1;
+    // Target the enemy nearest the core within range (classic "first"): lowest
+    // flow-distance to the EXIT, breaking ties by distance already travelled.
+    let best = null, bestProg = Infinity, bestTrav = -1;
     const r2 = range * range;
     for (const e of enemies) {
       if (e.dead) continue;
       const dx = e.x - t.x, dy = e.y - t.y;
-      if (dx * dx + dy * dy <= r2 && e.dist > bestDist) { best = e; bestDist = e.dist; }
+      if (dx * dx + dy * dy > r2) continue;
+      if (e.exitDist < bestProg || (e.exitDist === bestProg && e.traveled > bestTrav)) {
+        best = e; bestProg = e.exitDist; bestTrav = e.traveled;
+      }
     }
     return best;
   }
@@ -207,27 +321,30 @@
       }
     }
 
-    // Enemies
+    // Enemies — follow the flow field cell-by-cell toward the EXIT.
     for (const e of enemies) {
       if (e.dead) continue;
       const slow = e.slowUntil > now ? e.slowMul : 1;
       let step = e.speed * slow * dt;
       while (step > 0 && !e.dead) {
-        const wpt = PATH[e.wp];
-        const dx = wpt.x - e.x, dy = wpt.y - e.y;
+        if (!e.tgt) assignTarget(e);
+        const dx = e.tgt.x - e.x, dy = e.tgt.y - e.y;
         const d = Math.hypot(dx, dy);
         if (d <= step) {
-          e.x = wpt.x; e.y = wpt.y; e.dist += d; step -= d; e.wp++;
-          if (e.wp >= PATH.length) { // reached the core
-            e.dead = true;
-            lives -= e.leak;
-            effects.push({ kind: 'leak', x: W, y: PATH[PATH.length - 1].y, t0: now, dur: 280 });
+          e.x = e.tgt.x; e.y = e.tgt.y; e.traveled += d; step -= d;
+          if (e.tgt.leak) { // crossed the core
+            e.dead = true; lives -= e.leak;
+            effects.push({ kind: 'leak', x: W, y: center(EXIT.c, EXIT.r).y, t0: now, dur: 280 });
             if (lives <= 0) { lives = 0; ended = true; victory = false; }
+            break;
           }
+          e.cellC = e.tgt.c; e.cellR = e.tgt.r; e.lastDir = e.tgt.dir;
+          e.tgt = null;
         } else {
-          e.x += (dx / d) * step; e.y += (dy / d) * step; e.dist += step; step = 0;
+          e.x += (dx / d) * step; e.y += (dy / d) * step; e.traveled += step; step = 0;
         }
       }
+      if (!e.dead) e.exitDist = distAt(e.cellC, e.cellR);
     }
 
     // Towers fire
@@ -284,7 +401,7 @@
     // then begin the 5s auto-advance countdown — unless that was the final wave.
     const clear = spawnGroups.length === 0 && enemies.length === 0;
     if (clear && started && !ended && lastBonusedWave < wave) {
-      for (let w = lastBonusedWave + 1; w <= wave; w++) gold += 40 + w * 8;
+      for (let w = lastBonusedWave + 1; w <= wave; w++) gold += Math.round((40 + w * 8) * diff().bonusMul);
       lastBonusedWave = wave;
       if (wave >= MAX_WAVES) { victory = true; ended = true; }
       else if (autoTimer < 0) autoTimer = AUTO_DELAY;
@@ -307,25 +424,34 @@
     for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c * TILE, 0); ctx.lineTo(c * TILE, H); ctx.stroke(); }
     for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r * TILE); ctx.lineTo(W, r * TILE); ctx.stroke(); }
 
-    // path track
+    // current route the swarm takes (entry → exit), recomputed as towers change
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(40,70,130,0.55)'; ctx.lineWidth = 30;
-    pathPolyline();
-    ctx.strokeStyle = 'rgba(60,140,255,0.18)'; ctx.lineWidth = 30;
-    ctx.setLineDash([2, 14]); pathPolyline(); ctx.setLineDash([]);
+    if (routePts.length) {
+      ctx.strokeStyle = 'rgba(40,70,130,0.55)'; ctx.lineWidth = 26;
+      drawRoute();
+      ctx.strokeStyle = 'rgba(60,140,255,0.18)'; ctx.lineWidth = 26;
+      ctx.setLineDash([2, 14]); drawRoute(); ctx.setLineDash([]);
+    }
+
+    // entry portal
+    const ent = center(ENTRY.c, ENTRY.r);
+    const eg = ctx.createRadialGradient(2, ent.y, 3, 2, ent.y, 30);
+    eg.addColorStop(0, 'rgba(120,255,170,0.8)'); eg.addColorStop(1, 'rgba(60,200,140,0)');
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.arc(2, ent.y, 30, 0, Math.PI * 2); ctx.fill();
 
     // core / exit
-    const exit = PATH[PATH.length - 1];
+    const exit = center(EXIT.c, EXIT.r);
     const cgx = ctx.createRadialGradient(W - 6, exit.y, 4, W - 6, exit.y, 34);
     cgx.addColorStop(0, 'rgba(120,200,255,0.9)'); cgx.addColorStop(1, 'rgba(60,140,255,0)');
     ctx.fillStyle = cgx;
     ctx.beginPath(); ctx.arc(W - 6, exit.y, 34, 0, Math.PI * 2); ctx.fill();
 
-    // build hints on empty buildable cells
+    // build hints on empty cells (ghost flags the few that would seal the maze)
     if (selectedBuild) {
       ctx.fillStyle = 'rgba(60,140,255,0.12)';
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        if (isBuildable(c, r)) ctx.fillRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8);
+        if (isOpenCell(c, r)) ctx.fillRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8);
       }
     }
 
@@ -347,17 +473,19 @@
     enemies.forEach(drawEnemy);
     effects.forEach(drawEffect);
 
-    if (!started) overlay('ORBITAL DEFENSE', 'Build towers, then press START WAVE.\nStop ' + MAX_WAVES + ' waves from reaching the core.');
+    if (!started) overlay('ORBITAL DEFENSE', 'Difficulty: ' + diff().name + ' — ' + diff().desc + '\nBuild towers to maze the swarm, then press START WAVE.');
     else if (ended) overlay(victory ? 'VICTORY' : 'CORE LOST', victory
       ? 'All ' + MAX_WAVES + ' waves repelled!  Score: ' + score + '\nPress R to play again.'
       : 'The swarm overran your core.\nReached wave ' + wave + '.  Press R to retry.');
     else if (paused) overlay('PAUSED', 'Press P to resume.');
   }
 
-  function pathPolyline() {
+  function drawRoute() {
+    const a = routePts[0], b = routePts[routePts.length - 1];
     ctx.beginPath();
-    ctx.moveTo(PATH[0].x, PATH[0].y);
-    for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+    ctx.moveTo(0, a.y);                 // extend off the left edge (entry)
+    for (let i = 0; i < routePts.length; i++) ctx.lineTo(routePts[i].x, routePts[i].y);
+    ctx.lineTo(W, b.y);                 // extend off the right edge (core)
     ctx.stroke();
   }
 
@@ -492,11 +620,14 @@
   }
 
   // ── Build / interaction ─────────────────────────────────────────────────────
-  function isBuildable(c, r) {
-    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
-    if (pathCells.has(c + ',' + r)) return false;
+  // Empty, in-bounds, and not the entry/exit gateway — but says nothing about sealing.
+  function isOpenCell(c, r) {
+    if (!inBounds(c, r)) return false;
+    if ((c === ENTRY.c && r === ENTRY.r) || (c === EXIT.c && r === EXIT.r)) return false;
     return !towerAt(c, r);
   }
+  // Buildable = open AND placing here keeps a route open for the spawn and every enemy.
+  function isBuildable(c, r) { return isOpenCell(c, r) && pathOkWith(c, r); }
   function towerAt(c, r) { return towers.find(t => t.c === c && t.r === r); }
 
   function placeTower(c, r) {
@@ -505,6 +636,7 @@
     const p = center(c, r);
     gold -= def.cost;
     towers.push({ type: selectedBuild, c, r, x: p.x, y: p.y, level: 1, cd: 0, angle: -Math.PI / 2, invested: def.cost });
+    recomputeFlow(); // reshape the maze and re-route live enemies
     syncHud(); syncPalette();
   }
 
@@ -521,6 +653,7 @@
     gold += refund;
     towers = towers.filter(x => x !== t);
     selectedTower = null;
+    recomputeFlow(); // opening a cell can shorten the route for live enemies
     syncHud(); syncInfo();
   }
 
@@ -547,6 +680,16 @@
       const type = btn.dataset.type;
       btn.classList.toggle('sel', selectedBuild === type);
       btn.classList.toggle('broke', gold < TOWERS[type].cost);
+    });
+  }
+  // Difficulty can only be changed before the run begins; lock the selector after that.
+  function diffLocked() { return started || wave > 0; }
+  function syncDiff() {
+    const locked = diffLocked();
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.classList.toggle('sel', btn.dataset.diff === diffKey);
+      btn.disabled = locked && btn.dataset.diff !== diffKey;
+      btn.classList.toggle('locked', locked);
     });
   }
   function syncInfo() {
@@ -592,7 +735,13 @@
     selectedTower = null;
     syncPalette(); syncInfo();
   }
+  function selectDifficulty(key) {
+    if (diffLocked() || !DIFFICULTIES[key] || key === diffKey) return;
+    diffKey = key;
+    reset(); // re-applies starting gold/lives and re-syncs the selector
+  }
   document.querySelectorAll('.twr-btn').forEach(btn => btn.addEventListener('click', () => selectBuild(btn.dataset.type)));
+  document.querySelectorAll('.diff-btn').forEach(btn => btn.addEventListener('click', () => selectDifficulty(btn.dataset.diff)));
   $('startBtn').addEventListener('click', startWave);
   $('pauseBtn').addEventListener('click', () => { if (started && !ended) paused = !paused; });
 

@@ -60,6 +60,39 @@
     #livesVal { color: rgba(255,160,80,1); }
     #goldVal { color: rgba(255,225,120,1); }
 
+    #diffbar {
+      width: 800px;
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .diff-label {
+      color: rgba(150,180,230,0.7);
+      font-size: 11px;
+      letter-spacing: 1px;
+      align-self: center;
+      padding-right: 2px;
+    }
+    .diff-btn {
+      flex: 1;
+      border: 1px solid rgba(60,140,255,0.35);
+      background: rgba(20,40,80,0.35);
+      color: #cfe0ff;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .diff-btn:hover { background: rgba(40,70,130,0.5); }
+    .diff-btn.sel { border-color: rgba(60,140,255,1); background: rgba(40,80,160,0.55); box-shadow: 0 0 12px rgba(60,140,255,0.4); }
+    .diff-btn[data-diff="insane"].sel { border-color: rgba(255,160,80,1); box-shadow: 0 0 12px rgba(255,160,80,0.45); color: rgba(255,200,140,1); }
+    .diff-btn.locked { opacity: 0.4; cursor: not-allowed; }
+    .diff-btn.sel.locked { opacity: 0.9; cursor: default; }
+
     #playfield { position: relative; }
     canvas {
       display: block;
@@ -151,6 +184,14 @@
       <div class="stat"><span class="label">SCORE</span><span class="val" id="scoreVal">0</span></div>
     </div>
 
+    <div id="diffbar">
+      <span class="diff-label">DIFFICULTY</span>
+      <button class="diff-btn sel" data-diff="easy" title="Generous gold & lives. Forgiving swarm.">EASY</button>
+      <button class="diff-btn" data-diff="normal" title="Tougher, faster enemies. Leaner economy.">NORMAL</button>
+      <button class="diff-btn" data-diff="hard" title="Beefy swarms, few lives, tight gold.">HARD</button>
+      <button class="diff-btn" data-diff="insane" title="Brutal HP & speed. Almost no margin.">INSANE</button>
+    </div>
+
     <div id="playfield">
       <canvas id="gameCanvas" width="800" height="600"></canvas>
     </div>
@@ -179,9 +220,11 @@
     <div id="info"></div>
 
     <div class="hint">
+      Pick a difficulty before you start (locked once wave 1 sends) &middot; press R to restart on the same tier<br>
+      Build towers to maze the swarm &mdash; enemies route around them toward the core, and you can't fully wall off the path<br>
       Select a tower, click an empty cell to build &nbsp;|&nbsp; Click a tower to upgrade / sell &nbsp;|&nbsp;
       Send the next wave early any time &middot; auto-advances 5s after a wave clears<br>
-      Keys: 1 2 3 select &middot; SPACE send wave &middot; P pause &middot; ESC deselect &middot; R restart
+      Keys: 1 2 3 4 select &middot; SPACE send wave &middot; P pause &middot; ESC deselect &middot; R restart
     </div>
   </div>
   <script src="game.js"></script>
