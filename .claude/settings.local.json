@@ -42,7 +42,14 @@
       "Bash(kill %1:*)",
       "Bash(mv madeline_game:*)",
       "Bash(echo exit: $?:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(xargs cat:*)",
+      "WebFetch(domain:book.leveldesignbook.com)",
+      "WebFetch(domain:www.nomadsreviews.co.uk)",
+      "WebFetch(domain:www.webgamedev.com)",
+      "WebFetch(domain:emscripten.org)",
+      "Bash(grep \"Self-Check: FAILED\" \".planning/phases/07-wave-progression-enemy-variety/07-03-SUMMARY.md\" 2>/dev/null; echo \"exit: $?\")",
+      "Bash(cat /c/Users/matth/Documents/mmeinen.github.io/.planning/phases/07-wave-progression-enemy-variety/*-VERIFICATION.md 2>/dev/null || echo \"NO_PREVIOUS_VERIFICATION\")"
     ]
   },
   "hooks": {
