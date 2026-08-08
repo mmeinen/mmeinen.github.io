@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Castle Siege 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #0a0e1a; font-family: 'Courier New', monospace; }
+  canvas#c { display: block; width: 100vw; height: 100vh; }
+
+  .back-link {
+    position: fixed; top: 12px; left: 16px;
+    color: #fff; font-size: 14px; text-decoration: none; z-index: 60;
+    letter-spacing: 1px; transition: color 0.2s;
+    background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 4px;
+  }
+  .back-link:hover { color: rgba(60,140,255,1); }
+
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: rgba(255,255,255,0.55); font-size: 24px;
+    pointer-events: none; z-index: 10; text-shadow: 0 0 2px rgba(0,0,0,0.8);
+    display: none;
+  }
+  #crosshair.build { color: rgba(120,255,160,0.8); }
+
+  #topbar {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 10; pointer-events: none;
+  }
+  .stat {
+    background: rgba(8,14,28,0.72); border: 1px solid rgba(60,140,255,0.35);
+    border-radius: 4px; padding: 4px 12px; text-align: center; min-width: 86px;
+  }
+  .stat .lbl { font-size: 10px; letter-spacing: 2px; color: rgba(60,140,255,0.75); }
+  .stat .val { font-size: 15px; color: #fff; }
+  #hpVal.low { color: rgba(255,160,80,1); }
+  #hpVal.crit { color: rgba(255,60,60,1); }
+
+  #waveStatus {
+    position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,225,120,0.95); font-size: 13px; letter-spacing: 1px;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8); z-index: 10; pointer-events: none;
+    text-align: center;
+  }
+
+  #banner {
+    position: fixed; top: 26%; left: 50%; transform: translate(-50%,-50%);
+    color: rgba(255,160,80,1); font-size: 30px; letter-spacing: 6px;
+    text-shadow: 0 0 18px rgba(255,160,80,0.5), 0 0 4px rgba(0,0,0,0.9);
+    z-index: 11; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+  }
+  #banner.show { opacity: 1; }
+
+  #aimInfo {
+    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+    background: rgba(8,14,28,0.78); border: 1px solid rgba(60,140,255,0.3);
+    border-radius: 4px; padding: 5px 14px;
+    color: rgba(200,215,240,1); font-size: 13px; z-index: 10;
+    pointer-events: none; white-space: nowrap;
+  }
+  #aimInfo:empty { display: none; }
+  #aimInfo b { color: rgba(60,140,255,1); }
+  #aimInfo .key { color: rgba(255,225,120,1); }
+  #aimInfo .no { color: rgba(255,110,90,1); }
+
+  #buildbar {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 10; pointer-events: none;
+  }
+  .slot {
+    background: rgba(8,14,28,0.72); border: 1px solid rgba(60,140,255,0.3);
+    border-radius: 4px; padding: 5px 10px; text-align: center; min-width: 82px;
+    color: rgba(170,190,220,1); font-size: 11px; line-height: 1.5;
+  }
+  .slot .k { color: rgba(255,225,120,1); }
+  .slot .cost { color: rgba(255,225,120,0.85); font-size: 10px; }
+  .slot.sel { border-color: rgba(120,255,160,0.9); background: rgba(20,40,26,0.8); color: #fff; }
+  .slot.broke { opacity: 0.42; }
+
+  #minimap {
+    position: fixed; top: 12px; right: 14px; z-index: 10;
+    border: 1px solid rgba(60,140,255,0.4); border-radius: 3px;
+    background: rgba(8,14,28,0.8); image-rendering: pixelated;
+  }
+
+  #fpsHud {
+    position: fixed; bottom: 12px; left: 14px; z-index: 10;
+    color: rgba(60,140,255,0.55); font-size: 12px; pointer-events: none;
+  }
+  #hint {
+    position: fixed; bottom: 12px; right: 14px; z-index: 10;
+    color: rgba(60,140,255,0.5); font-size: 11px; pointer-events: none; text-align: right;
+    line-height: 1.6;
+  }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    background: rgba(5,8,16,0.82); color: #fff;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .overlay.show { display: flex; }
+  .overlay h1 {
+    font-size: 34px; letter-spacing: 8px; color: rgba(60,140,255,1);
+    text-shadow: 0 0 24px rgba(60,140,255,0.5); margin-bottom: 6px; font-weight: normal;
+  }
+  .overlay h2 { font-size: 15px; letter-spacing: 3px; color: rgba(255,225,120,0.9); margin-bottom: 22px; font-weight: normal; }
+  .overlay .sub { color: rgba(170,190,220,0.9); font-size: 13px; margin-bottom: 18px; }
+  #diffRow { display: flex; gap: 10px; margin-bottom: 24px; }
+  .diff-btn {
+    background: rgba(8,14,28,0.9); border: 1px solid rgba(60,140,255,0.4);
+    color: rgba(170,190,220,1); font-family: inherit; font-size: 12px;
+    padding: 10px 14px; border-radius: 4px; cursor: pointer; width: 150px; line-height: 1.5;
+  }
+  .diff-btn b { display: block; font-size: 14px; letter-spacing: 2px; }
+  .diff-btn:hover { border-color: rgba(60,140,255,0.9); }
+  .diff-btn.sel { border-color: rgba(255,225,120,1); color: #fff; background: rgba(30,34,20,0.9); }
+  .diff-btn:disabled { opacity: 0.4; cursor: default; }
+  .big-btn {
+    background: rgba(20,40,70,0.9); border: 1px solid rgba(60,140,255,0.9);
+    color: #fff; font-family: inherit; font-size: 17px; letter-spacing: 4px;
+    padding: 13px 44px; border-radius: 4px; cursor: pointer;
+  }
+  .big-btn:hover { background: rgba(40,70,110,0.95); box-shadow: 0 0 18px rgba(60,140,255,0.4); }
+  .controls {
+    margin-top: 26px; color: rgba(140,160,190,0.85); font-size: 12px; line-height: 1.9;
+    columns: 2; column-gap: 46px; text-align: left;
+  }
+  .controls span { color: rgba(255,225,120,0.9); }
+  #endTitle.win { color: rgba(120,255,160,1); text-shadow: 0 0 24px rgba(120,255,160,0.5); }
+  #endTitle.lose { color: rgba(255,110,90,1); text-shadow: 0 0 24px rgba(255,110,90,0.5); }
+</style>
+</head>
+<body>
+<a href="../index.html" class="back-link">&larr; Back to Menu</a>
+<canvas id="c"></canvas>
+<canvas id="minimap" width="192" height="128"></canvas>
+<div id="crosshair">+</div>
+
+<div id="topbar">
+  <div class="stat"><div class="lbl">GOLD</div><div class="val" id="goldVal">0</div></div>
+  <div class="stat"><div class="lbl">KEEP</div><div class="val" id="keepVal">0</div></div>
+  <div class="stat"><div class="lbl">WAVE</div><div class="val" id="waveVal">0/50</div></div>
+  <div class="stat"><div class="lbl">SCORE</div><div class="val" id="scoreVal">0</div></div>
+  <div class="stat"><div class="lbl">YOU</div><div class="val" id="hpVal">100</div></div>
+</div>
+<div id="waveStatus"></div>
+<div id="banner"></div>
+<div id="aimInfo"></div>
+
+<div id="buildbar">
+  <div class="slot" data-type="wall"><span class="k">[1]</span> WALL<br><span class="cost">5g</span></div>
+  <div class="slot" data-type="gate"><span class="k">[2]</span> GATE<br><span class="cost">12g</span></div>
+  <div class="slot" data-type="archer"><span class="k">[3]</span> ARCHER<br><span class="cost">40g</span></div>
+  <div class="slot" data-type="mage"><span class="k">[4]</span> MAGE<br><span class="cost">70g</span></div>
+  <div class="slot" data-type="catapult"><span class="k">[5]</span> CATAPULT<br><span class="cost">90g</span></div>
+  <div class="slot" data-type="knight"><span class="k">[6]</span> KNIGHT<br><span class="cost">30g</span></div>
+</div>
+
+<div id="fpsHud"></div>
+<div id="hint">[F] swap weapon &middot; [Q] hands<br>[N] send wave &middot; [P] pause</div>
+
+<div class="overlay show" id="startOverlay">
+  <h1>CASTLE SIEGE</h1>
+  <h2>FIRST PERSON</h2>
+  <div class="sub">Defend the keep on foot. Build walls, raise towers, and fight the horde yourself.<br>
+  Raiders always breach the <b style="color:rgba(255,160,80,1)">weakest stone</b> &mdash; watch the amber trails.</div>
+  <div id="diffRow">
+    <button class="diff-btn" data-diff="easy"><b>EASY</b>Generous gold, sturdy keep.</button>
+    <button class="diff-btn" data-diff="normal"><b>NORMAL</b>Tougher raiders, leaner economy.</button>
+    <button class="diff-btn" data-diff="hard"><b>HARD</b>Beefy hordes, fragile keep.</button>
+    <button class="diff-btn" data-diff="insane"><b>INSANE</b>Brutal HP &amp; speed. No margin.</button>
+  </div>
+  <button class="big-btn" id="playBtn">CLICK TO PLAY</button>
+  <div class="controls">
+    <div><span>WASD</span> move &middot; <span>Shift</span> sprint</div>
+    <div><span>Space</span> jump &middot; <span>Mouse</span> look</div>
+    <div><span>Click</span> attack / place build</div>
+    <div><span>F</span> swap sword &harr; crossbow</div>
+    <div><span>1-6</span> pick build &middot; <span>Q</span> put away</div>
+    <div><span>E</span> open/close aimed gate</div>
+    <div><span>U / R / X</span> upgrade / repair / sell</div>
+    <div><span>N</span> send next wave &middot; <span>P</span> pause</div>
+  </div>
+</div>
+
+<div class="overlay" id="pauseOverlay">
+  <h1>PAUSED</h1>
+  <div class="sub" id="pauseSub">Click to resume</div>
+</div>
+
+<div class="overlay" id="endOverlay">
+  <h1 id="endTitle">DEFEAT</h1>
+  <div class="sub" id="endSub"></div>
+  <button class="big-btn" id="restartBtn">RESTART</button>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
