@@ -19,7 +19,6 @@ const fsSource = `
   uniform float u_rH;
   uniform float u_rIsco;
   uniform float u_hoveredPlanet;
-  uniform float u_orbitScale;
   uniform vec4 u_planet0;
   uniform vec4 u_planet1;
   uniform vec4 u_planet2;
@@ -27,9 +26,6 @@ const fsSource = `
   uniform vec4 u_planet4;
   uniform sampler2D u_bbTex;
   uniform sampler2D u_noiseTex;
-  uniform vec3  u_detPos[6];
-  uniform float u_detAge[6];
-  uniform int   u_detCount;
 
   vec3 acceleration(vec3 p, vec3 v, float h2, float a) {
     float r = length(p);
@@ -45,44 +41,10 @@ const fsSource = `
     return acc;
   }
 
-  float hash(vec2 p) {
-    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-  }
-
-  float hash3(vec3 p) {
-    p = fract(p * 0.1031);
-    p += dot(p, p.zyx + 31.32);
-    return fract((p.x + p.y) * p.z);
-  }
-
   vec4 hash34(vec3 p) {
     vec4 p4 = fract(vec4(p.xyzx) * vec4(0.1031, 0.1030, 0.0973, 0.1099));
     p4 += dot(p4, p4.wzxy + 33.33);
     return fract((p4.xxyz + p4.yzzw) * p4.zywx);
-  }
-
-  float vnoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-  }
-
-  float vnoise3(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float a = mix(hash3(i), hash3(i + vec3(1,0,0)), f.x);
-    float b = mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x);
-    float c = mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x);
-    float d = mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x);
-    return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
   }
 
   float noiseLUT(vec3 p) {
@@ -205,77 +167,12 @@ const fsSource = `
     return vec4(col * brightness, clamp(alpha, 0.0, 1.0));
   }
 
-  vec4 detonationShading(vec3 hitPos, vec3 detCenter, float age) {
-    float tau = 0.4;
-    float tNorm = age / tau;
-    float expand = 1.0 + tNorm;
-    float invExp = 1.0 / expand;
-    float R = 0.125 * expand;
-
-    float shellFade = invExp * invExp;
-
-    float gasT = invExp;
-    float gasL = shellFade;
-
-    float debrisT = clamp(0.45 - age * 0.025, 0.03, 0.45);
-    float debrisL = shellFade;
-
-    vec3 toHit = hitPos - detCenter;
-    float dist = length(toHit);
-    vec3 dir = toHit / max(dist, 0.001);
-
-    float shellR = R * 0.9;
-    float shellW = 0.05 + R * 0.15;
-    float outerBound = max(R, shellR + shellW) + 0.2;
-    if (dist > outerBound) return vec4(0.0);
-
-    float noiseAge = min(age, 3.0);
-    vec3 nc1 = dir * 4.0 + vec3(noiseAge * 1.5, noiseAge * 0.8, noiseAge * 1.2);
-    vec3 nc2 = dir * 10.0 - vec3(noiseAge * 0.7, noiseAge * 1.4, noiseAge * 0.5);
-    float n1 = noiseLUT(nc1);
-    float n2 = noiseLUT(nc2);
-    float structure = n1 * 0.6 + n2 * 0.4;
-
-    float cloudPhase = smoothstep(1.5, 4.0, age);
-
-    float fbSurface = R * (0.85 + 0.3 * structure);
-    float fbDepth = smoothstep(fbSurface, fbSurface * 0.6, dist);
-    float fbDensity = fbDepth * (1.0 - cloudPhase);
-
-    float shellDist = (dist - shellR) / max(shellW, 0.01);
-    float shellBase = exp(-shellDist * shellDist);
-    float filaments = structure * 0.7 + 0.15;
-    float cloudDensity = cloudPhase * shellBase * filaments;
-
-    float particleMask = smoothstep(0.58, 0.78, structure) * shellBase * cloudPhase;
-
-    vec3 fbCol = blackbodyColor(gasT) * fbDensity * gasL * 30.0 * (1.0 + fbDepth * 0.5);
-    vec3 cloudCol = blackbodyColor(debrisT) * cloudDensity * debrisL * 20.0;
-    float particleT = clamp(debrisT * 2.0, 0.0, 0.7);
-    vec3 particleCol = blackbodyColor(particleT) * particleMask * debrisL * 40.0;
-    vec3 col = fbCol + cloudCol + particleCol;
-
-    float fbOpacity = fbDensity * gasL * 4.0;
-    float cloudOpacity = cloudDensity * debrisL * 3.0;
-    float opacity = fbOpacity + cloudOpacity;
-
-    float outerEdge = mix(fbSurface, shellR + shellW, cloudPhase);
-    float limbDist = max(0.0, dist - outerEdge);
-    float glowL = mix(gasL, debrisL * 0.5, cloudPhase);
-    float glow = exp(-limbDist * limbDist * 1.5) * glowL * 8.0;
-    float T = mix(gasT, debrisT, cloudPhase);
-    col += blackbodyColor(T) * glow * (1.0 - clamp(opacity, 0.0, 1.0));
-
-    return vec4(col, clamp(opacity, 0.0, 1.0));
-  }
-
-
   vec3 shadePlanet(vec3 hp, vec3 ctr, float rad, int idx) {
     vec3 n = normalize(hp - ctr);
     float lat = n.y;
     float lon = atan(n.z, n.x);
     vec3 ldir = normalize(-ctr);
-    float ambient = u_orbitScale > 1.5 ? 0.10 : 0.02;
+    float ambient = 0.02;
     float diff = max(dot(n, ldir), 0.0) * (1.0 - ambient) + ambient;
     vec3 col;
     if (idx == 0) {
@@ -510,7 +407,7 @@ const fsSource = `
 
     float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
     vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
-    float escapeR = max(50.0 * u_orbitScale, u_camDist + 20.0);
+    float escapeR = max(50.0, u_camDist + 20.0);
     float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
     float convThresh = pixelAngle * pixelAngle * 0.0625;
     float closeupFactor = smoothstep(30.0, 5.0, u_camDist);
@@ -524,10 +421,9 @@ const fsSource = `
         break;
       }
       if (r > escapeR) break;
-      if (r > mix(100.0, 175.0, step(1.5, u_orbitScale)) && dot(pos, vel) > 0.0) break;
+      if (r > 100.0 && dot(pos, vel) > 0.0) break;
 
-      float stepCap = mix(5.0, 3.0, step(1.5, u_orbitScale) * (1.0 - step(70.0, r)));
-      float dt = max(0.002, min(0.08 * (r - r_h), stepCap));
+      float dt = max(0.002, min(0.08 * (r - r_h), 5.0));
       vec3 prevPos = pos;
       pos += vel_half * dt;
       vec3 a = acceleration(pos, vel_half, L2, spin);
@@ -567,17 +463,6 @@ const fsSource = `
             vec3 ringCol = mix(vec3(0.50, 0.45, 0.38), vec3(0.93, 0.89, 0.81), ringBright);
             float texAtten = 1.0 / (1.0 + (ringPxW * ringPxW + sdW * sdW) * 900.0);
             ringCol *= 0.88 + 0.12 * sin(sd * 30.0) * texAtten;
-            // X-ray flash illumination from nearby detonations
-            if (u_detCount > 0) for(int di=0; di<6; di++) {
-              if (u_detAge[di] >= 0.0 && u_detAge[di] < 6.0) {
-                float dToRing = length(hitPos - u_detPos[di]);
-                float dExp = 1.0 + u_detAge[di] / 0.4;
-                float dIllum = 1.0 / (dExp * dExp);
-                dIllum *= 3.0 / (1.0 + dToRing * dToRing * 0.02);
-                float dTemp = clamp(0.45 - u_detAge[di] * 0.025, 0.03, 0.45);
-                ringCol += blackbodyColor(dTemp) * dIllum * 0.5;
-              }
-            }
             vec2 hp2 = hitPos.xz;
             vec2 sc2 = satC.xz;
             float tSh = dot(sc2, hp2) / dot(hp2, hp2);
@@ -591,7 +476,7 @@ const fsSource = `
         }
         if (accumulatedAlpha > 0.98) break;
       }
-      if (r > 16.0 && r < mix(100.0, 175.0, step(1.5, u_orbitScale)) && accumulatedAlpha < 0.98) {
+      if (r > 16.0 && r < 100.0 && accumulatedAlpha < 0.98) {
         vec3 seg = pos - prevPos;
         float segL2 = dot(seg, seg);
         float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
@@ -634,35 +519,12 @@ const fsSource = `
       // Convergence escape: ray has straightened to a near-straight line and is leaving.
       // Threshold must sit BEYOND the farthest planet orbit, else outbound rays bound for
       // far-side planets get killed before reaching them (flat-bottom planet clipping).
-      // 8100 = 90^2 (orbitScale 1.0); outermost planet Neptune reaches oR 86 + r 1.4 = 87.4.
-      // Scales with orbitScale^2 so nav mode (oS 2.0) -> r>180, beyond its 172 outer orbit.
-      if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 8100.0 * u_orbitScale * u_orbitScale
+      // 8100 = 90^2; outermost planet Neptune reaches oR 86 + r 1.4 = 87.4.
+      if (aDt2 < convThresh * dot(vel, vel) && dot(pos, pos) > 8100.0
           && dot(pos, vel) > 0.0 && pos.y * vel.y > 0.0) {
         break;
       }
       prevY = newY;
-    }
-
-    // Post-loop: volumetric detonation (straight-line ray approximation)
-    if (u_detCount > 0 && accumulatedAlpha < 0.98) {
-      for (int di = 0; di < 6; di++) {
-        if (u_detAge[di] < 0.0) continue;
-        float detExpP = 1.0 + u_detAge[di] / 0.4;
-        float detRP = 0.125 * detExpP;
-        float detShellRP = detRP * 0.9;
-        float detShellWP = 0.05 + detRP * 0.15;
-        float detRMaxP = max(detRP, detShellRP + detShellWP) + 0.2;
-        vec3 toDetP = u_detPos[di] - u_camPos;
-        float tRayP = max(dot(toDetP, rd), 0.0);
-        vec3 nearPtP = u_camPos + rd * tRayP;
-        vec3 diffP = nearPtP - u_detPos[di];
-        if (dot(diffP, diffP) < detRMaxP * detRMaxP) {
-          vec4 det = detonationShading(nearPtP, u_detPos[di], u_detAge[di]);
-          accumulatedColor += det.rgb * max(det.a, 0.001) * (1.0 - accumulatedAlpha);
-          accumulatedAlpha += det.a * (1.0 - accumulatedAlpha);
-        }
-        if (accumulatedAlpha > 0.98) break;
-      }
     }
 
     vec3 bgCol = vec3(0.0);
@@ -691,14 +553,6 @@ const fsSource = `
     }
 
     vec3 finalColor = accumulatedColor + bgCol * (1.0 - accumulatedAlpha);
-
-    // Nuclear detonation: screen-wide flash only (first ~0.3s)
-    if (u_detCount > 0) for(int di=0; di<6; di++) {
-      if (u_detAge[di] >= 0.0 && u_detAge[di] < 1.0) {
-        float flash = exp(-u_detAge[di] * 8.0) * 5.0;
-        finalColor += vec3(flash);
-      }
-    }
 
     float lum = dot(finalColor, vec3(0.2126, 0.7152, 0.0722));
     float bloomAmount = max(lum - 0.6, 0.0) * 0.5;
@@ -758,167 +612,3 @@ const fxaaFS = `
     gl_FragColor = vec4((lB < lMin || lB > lMax) ? rgbA : rgbB, 1.0);
   }
 `;
-
-/* -- Ship Shader -- */
-const shipVS=`attribute vec3 a_shipPos;
-attribute vec3 a_shipNormal;
-uniform mat4 u_mvp;
-uniform mat3 u_normalMatrix;
-varying vec3 v_normal;
-varying vec3 v_pos;
-varying vec3 v_objPos;
-void main(){
-  v_normal=normalize(u_normalMatrix*a_shipNormal);
-  v_pos=a_shipPos;
-  v_objPos=a_shipPos;
-  gl_Position=u_mvp*vec4(a_shipPos,1.0);
-}`;
-const shipFS=`#extension GL_EXT_frag_depth : enable
-precision mediump float;
-uniform vec3 u_shipColor;
-uniform vec3 u_lightDir;
-uniform float u_thrustIntensity;
-varying vec3 v_normal;
-varying vec3 v_pos;
-varying vec3 v_objPos;
-void main(){
-  vec3 n=normalize(v_normal);
-  float diff=max(dot(n,u_lightDir),0.0);
-  float amb=0.15;
-  float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),3.0)*0.3;
-  vec3 col=u_shipColor*(amb+diff*0.85)+vec3(0.3,0.5,0.8)*rim;
-  float engineMask=smoothstep(-0.30,-0.40,v_objPos.z);
-  vec3 engineColor=vec3(0.3,0.5,1.0)*u_thrustIntensity*engineMask;
-  col+=engineColor;
-  gl_FragColor=vec4(col,1.0);
-#ifdef GL_EXT_frag_depth
-  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
-#endif
-}`;
-
-/* -- Trajectory Shader -- */
-const trajVS=`attribute vec3 a_trajPos;
-uniform mat4 u_trajMVP;
-uniform float u_trajPtSize;
-void main(){
-  gl_Position=u_trajMVP*vec4(a_trajPos,1.0);
-  gl_PointSize=u_trajPtSize;
-}`;
-const trajFS=`#extension GL_EXT_frag_depth : enable
-precision mediump float;
-uniform vec4 u_trajColor;
-void main(){
-  vec2 c=gl_PointCoord-0.5;
-  if(dot(c,c)>0.25)discard;
-  gl_FragColor=u_trajColor;
-#ifdef GL_EXT_frag_depth
-  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
-#endif
-}`;
-
-/* -- Enemy Shader (instanced rendering) -- */
-const enemyVS=`attribute vec3 a_position;
-attribute vec3 a_normal;
-attribute vec3 a_instPos;
-attribute float a_instHeading;
-attribute vec4 a_instColor;
-attribute float a_instScale;
-attribute float a_instFlash;
-uniform mat4 u_viewProj;
-uniform vec3 u_lightDir;
-uniform vec3 u_bhPos;
-uniform float u_time;
-varying vec3 v_normal;
-varying vec3 v_worldPos;
-varying vec4 v_color;
-varying float v_rimFactor;
-varying float v_flash;
-void main(){
-  float c=cos(a_instHeading);
-  float s=sin(a_instHeading);
-  vec3 rotated=vec3(
-    (a_position.x*c+a_position.z*s)*a_instScale,
-    a_position.y*a_instScale,
-    (-a_position.x*s+a_position.z*c)*a_instScale
-  );
-  vec3 worldPos=rotated+a_instPos;
-  vec3 toBH=u_bhPos-worldPos;
-  float bhDist=length(toBH);
-  float warpFactor=smoothstep(80000.0,20000.0,bhDist)*3000.0;
-  worldPos+=normalize(toBH)*warpFactor;
-  float diskProximity=exp(-worldPos.y*worldPos.y*0.000001)*smoothstep(140000.0,40000.0,length(worldPos.xz));
-  vec3 rotNormal=vec3(
-    a_normal.x*c+a_normal.z*s,
-    a_normal.y,
-    -a_normal.x*s+a_normal.z*c
-  );
-  v_normal=rotNormal;
-  v_worldPos=worldPos;
-  v_color=a_instColor;
-  v_rimFactor=diskProximity;
-  v_flash=a_instFlash;
-  gl_Position=u_viewProj*vec4(worldPos,1.0);
-}`;
-const enemyFS=`#extension GL_EXT_frag_depth : enable
-precision mediump float;
-uniform vec3 u_lightDir;
-uniform float u_time;
-varying vec3 v_normal;
-varying vec3 v_worldPos;
-varying vec4 v_color;
-varying float v_rimFactor;
-varying float v_flash;
-void main(){
-  vec3 n=normalize(v_normal);
-  float diff=max(dot(n,u_lightDir),0.0);
-  float amb=0.12;
-  float rim=pow(1.0-max(dot(n,vec3(0.0,0.0,1.0)),0.0),2.5);
-  vec3 rimColor=v_color.rgb*rim*0.6;
-  float pulse=0.8+0.2*sin(u_time*3.0);
-  vec3 col=v_color.rgb*(amb+diff*0.85)*pulse;
-  col+=rimColor;
-  col+=vec3(1.0,0.6,0.2)*v_rimFactor*0.3;
-  float engineGlow=max(-dot(n,vec3(0.0,0.0,1.0)),0.0)*0.4;
-  col+=v_color.rgb*engineGlow;
-  col=mix(col,vec3(3.0),v_flash);
-  gl_FragColor=vec4(col,1.0);
-#ifdef GL_EXT_frag_depth
-  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
-#endif
-}`;
-
-/* -- Billboard Explosion Shader (instanced rendering) -- */
-const billboardVS=`attribute vec2 a_corner;
-attribute vec3 a_bbCenter;
-attribute float a_bbFrame;
-attribute float a_bbSize;
-uniform mat4 u_bbViewProj;
-uniform mat4 u_bbView;
-uniform float u_bbFrameCount;
-varying vec2 v_uv;
-void main(){
-  vec3 camRight=vec3(u_bbView[0][0],u_bbView[1][0],u_bbView[2][0]);
-  vec3 camUp=vec3(u_bbView[0][1],u_bbView[1][1],u_bbView[2][1]);
-  vec3 worldPos=a_bbCenter
-    +camRight*a_corner.x*a_bbSize
-    +camUp*a_corner.y*a_bbSize;
-  gl_Position=u_bbViewProj*vec4(worldPos,1.0);
-  float frameWidth=1.0/u_bbFrameCount;
-  float texelInset=0.5/(u_bbFrameCount*64.0);
-  v_uv=vec2(
-    clamp((a_bbFrame+a_corner.x+0.5)*frameWidth,a_bbFrame*frameWidth+texelInset,(a_bbFrame+1.0)*frameWidth-texelInset),
-    a_corner.y+0.5
-  );
-}`;
-const billboardFS=`#extension GL_EXT_frag_depth : enable
-precision mediump float;
-uniform sampler2D u_bbSprite;
-varying vec2 v_uv;
-void main(){
-  vec4 texel=texture2D(u_bbSprite,v_uv);
-  if(texel.a<0.01)discard;
-  gl_FragColor=texel;
-#ifdef GL_EXT_frag_depth
-  gl_FragDepthEXT=log2(max(1e-6,1.0+gl_FragCoord.w))/log2(1.0+600000.0);
-#endif
-}`;

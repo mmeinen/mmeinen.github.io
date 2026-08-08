@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Castle Siege — Tower Defense</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(circle at 50% 30%, #0d1830 0%, #05070f 70%);
+      color: #cfe0ff;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      letter-spacing: 0.5px;
+    }
+    .back-link {
+      position: fixed;
+      top: 12px;
+      left: 16px;
+      color: rgba(60,140,255,0.8);
+      text-decoration: none;
+      font-size: 14px;
+      letter-spacing: 1px;
+      z-index: 100;
+    }
+    .back-link:hover { color: rgba(60,140,255,1); }
+
+    h1 {
+      color: rgba(60,140,255,1);
+      font-size: 22px;
+      letter-spacing: 4px;
+      margin-bottom: 6px;
+      text-shadow: 0 0 14px rgba(60,140,255,0.45);
+    }
+
+    #wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+    #topbar {
+      width: 960px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .stat {
+      flex: 1;
+      text-align: center;
+      padding: 6px 4px;
+      border: 1px solid rgba(60,140,255,0.25);
+      background: rgba(20,40,80,0.35);
+      border-radius: 4px;
+    }
+    .stat .label { color: rgba(150,180,230,0.7); font-size: 10px; display: block; letter-spacing: 1px; }
+    .stat .val { font-size: 18px; font-weight: bold; }
+    #keepVal { color: rgba(255,160,80,1); }
+    #goldVal { color: rgba(255,225,120,1); }
+
+    #diffbar {
+      width: 960px;
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .diff-label {
+      color: rgba(150,180,230,0.7);
+      font-size: 11px;
+      letter-spacing: 1px;
+      align-self: center;
+      padding-right: 2px;
+    }
+    .diff-btn {
+      flex: 1;
+      border: 1px solid rgba(60,140,255,0.35);
+      background: rgba(20,40,80,0.35);
+      color: #cfe0ff;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .diff-btn:hover { background: rgba(40,70,130,0.5); }
+    .diff-btn.sel { border-color: rgba(60,140,255,1); background: rgba(40,80,160,0.55); box-shadow: 0 0 12px rgba(60,140,255,0.4); }
+    .diff-btn[data-diff="insane"].sel { border-color: rgba(255,160,80,1); box-shadow: 0 0 12px rgba(255,160,80,0.45); color: rgba(255,200,140,1); }
+    .diff-btn.locked { opacity: 0.4; cursor: not-allowed; }
+    .diff-btn.sel.locked { opacity: 0.9; cursor: default; }
+
+    #playfield { position: relative; }
+    canvas {
+      display: block;
+      border: 1px solid rgba(60,140,255,0.4);
+      border-radius: 4px;
+      background: #060912;
+      box-shadow: 0 0 30px rgba(20,60,140,0.35);
+      cursor: pointer;
+    }
+
+    #palette {
+      width: 960px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .twr-btn {
+      flex: 1;
+      min-width: 108px;
+      border: 1px solid rgba(60,140,255,0.35);
+      background: rgba(20,40,80,0.35);
+      color: #cfe0ff;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .twr-btn .nm { font-size: 13px; font-weight: bold; display: block; }
+    .twr-btn .cost { color: rgba(255,225,120,1); }
+    .twr-btn .desc { color: rgba(150,180,230,0.7); font-size: 10px; display: block; margin-top: 2px; }
+    .twr-btn:hover { background: rgba(40,70,130,0.5); }
+    .twr-btn.sel { border-color: rgba(60,140,255,1); background: rgba(40,80,160,0.55); box-shadow: 0 0 12px rgba(60,140,255,0.4); }
+    .twr-btn.broke { opacity: 0.45; cursor: not-allowed; }
+
+    .ctrl-btn {
+      border: 1px solid rgba(60,140,255,0.45);
+      background: rgba(30,60,120,0.5);
+      color: #dceaff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 8px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      min-width: 110px;
+    }
+    .ctrl-btn:hover { background: rgba(40,80,160,0.7); }
+    #startBtn { border-color: rgba(120,220,150,0.7); color: rgba(160,255,190,1); }
+
+    #info {
+      width: 960px;
+      min-height: 26px;
+      font-size: 12px;
+      color: rgba(180,205,245,0.85);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #info .ibtn {
+      border: 1px solid rgba(60,140,255,0.4);
+      background: rgba(20,40,80,0.4);
+      color: #cfe0ff;
+      font-family: inherit;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    #info .ibtn:hover { background: rgba(40,70,130,0.6); }
+    #info .ibtn.sell { border-color: rgba(255,160,80,0.5); color: rgba(255,180,110,1); }
+
+    .hint { color: rgba(140,170,220,0.6); font-size: 11px; text-align: center; max-width: 960px; }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../index.html">&larr; Back to Menu</a>
+  <h1>CASTLE SIEGE</h1>
+  <div id="wrap">
+    <div id="topbar">
+      <div class="stat"><span class="label">GOLD</span><span class="val" id="goldVal">0</span></div>
+      <div class="stat"><span class="label">KEEP HP</span><span class="val" id="keepVal">0</span></div>
+      <div class="stat"><span class="label">WAVE</span><span class="val" id="waveVal">0/0</span></div>
+      <div class="stat"><span class="label">SCORE</span><span class="val" id="scoreVal">0</span></div>
+    </div>
+
+    <div id="diffbar">
+      <span class="diff-label">DIFFICULTY</span>
+      <button class="diff-btn sel" data-diff="easy" title="Generous gold, sturdy keep.">EASY</button>
+      <button class="diff-btn" data-diff="normal" title="Tougher raiders, leaner economy.">NORMAL</button>
+      <button class="diff-btn" data-diff="hard" title="Beefy hordes, fragile keep.">HARD</button>
+      <button class="diff-btn" data-diff="insane" title="Brutal HP & speed. Almost no margin.">INSANE</button>
+    </div>
+
+    <div id="playfield">
+      <canvas id="gameCanvas" width="960" height="560"></canvas>
+    </div>
+
+    <div id="palette">
+      <button class="twr-btn" data-type="wall">
+        <span class="nm">[1] WALL</span><span class="cost">5g</span>
+        <span class="desc">Cheap stone blocker.</span>
+      </button>
+      <button class="twr-btn" data-type="gate">
+        <span class="nm">[2] GATE</span><span class="cost">12g</span>
+        <span class="desc">Opens &amp; closes. Funnel them.</span>
+      </button>
+      <button class="twr-btn" data-type="archer">
+        <span class="nm">[3] ARCHER</span><span class="cost">40g</span>
+        <span class="desc">Fast arrows, single target.</span>
+      </button>
+      <button class="twr-btn" data-type="mage">
+        <span class="nm">[4] MAGE</span><span class="cost">70g</span>
+        <span class="desc">Slowing frost bolts.</span>
+      </button>
+      <button class="twr-btn" data-type="catapult">
+        <span class="nm">[5] CATAPULT</span><span class="cost">90g</span>
+        <span class="desc">Slow arcing splash rocks.</span>
+      </button>
+      <button class="twr-btn" data-type="knight">
+        <span class="nm">[6] KNIGHT</span><span class="cost">30g</span>
+        <span class="desc">Blue guard, pins foes. Max 10.</span>
+      </button>
+      <button class="ctrl-btn" id="startBtn">START WAVE</button>
+      <button class="ctrl-btn" id="pauseBtn">PAUSE</button>
+      <button class="ctrl-btn" id="viewBtn">KING VIEW</button>
+    </div>
+
+    <div id="info"></div>
+
+    <div class="hint">
+      Pick a difficulty before you start (locked once wave 1 sends) &middot; press R to restart on the same tier<br>
+      Build walls and towers to protect the KEEP &mdash; raiders assault from ALL four directions and batter down whatever blocks them<br>
+      Weak walls invite a breach: the amber trails show where each horde plans to strike &middot; repair before it's too late<br>
+      Muster blue KNIGHTS to guard a post &mdash; they charge nearby raiders and pin them in melee so they can't march or swing at walls<br>
+      Select a piece, click a cell to build &nbsp;|&nbsp; Click a building to inspect / repair / sell &nbsp;|&nbsp; Click a selected gate to open / close<br>
+      Press V for the KING'S VIEW &mdash; stand atop the keep and survey the siege in first person (drag or &#9668;&#9658; to look around)<br>
+      Keys: 1 2 3 4 5 6 select &middot; SPACE send wave &middot; P pause &middot; V king's view &middot; ESC deselect &middot; R restart
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

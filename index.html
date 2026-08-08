@@ -42,24 +42,6 @@
          <div class="readout-value readout-scale" id="hud-scale"></div>
        </div>
 
-       <!-- Nav mode HUD — hidden until nav mode active -->
-      <div class="fly-nav-group" id="fly-nav-group">
-        <div class="fly-hud-mode" id="fly-hud-mode">NAVIGATION MODE</div>
-        <div class="fly-bullet-time" id="fly-bullet-time">BULLET TIME</div>
-      </div>
-      <div class="fly-crosshair" id="fly-crosshair"></div>
-      <div class="fly-hud-speed" id="fly-hud-speed">
-        <span class="readout-label">SPD</span> <span id="fly-spd">0.0</span>
-        &nbsp;&nbsp;
-        <span class="readout-label">POS</span> <span id="fly-pos">0, 0, 0</span>
-      </div>
-      <div class="fly-hud-altitude" id="fly-hud-altitude">
-        <span class="readout-label">ALT</span>
-        <span id="altitude-val">--</span>
-      </div>
-      <div class="fly-hud-combat" id="combat-mode-indicator">COMBAT</div>
-      <div class="fly-hud-weapon" id="weapon-indicator">1 KINETIC</div>
-
       <!-- Planet labels — positioned by JS to track planet screen positions -->
        <div class="planet-label" id="planet-label-0" data-planet="0">
          <span class="pl-bracket">[</span> DAD <span class="pl-bracket">]</span>
@@ -76,100 +58,6 @@
        <div class="planet-label" id="planet-label-4" data-planet="4">
          <span class="pl-bracket">[</span> THEO <span class="pl-bracket">]</span>
        </div>
-      <!-- L-point labels — VIEW-02: hidden until radar (Phase 15) -->
-       <div class="lpoint-label" id="lpoint-label-0" style="display:none">Jupiter L1</div>
-       <div class="lpoint-label" id="lpoint-label-1" style="display:none">Jupiter L2</div>
-       <div class="lpoint-label" id="lpoint-label-2" style="display:none">Jupiter L4</div>
-       <div class="lpoint-label" id="lpoint-label-3" style="display:none">Jupiter L5</div>
-       <div class="lpoint-label" id="lpoint-label-4" style="display:none">Saturn L1</div>
-       <div class="lpoint-label" id="lpoint-label-5" style="display:none">Saturn L2</div>
-       <div class="lpoint-label" id="lpoint-label-6" style="display:none">Saturn L4</div>
-       <div class="lpoint-label" id="lpoint-label-7" style="display:none">Saturn L5</div>
-       <div class="lpoint-label" id="lpoint-label-8" style="display:none">Neptune L1</div>
-       <div class="lpoint-label" id="lpoint-label-9" style="display:none">Neptune L2</div>
-       <div class="lpoint-label" id="lpoint-label-10" style="display:none">Neptune L4</div>
-       <div class="lpoint-label" id="lpoint-label-11" style="display:none">Neptune L5</div>
-       <button class="nuke-btn" id="nuke-btn">
-         <span class="nuke-icon">&#x2622;</span> DETONATE
-       </button>
-       <button class="missile-fire-btn" id="missile-fire-btn">RIGHT-CLICK TO TARGET</button>
-       <div class="hp-bar-container" id="hp-bar-container"><div class="hp-bar" id="hp-bar"></div><span class="hp-text" id="hp-text">250</span></div>
-       <div id="combat-hud-bar" class="combat-hud-bar">
-         <!-- Left wing: combat status -->
-         <div class="hud-wing hud-wing--left">
-           <button class="hud-mode-toggle" id="hud-mode-toggle">NAV</button>
-           <div class="hud-divider"></div>
-           <div class="hud-hp" id="hud-hp-section">
-             <span class="hud-hp-label">HP</span>
-             <div class="hud-hp-bar-bg">
-               <div class="hud-hp-bar-fill" id="hud-hp-fill"></div>
-             </div>
-             <span class="hud-hp-text" id="hud-hp-text">250</span>
-           </div>
-           <div class="hud-divider"></div>
-           <div class="hud-wave" id="hud-wave">WAVE 1 &middot; 8 ENEMIES</div>
-         </div>
-         <!-- Center: weapons -->
-         <div class="hud-weapons" id="hud-weapons">
-           <div class="weapon-box" data-weapon="0" id="wpn-box-0">
-             <span class="wpn-key">1</span>
-             <span class="wpn-name">KIN</span>
-             <div class="wpn-fill-bg"><div class="wpn-fill" id="wpn-fill-0"></div></div>
-             <span class="wpn-cd" id="wpn-cd-0"></span>
-             <span class="wpn-locks" id="wpn-locks-0"></span>
-           </div>
-           <div class="weapon-box" data-weapon="1" id="wpn-box-1">
-             <span class="wpn-key">2</span>
-             <span class="wpn-name">PLS</span>
-             <div class="wpn-fill-bg"><div class="wpn-fill" id="wpn-fill-1"></div></div>
-             <span class="wpn-cd" id="wpn-cd-1"></span>
-             <span class="wpn-locks" id="wpn-locks-1"></span>
-           </div>
-           <div class="weapon-box" data-weapon="2" id="wpn-box-2">
-             <span class="wpn-key">3</span>
-             <span class="wpn-name">MSL</span>
-             <div class="wpn-fill-bg"><div class="wpn-fill" id="wpn-fill-2"></div></div>
-             <span class="wpn-cd" id="wpn-cd-2"></span>
-             <span class="wpn-locks" id="wpn-locks-2"></span>
-           </div>
-           <div class="weapon-box" data-weapon="3" id="wpn-box-3">
-             <span class="wpn-key">4</span>
-             <span class="wpn-name">NUK</span>
-             <div class="wpn-fill-bg"><div class="wpn-fill" id="wpn-fill-3"></div></div>
-             <span class="wpn-cd" id="wpn-cd-3"></span>
-             <span class="wpn-locks" id="wpn-locks-3"></span>
-           </div>
-         </div>
-         <!-- Right wing: navigation info -->
-         <div class="hud-wing hud-wing--right">
-           <div class="hud-orbit" id="hud-orbit">FREE FLIGHT</div>
-         </div>
-       </div>
-       <div id="wave-announce" class="wave-announce"></div>
-       <div id="fleet-callout-0" class="fleet-callout">
-         <div class="fleet-callout-chevron"></div>
-         <span class="fleet-callout-text"></span>
-       </div>
-       <div id="fleet-callout-1" class="fleet-callout">
-         <div class="fleet-callout-chevron"></div>
-         <span class="fleet-callout-text"></span>
-       </div>
-       <div id="fleet-callout-2" class="fleet-callout">
-         <div class="fleet-callout-chevron"></div>
-         <span class="fleet-callout-text"></span>
-       </div>
-     </div>
-     <div class="damage-vignette" id="damage-vignette"></div>
-     <div id="lock-reticles" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:25;"></div>
-   </div>
-   <div class="game-over-screen" id="game-over-screen">
-     <div class="game-over-title">GAME OVER</div>
-     <div class="game-over-stats" id="game-over-stats"></div>
-     <div class="game-over-best" id="game-over-best"></div>
-     <div class="game-over-prompt">
-       <span class="game-over-key">R</span> RESTART
-       &nbsp;&nbsp;
-       <span class="game-over-key">ESC</span> EXIT
      </div>
    </div>
 
@@ -184,9 +72,8 @@
      </div>
    </div>
 
-   <!-- External JS: shader sources, math, nav mode, missiles -->
+   <!-- External JS: shader sources -->
    <script src="js/scene/shaders.js"></script>
-   <script src="js/scene/math.js"></script>
 
    <script>
     const canvas = document.getElementById('canvas');
@@ -195,11 +82,6 @@
     // Anti-aliasing is done by the FXAA resolve pass instead (see the render pipeline below).
     const gl = canvas.getContext('webgl', { antialias: false });
     gl.getExtension('OES_standard_derivatives');
-    const iExt = gl.getExtension('ANGLE_instanced_arrays');
-    if (!iExt) console.error('ANGLE_instanced_arrays not supported');
-    // Log depth buffer extension for Z-fighting prevention at km-scale distances
-    const extFragDepth = gl.getExtension('EXT_frag_depth');
-    if (!extFragDepth) console.warn('EXT_frag_depth not available -- minor Z-fighting may occur at extreme ranges');
 
     let baseWidth = window.innerWidth;
     let baseHeight = window.innerHeight;
@@ -213,12 +95,12 @@
     // FXAA pass that anti-aliases WHILE it upscales. Because each raymarch pixel runs ~250 heavy
     // iterations, the full-res FXAA pass (a handful of texture taps, with a flat-region early-out)
     // costs only a few percent on top.
-    const SCENE_TEX_UNIT = 2;              // unit 0 = blackbody/noise, unit 1 = explosion sprite
+    const SCENE_TEX_UNIT = 2;              // unit 0 = blackbody LUT
     let lowW = 1, lowH = 1;                // low-res raymarch dimensions (offscreen target size)
-    let sceneFBO = null, sceneTex = null, sceneDepth = null, sceneTexW = 0, sceneTexH = 0;
+    let sceneFBO = null, sceneTex = null, sceneTexW = 0, sceneTexH = 0;
     function ensureSceneTarget() {
       if (sceneFBO && sceneTexW === lowW && sceneTexH === lowH) return;  // dims unchanged -> no realloc
-      if (!sceneFBO) { sceneFBO = gl.createFramebuffer(); sceneTex = gl.createTexture(); sceneDepth = gl.createRenderbuffer(); }
+      if (!sceneFBO) { sceneFBO = gl.createFramebuffer(); sceneTex = gl.createTexture(); }
       // Bind the scene texture on its own unit so we never clobber the raymarch's unit 0.
       gl.activeTexture(gl.TEXTURE0 + SCENE_TEX_UNIT);
       gl.bindTexture(gl.TEXTURE_2D, sceneTex);
@@ -228,13 +110,8 @@
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.activeTexture(gl.TEXTURE0);        // leave unit 0 active for the raymarch program
-      // Depth attachment keeps fly-mode geometry (disabled, but present) depth-testing correctly.
-      gl.bindRenderbuffer(gl.RENDERBUFFER, sceneDepth);
-      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, lowW, lowH);
-      gl.bindRenderbuffer(gl.RENDERBUFFER, null);
       gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
-      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, sceneDepth);
       if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) console.warn('scene FBO incomplete');
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       sceneTexW = lowW; sceneTexH = lowH;
@@ -256,24 +133,16 @@
     resize();
 
     // Each planet is a family member; clicking opens a game-selection submenu.
-    // `name` is the celestial body (used by the combat HUD); `person` + `games` drive the menu.
+    // `name` is the celestial body; `person` + `games` drive the menu.
     // Planets 0-4 are driven by WASM slots 0-4 (slot 5 is left unused).
     const planetData = [
-      { oR: 38.0, ph: 0.0,   sp: 0.018, radius: 2.5, name: 'Jupiter', person: 'Dad',      games: [{t:'Minesweeper',h:'minesweeper.html'},{t:'Freecell',h:'freecell/index.html'},{t:'Pong',h:'pong.html'}] },
+      { oR: 38.0, ph: 0.0,   sp: 0.018, radius: 2.5, name: 'Jupiter', person: 'Dad',      games: [{t:'Minesweeper',h:'minesweeper.html'},{t:'Freecell',h:'freecell/index.html'},{t:'Pong',h:'pong.html'},{t:'Erosion Simulator',h:'erosion/index.html'}] },
       { oR: 52.0, ph: 2.094, sp: 0.012, radius: 2.0, name: 'Saturn',  person: 'Beatrix',  games: [{t:'Jumping Axolotl Nuggets',h:'beatrix_game/index.html'},{t:'Isle of Wandering',h:'Isle%20of%20Wandering/index.html'}] },
-      { oR: 68.0, ph: 4.189, sp: 0.007, radius: 1.5, name: 'Uranus',  person: 'Edmund',   games: [{t:'Travellers',h:'fps/index.html'},{t:'Nugget Invasion',h:'edmund_game/index.html'},{t:'Orbital Defense',h:'tower_defense/index.html'}] },
+      { oR: 68.0, ph: 4.189, sp: 0.007, radius: 1.5, name: 'Uranus',  person: 'Edmund',   games: [{t:'Travellers',h:'fps/index.html'},{t:'Nugget Invasion',h:'edmund_game/index.html'},{t:'Orbital Defense',h:'tower_defense/index.html'},{t:'Castle Siege',h:'castle_siege/index.html'}] },
       { oR: 86.0, ph: 1.047, sp: 0.005, radius: 1.4, name: 'Neptune', person: 'Madeline', games: [{t:'Cat Invasion',h:'cat_invasion/index.html'},{t:'Island Explorer',h:'island_world/index.html'}] },
       { oR: 45.0, ph: 1.5,   sp: 0.015, radius: 1.3, name: 'Mars',    person: 'Theo',     games: [{t:'Turtle Race',h:'Turtle%20Race/turtle-racing.html'}] },
     ];
     let camDist = 120.0;
-
-    // Fleet combat / fly mode is DISABLED (the game is broken). All combat code remains
-    // in js/scene/*.js but is prevented from executing. Set to true to re-enable.
-    const COMBAT_GAME_ENABLED = false;
-
-    const detSlots=[];
-    for(let i=0;i<6;i++) detSlots.push({active:false,pos:[0,0,0],startSimTime:-1});
-    const DET_DURATION=60.0;
 
     const WB="AGFzbQEAAAABMAdgAX0BfWABfwBgA319fQBgCH19fX19fX19AGAIfX19fX19fX0Bf2ACfX0Bf2AAAAIgAwNlbnYDc2luAAADZW52A2NvcwAAA2VudgRzcXJ0AAADCAcAAQIDBAUGBQMBAAEGGQN9AUMAAAAAC30BQwAAAAALfQFDAAAAAAsHEgIGbWVtb3J5AgAFZnJhbWUACQr4FAdqAgF9AX8gAEMAAAAAXwRAIABDAAAAAFsEQEMAAAAADwsgAIwQA4wPCyAAEAJDMzMzP5QhAUEAIQICQANAIAJBBE8NAUMAAABAIAGUIAAgASABlJWSQwAAQECVIQEgAkEBaiECDAALCyABC0wCAX8EfUGAAiAAQRBsaiEBIAEqAgAhAiABKgIEIQMgASoCCCEEIANBECoCACAElJIhBSAFEAEgApQkAEMAAAAAJAEgBRAAIAKUJAIL6gEBCX1BHCoCACEKQSAqAgAhCyAAQTAqAgCTIQMgAUE0KgIAkyEEIAJBOCoCAJMhBSADQTwqAgCUIARBwAAqAgCUkiAFQcQAKgIAlJIhBiAGQwAAAABfBEBDADwcxiQAQwA8HMYkAUMAAIC/JAIPCyADQcgAKgIAlCAEQcwAKgIAlJIgBUHQACoCAJSSIQcgA0HUACoCAJQgBEHYACoCAJSSIAVB3AAqAgCUkiEIIAogC5YhCSAKQwAAAD+UIAcgBpVDZmbmPyAJlJSSJAAgC0MAAAA/lCAIIAaVQ2Zm5j8gCZSUkyQBIAYkAguMAgEPfSAAIACUIAEgAZSSIAIgApSSEAIhCCAIIAiUIQkgCSAIlCEKIAkgCpQhC0MAAMC/IAaUIAuVIQwgDCAAlCENIAwgAZQhDiAMIAKUIQ8gB4tDbxKDOl0EQCANJAAgDiQBIA8kAg8LIAAgCJUhECABIAiVIREgAiAIlSESIAcgEZQhE0MAAMDAIBMgEJSUIAqVIRRDAAAAQCAHlEMAAMBAIBMgEZSUkyAKlSEVQwAAwMAgEyASlJQgCpUhFiANQwAAAEAgFSAFlCAWIASUk5SSIQ0gDkMAAABAIBYgA5QgFCAFlJOUkiEOIA9DAAAAQCAUIASUIBUgA5STlJIhDyANJAAgDiQBIA8kAgvHBQYNfQF/CX0BfxB9AX8gACEIIAEhCSACIQogAyELIAQhDCAFIQ0gCSANlCAKIAyUkyERIAogC5QgCCANlJMhEiAIIAyUIAkgC5STIRMgESARlCASIBKUkiATIBOUkiEUIAggCSAKIAsgDCANIBQgBxAGIwAhDiMBIQ8jAiEQQQAhFQJAA0AgFUHkAE8NASAIIAiUIAkgCZSSIAogCpSSEAIhFiAWIAZDrkeBP5RdDQEgFkMAAFxCXgRAIAggC5QgCSAMlJIgCiANlJJDAAAAAF4EQAwDCwtDbxIDO0MK16M9IBYgBpOUQwAAoECWlyEXIAghGCAJIRkgCiEaIAggCyAXlEMAAAA/IA4gFyAXlJSUkpIhCCAJIAwgF5RDAAAAPyAPIBcgF5SUlJKSIQkgCiANIBeUQwAAAD8gECAXIBeUlJSSkiEKIAggCSAKIAsgDCANIBQgBxAGIwAhGyMBIRwjAiEdIAtDAAAAPyAOIBuSIBeUlJIhCyAMQwAAAD8gDyAckiAXlJSSIQwgDUMAAAA/IBAgHZIgF5SUkiENIBshDiAcIQ8gHSEQIAggCJQgCSAJlJIgCiAKlJIQAiEeIB5DAACAQV4gHkMAAExCXXEEQCAIIBiTISAgCSAZkyEhIAogGpMhIiAgICCUICEgIZSSICIgIpSSISNBACEfAkADQCAfQQZPDQFB8AAgH0EMbGohMCAwKgIAISQgMCoCBCElIDAqAgghJkGMAiAfQRBsaioCACEnIBggJJMhKCAZICWTISkgGiAmkyEqICggIJQgKSAhlJIgKiAilJIhK0MAAAAAICuMICOVQwAAgD+WlyEsICggICAslJIhLSApICEgLJSSIS4gKiAiICyUkiEvIC0gLZQgLiAulJIgLyAvlJIgJyAnlF0EQCAfDwsgH0EBaiEfDAALCwsgFUEBaiEVDAALC0F/C/IDBxd9AX8BfQF/C30BfwJ9QTAqAgAhFkE0KgIAIRdBOCoCACEYQTwqAgAhB0HAACoCACEIQcQAKgIAIQlByAAqAgAhCkHQACoCACELQdQAKgIAIQxB2AAqAgAhDUHcACoCACEOQRwqAgAhAkEgKgIAIQNB4AAqAgAhKEEMKgIAISkgAiADliEEIAAgAkMAAAA/lJNDZmbmPyAElJUhBSADQwAAAD+UIAGTQ2Zm5j8gBJSVIQYgByAKIAWUIAwgBpSSkiEPIAggDSAGlJIhECAJIAsgBZQgDiAGlJKSIREgDyAPlCAQIBCUkiARIBGUkhACIRIgDyASlSETIBAgEpUhFCARIBKVIRVBfyEZQ/AjdEkhGkEAIRsCQANAIBtBBk8NAUHwACAbQQxsaiEnICcqAgAhHCAnKgIEIR0gJyoCCCEeQYwCIBtBEGxqKgIAIR8gFiAckyEgIBcgHZMhISAYIB6TISIgICATlCAhIBSUkiAiIBWUkiEjICAgIJQgISAhlJIgIiAilJIgHyAflJMhJCAjICOUICSTISUgJUMAAAAAYARAICOMICUQApMhJiAmQwAAAABeICYgGl1xBEAgJiEaIBshGQsLIBtBAWohGwwACwsgGUEASARAIBYgFyAYIBMgFCAVICggKRAHIRkLIBkLhgYEHn0CfwN9AX9BACoCACEAQQQqAgAhAUEIKgIAIQJBDCoCACEDQRAqAgAhBEEUKgIAIQVBGCoCACEGIAEQASEHIAEQACEIIAAQASEJIAAQACEKIAIgByAKlJQhCyACIAiUIQwgAiAHIAmUlCENIAsgC5QgDCAMlJIgDSANlJIQAiEOIAuMIA6VIQ8gDIwgDpUhECANjCAOlSERIBEgEZQgDyAPlJIQAiESIBEgEpUhEyAPjCASlSEUIBQgEJSMIRUgFCAPlCATIBGUkyEWIBMgEJQhF0EwIAs4AgBBNCAMOAIAQTggDTgCAEE8IA84AgBBwAAgEDgCAEHEACAROAIAQcgAIBM4AgBBzABDAAAAADgCAEHQACAUOAIAQdQAIBU4AgBB2AAgFjgCAEHcACAXOAIAIAOLIRggGCAYlCEZQwAAgD9DAACAPyAZk0MAAAAAlxACkiEaQwAAgD9DAACAPyAZk0MAAAAAlxADQwAAgD8gGJIQA0MAAIA/IBiTQwAAAACXEAOSlJIhHEMAAEBAIBmUIBwgHJSSEAIhHUMAAEBAIB2SQwAAQEAgHJNDAABAQCAcQwAAAEAgHZSSkpRDAAAAAJcQApMhG0HgACAaOAIAQeQAIBs4AgBBACEeAkADQCAeQQZPDQEgHhAEQfAAIB5BDGxqIR8gHyMAOAIAIB8jATgCBCAfIwI4AgggHkEBaiEeDAALC0EAIR4CQANAIB5BBk8NAUHwACAeQQxsaiEfIB8qAgAgHyoCBCAfKgIIEAVBuAEgHkEMbGohHyAfIwA4AgAgHyMBOAIEIB8jAjgCCCAeQQFqIR4MAAsLIAVDAAAAAGAEQCAFIAYQCCEjQegAICM2AgAFQegAQX82AgALQSgqAgAhIEEkKgIAISEgIEMAAOBBXgRAQzMzsz4gIUOamVk/lJchIiAiICGTi0MK16M7XgRAICIhIQsFICBDAACgQV0EQEMAAIA/ICFDZmaGP5SWISIgIiAhk4tDCtejO14EQCAiISELCwtB7AAgITgCAAs=";
     const pL=planetData.map((_,i)=>document.getElementById('planet-label-'+i));
@@ -317,296 +186,11 @@
     // every other frame, or immediately after the mouse moves (hoverDirty). hP persists between.
     let hoverFrame=0,hoverDirty=true;
     const DF={camAz:0,camEl:-0.32,camDist:120,sp:0};
-
-    // HUD refs
-    const flyHudMode=document.getElementById('fly-hud-mode');
-    const flyBulletTime=document.getElementById('fly-bullet-time');
-    const flyNavGroup=document.getElementById('fly-nav-group');
-    const hudOverlay=document.querySelector('.hud-overlay');
-    const flyCrosshair=document.getElementById('fly-crosshair');
-    const flyHudSpeed=document.getElementById('fly-hud-speed');
-    const flySpdEl=document.getElementById('fly-spd');
-    const flyPosEl=document.getElementById('fly-pos');
-    const flyHudAltEl=document.getElementById('fly-hud-altitude');
-    const altValEl=document.getElementById('altitude-val');
-    const combatIndicatorEl=document.getElementById('combat-mode-indicator');
-    const weaponIndicatorEl=document.getElementById('weapon-indicator');
-    // Bottom bar HUD refs
-    const wpnBoxEls=[0,1,2,3].map(i=>document.getElementById('wpn-box-'+i));
-    const wpnFillEls=[0,1,2,3].map(i=>document.getElementById('wpn-fill-'+i));
-    const wpnCdEls=[0,1,2,3].map(i=>document.getElementById('wpn-cd-'+i));
-    const wpnLockEls=[0,1,2,3].map(i=>document.getElementById('wpn-locks-'+i));
-    const hudHpFillEl=document.getElementById('hud-hp-fill');
-    const hudHpTextEl=document.getElementById('hud-hp-text');
-    const hudWaveEl=document.getElementById('hud-wave');
-    const hudOrbitEl=document.getElementById('hud-orbit');
-    const hudModeToggleEl=document.getElementById('hud-mode-toggle');
-    // Bottom bar click handlers
-    document.getElementById('hud-weapons').addEventListener('click',function(e){
-      const box=e.target.closest('.weapon-box');
-      if(!box)return;
-      const wIdx=parseInt(box.dataset.weapon);
-      if(isNaN(wIdx)||wIdx<0||wIdx>3)return;
-      selectedWeapon=wIdx;
-      if(typeof updateMissileLimits==='function')updateMissileLimits(wIdx);
-    });
-    document.getElementById('hud-mode-toggle').addEventListener('click',function(){
-      // VIEW-01: combat mode always on, toggle disabled
-    });
-    // L-point state
-    const lagrangeVisible=false; // VIEW-02: disabled until radar
-    const LPOINT_PLANETS=[0,1,3]; // Jupiter, Saturn, Neptune
-    const LPOINT_NAMES=['L1','L2','L4','L5'];
-    const lPointPositions=new Float32Array(12*3); // 3 planets x 4 L-points x 3 floats
-    const LPOINT_MARKER_RADIUS=0.8;
-    const lPointLabels=[];
-    for(let i=0;i<12;i++)lPointLabels.push(document.getElementById('lpoint-label-'+i));
-
-    /* ---- Player State ---- */
-    const playerState = {
-      hp: 250, maxHp: 250, alive: true,
-      deathPhase: 0, deathTimer: 0, // 0=alive, 1=flicker, 2=breakup, 3=detonation, 4=gameOver
-      stats: { enemiesKilled: 0, wavesSurvived: 1, timeSurvived: 0, damageDealt: 0, shotsFired: 0, shotsHit: 0 },
-      best: { wavesSurvived: 0, enemiesKilled: 0 },
-    };
-    const ENEMY_KINETIC_DAMAGE = 15;
-
-    /* ---- Shield SoA Store ---- */
-    const MAX_SHIELD_PIECES = 10;
-    const shield = {
-      alive: new Uint8Array(MAX_SHIELD_PIECES),
-      posX: new Float32Array(MAX_SHIELD_PIECES),
-      posY: new Float32Array(MAX_SHIELD_PIECES),
-      posZ: new Float32Array(MAX_SHIELD_PIECES),
-      offFwd: new Float32Array(MAX_SHIELD_PIECES),
-      offRight: new Float32Array(MAX_SHIELD_PIECES),
-    };
-    let shieldCount = 0;
-    const SHIELD_HIT_RADIUS = 400;   // km -- shield piece hit detection radius
-    const SHIELD_HIT_RADIUS_SQ = SHIELD_HIT_RADIUS * SHIELD_HIT_RADIUS;
-
-    function initShieldWall() {
-      // Two rows of 5, staggered arc formation in front of ship
-      for (let i = 0; i < MAX_SHIELD_PIECES; i++) {
-        shield.alive[i] = 1;
-        const row = i < 5 ? 0 : 1;
-        const col = i < 5 ? i : i - 5;
-        shield.offFwd[i] = 15 + row * 5; // 15 km front row, 20 km back row (km-scale)
-        shield.offRight[i] = (col - 2) * 8 + (row === 1 ? 4 : 0); // km-scale staggered
-      }
-      shieldCount = MAX_SHIELD_PIECES;
-    }
-
-    function updateShieldPositions() {
-      const rightX = -flyFwd[2], rightZ = flyFwd[0];
-      for (let i = 0; i < MAX_SHIELD_PIECES; i++) {
-        if (!shield.alive[i]) continue;
-        shield.posX[i] = flyPos[0] + flyFwd[0] * shield.offFwd[i] + rightX * shield.offRight[i];
-        shield.posY[i] = 0;
-        shield.posZ[i] = flyPos[2] + flyFwd[2] * shield.offFwd[i] + rightZ * shield.offRight[i];
-      }
-    }
-
-    function destroyShieldPiece(idx) {
-      shield.alive[idx] = 0;
-      shieldCount--;
-      if (typeof spawnImpactParticles === 'function') spawnImpactParticles(shield.posX[idx], shield.posZ[idx], 0);
-    }
-
-    function applyPlayerDamage(amount) {
-      if (!playerState.alive) return;
-      playerState.hp -= amount;
-      if (playerState.hp <= 0) {
-        playerState.hp = 0;
-        playerState.alive = false;
-        playerState.deathPhase = 1;
-        playerState.deathTimer = 0;
-      }
-    }
-
-    /* ---- Stat Tracking Helpers ---- */
-    function recordDamageDealt(amount) { playerState.stats.damageDealt += amount; }
-    function recordEnemyKill() { playerState.stats.enemiesKilled++; }
-    function recordShotFired() { playerState.stats.shotsFired++; }
-    function recordShotHit() { playerState.stats.shotsHit++; }
-
-    function loadHighScores() {
-      try {
-        const d = JSON.parse(localStorage.getItem('meinenspace_best'));
-        if (d) { playerState.best.wavesSurvived = d.wavesSurvived || 0; playerState.best.enemiesKilled = d.enemiesKilled || 0; }
-      } catch (e) { /* ignore */ }
-    }
-    function saveHighScores() {
-      try {
-        const b = playerState.best;
-        if (playerState.stats.wavesSurvived > b.wavesSurvived) b.wavesSurvived = playerState.stats.wavesSurvived;
-        if (playerState.stats.enemiesKilled > b.enemiesKilled) b.enemiesKilled = playerState.stats.enemiesKilled;
-        localStorage.setItem('meinenspace_best', JSON.stringify(b));
-      } catch (e) { /* ignore */ }
-    }
-    loadHighScores();
-
-    /* ---- Death Sequence: Breakup Debris Store ---- */
-    const BREAKUP_PIECES = 4;
-    const breakup = {
-      posX: new Float32Array(BREAKUP_PIECES),
-      posY: new Float32Array(BREAKUP_PIECES),
-      posZ: new Float32Array(BREAKUP_PIECES),
-      velX: new Float32Array(BREAKUP_PIECES),
-      velY: new Float32Array(BREAKUP_PIECES),
-      velZ: new Float32Array(BREAKUP_PIECES),
-      rotX: new Float32Array(BREAKUP_PIECES),
-      rotY: new Float32Array(BREAKUP_PIECES),
-      spinX: new Float32Array(BREAKUP_PIECES),
-      spinY: new Float32Array(BREAKUP_PIECES),
-    };
-    let deathCamSaved = { az: 0, el: 0, dist: 0 };
-    let deathPos = [0, 0, 0]; // frozen position for camera target during death
-
-    function initBreakup() {
-      deathPos[0] = flyPos[0]; deathPos[1] = flyPos[1]; deathPos[2] = flyPos[2];
-      for (let i = 0; i < BREAKUP_PIECES; i++) {
-        breakup.posX[i] = flyPos[0];
-        breakup.posY[i] = 0;
-        breakup.posZ[i] = flyPos[2];
-        // Random outward velocity (3-8 units/s radially outward + 1-3 units/s upward)
-        const angle = (i / BREAKUP_PIECES) * Math.PI * 2 + (Math.random() - 0.5) * 1.0;
-        const speed = 3 + Math.random() * 5;
-        breakup.velX[i] = Math.sin(angle) * speed;
-        breakup.velY[i] = 1 + Math.random() * 2;
-        breakup.velZ[i] = Math.cos(angle) * speed;
-        breakup.rotX[i] = 0;
-        breakup.rotY[i] = 0;
-        breakup.spinX[i] = (Math.random() - 0.5) * 6;
-        breakup.spinY[i] = (Math.random() - 0.5) * 6;
-      }
-      spawnExplosion(flyPos[0], 0, flyPos[2], PLAYER_SIZE_KM*2);
-    }
-
-    function updateBreakup(dt) {
-      for (let i = 0; i < BREAKUP_PIECES; i++) {
-        breakup.posX[i] += breakup.velX[i] * dt;
-        breakup.posY[i] += breakup.velY[i] * dt;
-        breakup.posZ[i] += breakup.velZ[i] * dt;
-        breakup.rotX[i] += breakup.spinX[i] * dt;
-        breakup.rotY[i] += breakup.spinY[i] * dt;
-        // Slight downward gravity
-        breakup.velY[i] -= 2.0 * dt;
-      }
-    }
-
-    function triggerDetonationAtShip() {
-      const slot = detSlots.find(function(s) { return !s.active; });
-      if (!slot) return;
-      // deathPos is in km; convert to abstract units for shader detonation effect
-      slot.pos[0] = deathPos[0]/ORBIT_SCALE; slot.pos[1] = 0; slot.pos[2] = deathPos[2]/ORBIT_SCALE;
-      slot.startSimTime = simTime;
-      slot.active = true;
-    }
-
-    // HUD refs for HP
-    const vignetteEl = document.getElementById('damage-vignette');
-    const hpBarEl = document.getElementById('hp-bar');
-    const hpTextEl = document.getElementById('hp-text');
    </script>
-
-   <!-- Scale constants (must load before nav/orbital/combat) -->
-   <script src="js/scene/scale.js"></script>
-   <!-- Nav mode + combat + weapons + explosions + missiles (depend on planetData, DOM refs, math) -->
-   <script src="js/scene/orbital.js"></script>
-   <script src="js/scene/nav.js"></script>
-   <script src="js/scene/combat.js"></script>
-   <script src="js/scene/fleets.js"></script>
-   <script src="js/scene/waves.js"></script>
-   <script src="js/scene/weapons.js"></script>
-   <script src="js/scene/explosions.js"></script>
-   <script src="js/scene/particles.js"></script>
-   <script src="js/scene/missiles.js"></script>
 
    <script>
     /* ---- GL setup, buffers, input, render loop ---- */
     let W,dv,wf;
-
-    // Pre-allocated scratch arrays (zero per-frame allocation in render loop)
-    const _camP=new Float32Array(3),_camF=new Float32Array(3),_camR=new Float32Array(3),_camU=new Float32Array(3);
-    const _shipR=new Float32Array(3),_worldUp=new Float32Array([0,1,0]);
-    const _toLW=new Float32Array(3),_toLV=new Float32Array(3);
-    // CRR: camera world position (float64) for camera-relative rendering
-    let _camWX=0,_camWY=0,_camWZ=0;
-    const _proj=new Float32Array(16),_view=new Float32Array(16),_vpMat=new Float32Array(16);
-    const _model=new Float32Array(16),_mvp=new Float32Array(16),_t16=new Float32Array(16);
-    const _normM=new Float32Array(9);
-    const _mR=new Float32Array(3),_mMod=new Float32Array(16),_mMvp=new Float32Array(16),_mT16=new Float32Array(16),_mNorm=new Float32Array(9);
-    const _aimLine=new Float32Array(6),_tgtMark=new Float32Array(12),_tgtDot=new Float32Array(3);
-    const _detAgeFlat=new Float32Array(6),_detPosFlat=new Float32Array(18);
-    // Missile trail ring buffer
-    const missileTrailMaxPts=1024;
-    const missileTrailPos=new Float32Array(missileTrailMaxPts*3);
-    const missileTrailAlpha=new Float32Array(missileTrailMaxPts);
-    const missileTrailType=new Uint8Array(missileTrailMaxPts);
-    let missileTrailHead=0,missileTrailCount=0;
-    // Lock reticle DOM pool
-    const lockReticlesContainer=document.getElementById('lock-reticles');
-    const lockReticleDivs=[];
-    for(let lr=0;lr<6;lr++){const d=document.createElement('div');d.className='lock-reticle';d.innerHTML='<span class="lock-count"></span>';d.style.display='none';lockReticlesContainer.appendChild(d);lockReticleDivs.push(d);}
-    // Off-screen enemy indicator DOM pool
-    const INDICATOR_RANGE=200;
-    const indicatorEls=[];
-    for(let ii=0;ii<MAX_ENEMIES;ii++){
-      const el=document.createElement('div');
-      el.className='enemy-indicator';
-      el.innerHTML='<div class="indicator-chevron"></div><span class="indicator-dist"></span>';
-      el.style.display='none';
-      document.body.appendChild(el);
-      indicatorEls[ii]=el;
-    }
-    // Tactical overlay state and DOM pool (Phase 9)
-    // Tactical overlays are unified with combat mode (no separate toggle)
-    const TAC_MAX_TARGETS=8;
-    const tacTargets=[]; // [{enemyIdx, weaponIdx}] - Plan 02 populates
-    const ARCHETYPE_ABBREVS=['G','S','B','N','C'];
-    const WEAPON_ABBREVS=['KIN','PLS','MSL','NUK'];
-    const tacMarkerContainer=document.createElement('div');
-    tacMarkerContainer.id='tac-markers';
-    tacMarkerContainer.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:25;display:none;';
-    document.querySelector('.hud-overlay').appendChild(tacMarkerContainer);
-    const tacMarkerEls=[];
-    for(let i=0;i<MAX_ENEMIES;i++){
-      const el=document.createElement('div');
-      el.className='tac-marker';
-      el.innerHTML='<div class="tac-ring"></div><span class="tac-type"></span><span class="tac-dist"></span><span class="tac-wpn"></span><div class="tac-info"><span class="tac-hp"></span></div>';
-      el.style.display='none';
-      el.dataset.enemyIdx=i;
-      el._typeSpan=el.querySelector('.tac-type');
-      el._distSpan=el.querySelector('.tac-dist');
-      el._wpnSpan=el.querySelector('.tac-wpn');
-      el._ringDiv=el.querySelector('.tac-ring');
-      el._infoDiv=el.querySelector('.tac-info');
-      el._hpSpan=el.querySelector('.tac-hp');
-      tacMarkerContainer.appendChild(el);
-      tacMarkerEls[i]=el;
-    }
-    function addTacTarget(enemyIdx,weaponIdx){
-      if(tacTargets.length>=TAC_MAX_TARGETS)return false;
-      for(let i=0;i<tacTargets.length;i++){if(tacTargets[i].enemyIdx===enemyIdx)return false;}
-      tacTargets.push({enemyIdx:enemyIdx,weaponIdx:weaponIdx});
-      return true;
-    }
-    function removeTacTarget(enemyIdx){
-      for(let i=0;i<tacTargets.length;i++){
-        if(tacTargets[i].enemyIdx===enemyIdx){tacTargets.splice(i,1);return true;}
-      }
-      return false;
-    }
-    function clearTacTargets(){tacTargets.length=0;}
-    function getTacEntry(enemyIdx){
-      for(let i=0;i<tacTargets.length;i++){if(tacTargets[i].enemyIdx===enemyIdx)return tacTargets[i];}
-      return null;
-    }
-    // toggleTacticalMode removed: tactical is unified with combat mode
-
-    // Missile trail render buffer for GPU upload
-    const _mtRenderBuf=new Float32Array(missileTrailMaxPts*3);
 
     function cS(g,s,t){const sh=g.createShader(t);g.shaderSource(sh,s);g.compileShader(sh);if(!g.getShaderParameter(sh,g.COMPILE_STATUS)){console.error(g.getShaderInfoLog(sh));g.deleteShader(sh);return null}return sh}
     const vs=cS(gl,vsSource,gl.VERTEX_SHADER),fs=cS(gl,fsSource,gl.FRAGMENT_SHADER),pg=gl.createProgram();
@@ -622,13 +206,9 @@
       uCR=gl.getUniformLocation(pg,'u_camRight'),uCU=gl.getUniformLocation(pg,'u_camUp'),
       uRH=gl.getUniformLocation(pg,'u_rH'),uRI=gl.getUniformLocation(pg,'u_rIsco'),
       uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
-      uOS=gl.getUniformLocation(pg,'u_orbitScale'),
       uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
            gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3'),
            gl.getUniformLocation(pg,'u_planet4')];
-    const uDetPos=[],uDetAge=[];
-    for(let i=0;i<6;i++){uDetPos.push(gl.getUniformLocation(pg,'u_detPos['+i+']'));uDetAge.push(gl.getUniformLocation(pg,'u_detAge['+i+']'));}
-    const uDetCount=gl.getUniformLocation(pg,'u_detCount');
 
     // Blackbody 1D lookup texture
     const uBB=gl.getUniformLocation(pg,'u_bbTex');
@@ -665,208 +245,6 @@
     gl.useProgram(fxaaPg);gl.uniform1i(uFxTex,SCENE_TEX_UNIT);
     gl.useProgram(pg);                   // restore raymarch program as the active default
 
-    /* ---- Ship shader program ---- */
-    const sVS=cS(gl,shipVS,gl.VERTEX_SHADER),sFS=cS(gl,shipFS,gl.FRAGMENT_SHADER),shipPg=gl.createProgram();
-    gl.attachShader(shipPg,sVS);gl.attachShader(shipPg,sFS);gl.linkProgram(shipPg);
-    if(!gl.getProgramParameter(shipPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(shipPg));
-    const shipLocs={
-      aPos:gl.getAttribLocation(shipPg,'a_shipPos'),
-      aNorm:gl.getAttribLocation(shipPg,'a_shipNormal'),
-      uMvp:gl.getUniformLocation(shipPg,'u_mvp'),
-      uNorm:gl.getUniformLocation(shipPg,'u_normalMatrix'),
-      uColor:gl.getUniformLocation(shipPg,'u_shipColor'),
-      uLight:gl.getUniformLocation(shipPg,'u_lightDir'),
-      uThrust:gl.getUniformLocation(shipPg,'u_thrustIntensity')
-    };
-    /* ---- Enemy shader program (instanced) ---- */
-    const eVS=cS(gl,enemyVS,gl.VERTEX_SHADER),eFS=cS(gl,enemyFS,gl.FRAGMENT_SHADER),enemyPg=gl.createProgram();
-    gl.attachShader(enemyPg,eVS);gl.attachShader(enemyPg,eFS);gl.linkProgram(enemyPg);
-    if(!gl.getProgramParameter(enemyPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(enemyPg));
-    const enemyLocs={
-      aPos:gl.getAttribLocation(enemyPg,'a_position'),
-      aNorm:gl.getAttribLocation(enemyPg,'a_normal'),
-      aInstPos:gl.getAttribLocation(enemyPg,'a_instPos'),
-      aInstHeading:gl.getAttribLocation(enemyPg,'a_instHeading'),
-      aInstColor:gl.getAttribLocation(enemyPg,'a_instColor'),
-      aInstScale:gl.getAttribLocation(enemyPg,'a_instScale'),
-      aInstFlash:gl.getAttribLocation(enemyPg,'a_instFlash'),
-      uViewProj:gl.getUniformLocation(enemyPg,'u_viewProj'),
-      uLightDir:gl.getUniformLocation(enemyPg,'u_lightDir'),
-      uBhPos:gl.getUniformLocation(enemyPg,'u_bhPos'),
-      uTime:gl.getUniformLocation(enemyPg,'u_time')
-    };
-
-    const shipGeo=createCapitalShipGeometry();
-    const shipIdxCount=shipGeo.indices.length;
-    const shipPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,shipGeo.positions,gl.STATIC_DRAW);
-    const shipNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shipNrmBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,shipGeo.normals,gl.STATIC_DRAW);
-    const shipIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,shipGeo.indices,gl.STATIC_DRAW);
-    // Missile geometry
-    const missileGeo=createBoxGeometry(MISSILE_HALF[0],MISSILE_HALF[1],MISSILE_HALF[2]);
-    const missilePosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,missileGeo.positions,gl.STATIC_DRAW);
-    const missileNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,missileGeo.normals,gl.STATIC_DRAW);
-    const missileIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,missileGeo.indices,gl.STATIC_DRAW);
-    // Shield piece geometry (small rectangular debris)
-    const shieldGeo=createBoxGeometry(0.3,0.15,0.4);
-    const shieldIdxCount=shieldGeo.indices.length;
-    const shieldPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shieldPosBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,shieldGeo.positions,gl.STATIC_DRAW);
-    const shieldNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,shieldNrmBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,shieldGeo.normals,gl.STATIC_DRAW);
-    const shieldIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shieldIdxBuf);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,shieldGeo.indices,gl.STATIC_DRAW);
-    // Shield model matrices (scratch)
-    const _shieldModel=new Float32Array(16),_shieldMvp=new Float32Array(16),_shieldT16=new Float32Array(16),_shieldNorm=new Float32Array(9);
-    const _shieldFwd=new Float32Array(3),_shieldR=new Float32Array(3);
-    const SHIELD_COLOR=[0.5,0.55,0.65];
-    function renderShieldPieces(){
-      if(shieldCount===0)return;
-      gl.useProgram(shipPg);
-      for(let i=0;i<MAX_SHIELD_PIECES;i++){
-        if(!shield.alive[i])continue;
-        const px=shield.posX[i],pz=shield.posZ[i];
-        // Slight rotation offset per piece for visual variety
-        const rotOff=i*0.3;
-        const c=Math.cos(rotOff),s=Math.sin(rotOff);
-        _shieldFwd[0]=flyFwd[0]*c+(-flyFwd[2])*s;_shieldFwd[1]=0;_shieldFwd[2]=flyFwd[2]*c+flyFwd[0]*s;
-        v3cross(_shieldR,_shieldFwd,_worldUp);v3norm(_shieldR,_shieldR);
-        // CRR: camera-relative shield position
-        const sPos=[px-_camWX,0-_camWY,pz-_camWZ];
-        mat4Model(sPos,_shieldFwd,_worldUp,_shieldR,_shieldModel);
-        mat4Mul(_view,_shieldModel,_shieldT16);
-        mat4Mul(_proj,_shieldT16,_shieldMvp);
-        mat3NormalFromMat4(_shieldT16,_shieldNorm);
-        gl.uniformMatrix4fv(shipLocs.uMvp,false,_shieldMvp);
-        gl.uniformMatrix3fv(shipLocs.uNorm,false,_shieldNorm);
-        gl.uniform3f(shipLocs.uColor,SHIELD_COLOR[0],SHIELD_COLOR[1],SHIELD_COLOR[2]);
-        gl.uniform1f(shipLocs.uThrust,0.0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,shieldPosBuf);
-        gl.enableVertexAttribArray(shipLocs.aPos);
-        gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,shieldNrmBuf);
-        gl.enableVertexAttribArray(shipLocs.aNorm);
-        gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shieldIdxBuf);
-        gl.drawElements(gl.TRIANGLES,shieldIdxCount,gl.UNSIGNED_SHORT,0);
-        gl.disableVertexAttribArray(shipLocs.aPos);
-        gl.disableVertexAttribArray(shipLocs.aNorm);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-      }
-    }
-    // Breakup debris geometry (larger hull chunks)
-    const breakupGeo=createBoxGeometry(0.4,0.2,0.6);
-    const breakupIdxCount=breakupGeo.indices.length;
-    const breakupPosBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,breakupPosBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,breakupGeo.positions,gl.STATIC_DRAW);
-    const breakupNrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,breakupNrmBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,breakupGeo.normals,gl.STATIC_DRAW);
-    const breakupIdxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,breakupIdxBuf);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,breakupGeo.indices,gl.STATIC_DRAW);
-    // Breakup model matrices (scratch)
-    const _brkModel=new Float32Array(16),_brkMvp=new Float32Array(16),_brkT16=new Float32Array(16),_brkNorm=new Float32Array(9);
-    const BREAKUP_COLOR=[0.2,0.28,0.42]; // ship color tinted slightly darker
-    function renderBreakupPieces(){
-      gl.useProgram(shipPg);
-      for(let i=0;i<BREAKUP_PIECES;i++){
-        const px=breakup.posX[i],py=breakup.posY[i],pz=breakup.posZ[i];
-        const rx=breakup.rotX[i],ry=breakup.rotY[i];
-        // Build rotation matrix from rotX/rotY tumble angles
-        const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry);
-        // Combined Y*X rotation applied to identity basis
-        const fwd=[sy*cx, -sx, cy*cx];
-        const up=[sy*sx, cx, cy*sx]; // approximate
-        const right=[cy, 0, -sy];
-        // Normalize
-        const fl=Math.sqrt(fwd[0]*fwd[0]+fwd[1]*fwd[1]+fwd[2]*fwd[2])||1;
-        fwd[0]/=fl;fwd[1]/=fl;fwd[2]/=fl;
-        const rl=Math.sqrt(right[0]*right[0]+right[1]*right[1]+right[2]*right[2])||1;
-        right[0]/=rl;right[1]/=rl;right[2]/=rl;
-        // Recompute up as cross(right, fwd)
-        up[0]=right[1]*fwd[2]-right[2]*fwd[1];
-        up[1]=right[2]*fwd[0]-right[0]*fwd[2];
-        up[2]=right[0]*fwd[1]-right[1]*fwd[0];
-        // CRR: camera-relative breakup position
-        const bPos=[px-_camWX,py-_camWY,pz-_camWZ];
-        mat4Model(bPos,fwd,up,right,_brkModel);
-        mat4Mul(_view,_brkModel,_brkT16);
-        mat4Mul(_proj,_brkT16,_brkMvp);
-        mat3NormalFromMat4(_brkT16,_brkNorm);
-        gl.uniformMatrix4fv(shipLocs.uMvp,false,_brkMvp);
-        gl.uniformMatrix3fv(shipLocs.uNorm,false,_brkNorm);
-        gl.uniform3f(shipLocs.uColor,BREAKUP_COLOR[0],BREAKUP_COLOR[1],BREAKUP_COLOR[2]);
-        gl.uniform1f(shipLocs.uThrust,0.0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,breakupPosBuf);
-        gl.enableVertexAttribArray(shipLocs.aPos);
-        gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ARRAY_BUFFER,breakupNrmBuf);
-        gl.enableVertexAttribArray(shipLocs.aNorm);
-        gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,breakupIdxBuf);
-        gl.drawElements(gl.TRIANGLES,breakupIdxCount,gl.UNSIGNED_SHORT,0);
-        gl.disableVertexAttribArray(shipLocs.aPos);
-        gl.disableVertexAttribArray(shipLocs.aNorm);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-      }
-    }
-    // Enemy geometry buffers (multi-archetype)
-    function createGeoBuffers(gl,geo){
-      const posBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,posBuf);
-      gl.bufferData(gl.ARRAY_BUFFER,geo.positions,gl.STATIC_DRAW);
-      const nrmBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,nrmBuf);
-      gl.bufferData(gl.ARRAY_BUFFER,geo.normals,gl.STATIC_DRAW);
-      const idxBuf=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,idxBuf);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,geo.indices,gl.STATIC_DRAW);
-      return{posBuf,nrmBuf,idxBuf,idxCount:geo.indices.length};
-    }
-    const archetypeGeo=[
-      createGeoBuffers(gl,createGruntGeometry()),
-      createGeoBuffers(gl,createSwarmGeometry()),
-      createGeoBuffers(gl,createBomberGeometry()),
-      createGeoBuffers(gl,createSniperGeometry()),
-      createGeoBuffers(gl,createEnemyCapitalGeometry()),
-    ];
-    // Enemy instance buffer (pre-allocated for MAX_ENEMIES)
-    const enemyInstBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,MAX_ENEMIES*ENEMY_INST_FLOATS*4,gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER,bf);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-    gl.useProgram(pg);
-
-    /* ---- Trajectory shader program ---- */
-    const tVS=cS(gl,trajVS,gl.VERTEX_SHADER),tFS=cS(gl,trajFS,gl.FRAGMENT_SHADER),trajPg=gl.createProgram();
-    gl.attachShader(trajPg,tVS);gl.attachShader(trajPg,tFS);gl.linkProgram(trajPg);
-    if(!gl.getProgramParameter(trajPg,gl.LINK_STATUS))console.error(gl.getProgramInfoLog(trajPg));
-    const trajLocs={
-      aPos:gl.getAttribLocation(trajPg,'a_trajPos'),
-      uMvp:gl.getUniformLocation(trajPg,'u_trajMVP'),
-      uPtSize:gl.getUniformLocation(trajPg,'u_trajPtSize'),
-      uColor:gl.getUniformLocation(trajPg,'u_trajColor')
-    };
-    const trajBuf=gl.createBuffer();
-    const aimLineBuf=gl.createBuffer();
-    const targetMarkerBuf=gl.createBuffer();
-    const missileTrailBuf=gl.createBuffer();
-    // Orbit ring buffer (64 segments for orbit visualization)
-    const ringBuf=gl.createBuffer();
-    const RING_SEGMENTS=64;
-    const ringArray=new Float32Array(RING_SEGMENTS*3);
-    const _tacRingRadii=[30,50,70,90]; // Tactical range ring radii
-    // L-point marker buffer
-    const lPointBuf=gl.createBuffer();
-    // Billboard enemy LOD buffer (REND-04)
-    const billboardGlBuf=gl.createBuffer();
-    // Projectile render buffer (pre-allocated for MAX_PROJECTILES)
-    const projGlBuf=gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER,projGlBuf);
-    gl.bufferData(gl.ARRAY_BUFFER,MAX_PROJECTILES*3*4,gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER,null);
-
     const bin=Uint8Array.from(atob(WB),c=>c.charCodeAt(0));
     WebAssembly.instantiate(bin,{env:{sin:x=>Math.fround(Math.sin(x)),cos:x=>Math.fround(Math.cos(x)),sqrt:x=>Math.fround(Math.sqrt(x))}}).then(r=>{
       W=r.instance.exports;
@@ -889,158 +267,20 @@
     /* ---- Input handlers ---- */
     let dr=false,lX=0,lY=0,dsX=0,dsY=0,dD=false;
     canvas.addEventListener('mousedown',e=>{
-      if(flyMode){
-        if(e.button===0){dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY;}
-        return;
-      }
       dr=true;dD=false;dsX=e.clientX;dsY=e.clientY;lX=e.clientX;lY=e.clientY;
     });
     window.addEventListener('mouseup',e=>{
       dr=false;
     });
-    canvas.addEventListener('contextmenu',e=>{if(flyMode)e.preventDefault();});
-    canvas.addEventListener('mousedown',e=>{
-      if(!flyMode||e.button!==2||!dv)return;
-      e.preventDefault();
-      if(!playerState.alive)return;
-      // Combat mode: right-click fires coordinated salvo if targets selected
-      if(combatMode&&tacTargets.length>0){
-        fireTacticalSalvo(simTime);
-        return;
-      }
-      // Right-click in missile mode: fire salvo if locks exist
-      if(combatMode&&selectedWeapon>=2&&getLockCount()>0){
-        fireMissileSalvo(simTime);
-        updateMissileUI();
-      }
-    });
     window.addEventListener('mousemove',e=>{
       mSX=e.clientX;mSY=e.clientY;hoverDirty=true;
-      if(flyMode){
-        if(dr){
-          const dx=e.clientX-lX,dy=e.clientY-lY;
-          navCamAz+=dx*FLY_SENSITIVITY;
-          navCamEl=Math.max(0.05,Math.min(1.4,navCamEl-dy*FLY_SENSITIVITY));
-          lX=e.clientX;lY=e.clientY;
-          const tx=e.clientX-dsX,ty=e.clientY-dsY;
-          if(tx*tx+ty*ty>36){dD=true;}
-          canvas.style.cursor='grabbing';
-        }else{
-          canvas.style.cursor='crosshair';
-        }
-        return;
-      }
       if(dr){camAz+=(e.clientX-lX)*0.005;camEl=Math.max(-1.5,Math.min(1.5,camEl+(e.clientY-lY)*0.005));lX=e.clientX;lY=e.clientY;const tx=e.clientX-dsX,ty=e.clientY-dsY;if(tx*tx+ty*ty>36)dD=true}
     });
     canvas.addEventListener('click',(e)=>{
-      if(flyMode){
-        // Block all clicks during death sequence or game over
-        if(!playerState.alive)return;
-        // Combat mode: fire weapon or add missile lock (Pitfall 3)
-        if(!dD&&combatMode){
-          // Tactical target selection (integrated with combat mode)
-          {
-            const _cpTac=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
-            const _cfTac=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
-            const _crTac=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
-            const _cuTac=[dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true)];
-            const mDTac=Math.min(baseWidth,baseHeight);
-            const hitIdx=findLockTarget(mSX,mSY,_cpTac,_cfTac,_crTac,_cuTac,mDTac);
-            if(hitIdx>=0){
-              const existing=getTacEntry(hitIdx);
-              if(existing){
-                removeTacTarget(hitIdx);
-              }else{
-                if(!e.shiftKey)clearTacTargets();
-                addTacTarget(hitIdx,selectedWeapon);
-                // Missile/nuke mode: also add lock target for lock-on system
-                if(selectedWeapon>=2){addLockTarget(hitIdx);updateMissileUI();}
-              }
-              return; // Enemy hit: handled as tactical selection + missile lock
-            }
-            // Click empty space: clear selections, fall through to weapon fire
-            clearTacTargets();
-          }
-          if(selectedWeapon>=2){
-            // Missile mode: left-click adds lock target (no enemy under cursor found by tactical check)
-            if(aimDir&&dv){
-              const _cpLk=[dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true)];
-              const _cfLk=[dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true)];
-              const _crLk=[dv.getFloat32(0x048,true),dv.getFloat32(0x04C,true),dv.getFloat32(0x050,true)];
-              const _cuLk=[dv.getFloat32(0x054,true),dv.getFloat32(0x058,true),dv.getFloat32(0x05C,true)];
-              const mDLk=Math.min(baseWidth,baseHeight);
-              const lockIdx=findLockTarget(mSX,mSY,_cpLk,_cfLk,_crLk,_cuLk,mDLk);
-              if(lockIdx>=0){addLockTarget(lockIdx);updateMissileUI();}
-            }
-            return;
-          }
-          fireSelectedWeapon(simTime);return;
-        }
-        // In nav mode: click-to-target orbit transfer
-        if(!dD){
-          if(hP>=0){
-            // Planet clicked -- initiate transfer
-            initiateTransfer(hP);
-          }else{
-            // Check if click is near BH (center of screen)
-            // Use screen-space check: BH is always at origin in world space
-            const cpx=dv.getFloat32(0x030,true),cpy=dv.getFloat32(0x034,true),cpz=dv.getFloat32(0x038,true);
-            const fX=dv.getFloat32(0x03C,true),fY=dv.getFloat32(0x040,true),fZ=dv.getFloat32(0x044,true);
-            const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
-            const uXc=dv.getFloat32(0x054,true),uYc=dv.getFloat32(0x058,true),uZc=dv.getFloat32(0x05C,true);
-            // BH at [0,0,0] relative to camera
-            const dxBH=-cpx,dyBH=-cpy,dzBH=-cpz;
-            const dpBH=dxBH*fX+dyBH*fY+dzBH*fZ;
-            if(dpBH>0){
-              const mD=Math.min(baseWidth,baseHeight);
-              const sxBH=baseWidth*0.5+(dxBH*rX+dyBH*rY+dzBH*rZ)/dpBH*1.8*mD;
-              const syBH=baseHeight*0.5-(dxBH*uXc+dyBH*uYc+dzBH*uZc)/dpBH*1.8*mD;
-              const clickDx=mSX-sxBH,clickDy=mSY-syBH;
-              if(clickDx*clickDx+clickDy*clickDy<50*50){
-                initiateTransfer(-1); // BH clicked
-                return;
-              }
-            }
-            // Check L-point click (when visible)
-            if(lagrangeVisible){
-              const minDimC=Math.min(canvas.width,canvas.height);
-              const fovYC=2*Math.atan(canvas.height/(2*minDimC*1.8));
-              const aspectC=canvas.width/canvas.height;
-              const ndcXC=(2*mSX/baseWidth-1)*aspectC*Math.tan(fovYC/2);
-              const ndcYC=(1-2*mSY/baseHeight)*Math.tan(fovYC/2);
-              const lrdx=rX*ndcXC+uXc*ndcYC+fX;
-              const lrdy=rY*ndcXC+uYc*ndcYC+fY;
-              const lrdz=rZ*ndcXC+uZc*ndcYC+fZ;
-              if(Math.abs(lrdy)>0.0001){
-                const lt=-cpy/lrdy;
-                if(lt>0){
-                  const lhitX=cpx+lrdx*lt, lhitZ=cpz+lrdz*lt;
-                  let lPointHit=-1;
-                  for(let li=0;li<12;li++){
-                    const lpx=lPointPositions[li*3],lpz=lPointPositions[li*3+2];
-                    const ldx=lhitX-lpx,ldz=lhitZ-lpz;
-                    if(ldx*ldx+ldz*ldz<LPOINT_MARKER_RADIUS*LPOINT_MARKER_RADIUS){
-                      lPointHit=li;break;
-                    }
-                  }
-                  if(lPointHit>=0){
-                    initiateTransfer(100+lPointHit);
-                  }
-                }
-              }
-            }
-          }
-        }
-        return;
-      }
       if(!dD&&hP>=0&&hP<planetData.length&&planetData[hP].person)openGameMenu(hP);
     });
     canvas.addEventListener('wheel',e=>{
       e.preventDefault();
-      if(flyMode){
-        navCamDist=Math.max(NAV_CAM_DIST_MIN,Math.min(NAV_CAM_DIST_MAX,navCamDist*Math.pow(1.001,e.deltaY)));
-        return;
-      }
       camDist=Math.max(5,Math.min(300,camDist+e.deltaY*0.05));
     },{passive:false});
 
@@ -1051,251 +291,16 @@
       if(hP>=0&&hP<planetData.length&&planetData[hP].person)openGameMenu(hP)}tId=null}}});
 
 
-    let _cheatDigits=[];let _cheatTimes=[];
     window.addEventListener('keydown',e=>{
       // Game-selection submenu: Escape closes it (takes priority over other keys)
       if(gameMenuOpen){
         if(e.key==='Escape'){closeGameMenu();}
         return;
       }
-      // Wave skip cheat: type 999 rapidly (within 1s) to kill all enemies and advance wave
-      if(e.key>='0'&&e.key<='9'){
-        const now=performance.now();
-        _cheatDigits.push(e.key);_cheatTimes.push(now);
-        if(_cheatDigits.length>3){_cheatDigits.shift();_cheatTimes.shift();}
-        if(_cheatDigits.length===3&&_cheatDigits[0]==='9'&&_cheatDigits[1]==='9'&&_cheatDigits[2]==='9'&&(now-_cheatTimes[0])<1000){
-          _cheatDigits=[];_cheatTimes=[];
-          if(flyMode&&playerState.alive){
-            // Kill all current enemies to trigger wave progression
-            for(let ci=0;ci<MAX_ENEMIES;ci++){if(enemies.alive[ci])removeEnemy(ci);}
-          }
-        }
-      }
-      // Game over screen: R to restart, Escape to exit
-      if(playerState.deathPhase===4){
-        if(e.key==='r'||e.key==='R'){
-          hideGameOverScreen();
-          resetCombat();
-        }else if(e.key==='Escape'){
-          hideGameOverScreen();
-          // Reset playerState for next play
-          playerState.hp=playerState.maxHp;
-          playerState.alive=true;
-          playerState.deathPhase=0;
-          playerState.deathTimer=0;
-          tacMarkerContainer.style.display='none';tacTargets.length=0;
-          combatIndicatorEl.style.display='none';
-          weaponIndicatorEl.style.display='none';
-          for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');
-          // Reset vignette
-          vignetteEl.style.setProperty('--vignette-alpha','0');
-          // Reset enemiesSpawned so next enterNavMode will re-init
-          enemiesSpawned=false;
-          exitNavMode();
-        }
-        return; // Block all other keys during game over
-      }
-      // Block backtick exit during death sequence (phases 1-3)
-      if(e.key==='`'){
-        if(!wf)return;
-        if(playerState.deathPhase>0)return; // Can't exit during death
-        if(flyMode){exitNavMode();tacMarkerContainer.style.display='none';tacTargets.length=0;combatIndicatorEl.style.display='none';weaponIndicatorEl.style.display='none';for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].classList.remove('tac-hidden');}else if(COMBAT_GAME_ENABLED) enterNavMode();
-        return;
-      }
-      if(flyMode){
-        // Warp speed: Phase 14
-        if(e.key==='b'||e.key==='B'){}
-        // Gate combat/navigation input on player alive
-        if(!playerState.alive){return;}
-        // VIEW-01: weapon select always available (combat always on)
-        if(e.key==='1'){selectedWeapon=0;}
-        if(e.key==='2'){selectedWeapon=1;}
-        if(e.key==='3'){selectedWeapon=2;updateLockLimits();}
-        if(e.key==='4'){selectedWeapon=3;updateLockLimits();}
-        if(e.key==='c'||e.key==='C'){clearLocks();updateMissileUI();}
-        if(e.key==='ArrowUp'){altUpHeld=true;e.preventDefault();}
-        if(e.key==='ArrowDown'){altDownHeld=true;e.preventDefault();}
-        if(e.key==='l'||e.key==='L'){/* VIEW-02: L-points disabled until radar (Phase 15) */}
-        return;
-      }
       if(e.key===']'||e.key==='ArrowRight')sp=Math.min(2,sp+0.02);
       else if(e.key==='['||e.key==='ArrowLeft')sp=Math.max(-2,sp-0.02);
       else if(e.key==='r'||e.key==='R'){camAz=DF.camAz;camEl=DF.camEl;camDist=DF.camDist;sp=DF.sp}
     });
-    window.addEventListener('keyup',e=>{
-      if(flyMode){
-        if(e.key==='ArrowUp')altUpHeld=false;
-        if(e.key==='ArrowDown')altDownHeld=false;
-      }
-    });
-
-
-    const nukeBtn=document.getElementById('nuke-btn');
-    nukeBtn.addEventListener('click',e=>{
-      e.stopPropagation();
-      const slot=detSlots.find(s=>!s.active);
-      if(!slot)return;
-      const saturn=planetData[1];
-      const angle=saturn.sp*simTime+saturn.ph;
-      const detOrbR=saturn.oR+3.0;
-      slot.pos[0]=detOrbR*Math.sin(angle);
-      slot.pos[1]=0;
-      slot.pos[2]=detOrbR*Math.cos(angle);
-      slot.startSimTime=simTime;
-      slot.active=true;
-      nukeBtn.classList.add('detonated');
-      nukeBtn.innerHTML='DETONATING...';
-      setTimeout(()=>{if(slot.active)nukeBtn.innerHTML='EXPANDING...'},3000);
-    });
-
-    missileFireBtn.addEventListener('click',e=>{
-      e.stopPropagation();
-      if(!playerState.alive)return;
-      // Fire salvo when button clicked (alternative to right-click)
-      if(selectedWeapon>=2&&getLockCount()>0){
-        fireMissileSalvo(simTime);
-        updateMissileUI();
-      }
-    });
-
-    /* ---- Enemy spawning (wave system) ---- */
-    let enemiesSpawned=false;
-    function spawnTestEnemies(){
-      // Delegate to wave system
-      startWaveSystem();
-    }
-
-    /* ---- Init explosion system ---- */
-    initExplosionSystem(gl, iExt);
-
-    /* ---- Game Over Screen ---- */
-    function showGameOverScreen() {
-      // Update high scores
-      saveHighScores();
-      // Populate stats
-      const s = playerState.stats;
-      const accuracy = s.shotsFired > 0 ? ((s.shotsHit / s.shotsFired) * 100).toFixed(1) : '0.0';
-      const timeStr = Math.floor(s.timeSurvived / 60) + ':' + ('0' + Math.floor(s.timeSurvived % 60)).slice(-2);
-      document.getElementById('game-over-stats').innerHTML =
-        '<div class="stat-row"><span class="stat-label">ENEMIES KILLED</span><span class="stat-value">' + s.enemiesKilled + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">WAVES SURVIVED</span><span class="stat-value">' + s.wavesSurvived + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">TIME SURVIVED</span><span class="stat-value">' + timeStr + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">DAMAGE DEALT</span><span class="stat-value">' + Math.floor(s.damageDealt) + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">SHOTS FIRED</span><span class="stat-value">' + s.shotsFired + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">ACCURACY</span><span class="stat-value">' + accuracy + '%</span></div>';
-      // Populate best scores
-      const b = playerState.best;
-      document.getElementById('game-over-best').innerHTML =
-        '<div class="best-title">BEST</div>' +
-        '<div class="stat-row"><span class="stat-label">HIGHEST WAVE</span><span class="stat-value">' + b.wavesSurvived + '</span></div>' +
-        '<div class="stat-row"><span class="stat-label">MOST KILLS</span><span class="stat-value">' + b.enemiesKilled + '</span></div>';
-      // Hide indicators
-      hideAllIndicators();
-      // Show overlay
-      document.getElementById('game-over-screen').classList.add('visible');
-    }
-    function hideGameOverScreen() {
-      document.getElementById('game-over-screen').classList.remove('visible');
-    }
-
-    /* ---- Off-screen enemy indicators ---- */
-    function hideAllIndicators(){for(let i=0;i<MAX_ENEMIES;i++)indicatorEls[i].style.display='none';}
-    const _indicatorColors=[
-      'rgba(255,80,60,0.9)',    // Grunt: red
-      'rgba(255,200,40,0.9)',   // Swarm: yellow/amber
-      'rgba(180,50,217,0.9)',   // Bomber: purple/magenta
-      'rgba(0,210,210,0.9)',    // Sniper: cyan/teal
-      'rgba(230,230,242,0.9)',  // Capital: white/silver
-    ];
-    function positionIndicator(el,x,y,angle,dist,enemyType){
-      el.style.display='block';
-      el.style.left=x+'px';
-      el.style.top=y+'px';
-      const rotDeg=(angle*180/Math.PI)+90;
-      el.querySelector('.indicator-chevron').style.transform='rotate('+rotDeg+'deg)';
-      el.querySelector('.indicator-dist').textContent=Math.floor(dist)+'u';
-      el.style.color=_indicatorColors[enemyType]||_indicatorColors[0];
-    }
-    function updateEnemyIndicators(){
-      const margin=40;
-      const cx=baseWidth/2,cy=baseHeight/2;
-      const mD=Math.min(baseWidth,baseHeight);
-      for(let i=0;i<MAX_ENEMIES;i++){
-        if(!enemies.alive[i]){indicatorEls[i].style.display='none';continue;}
-        const dx=enemies.posX[i]-flyPos[0],dz=enemies.posZ[i]-flyPos[2];
-        const dist=Math.sqrt(dx*dx+dz*dz);
-        if(dist>INDICATOR_RANGE){indicatorEls[i].style.display='none';continue;}
-        // Project using camera-vector dot-product method (same as lock reticles)
-        const eDx=enemies.posX[i]-_camP[0];
-        const eDy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
-        const eDz=enemies.posZ[i]-_camP[2];
-        const dp=eDx*_camF[0]+eDy*_camF[1]+eDz*_camF[2];
-        if(dp<=0.01){
-          // Behind camera: place indicator on opposite side
-          const sx0=eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2];
-          const sy0=-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2]);
-          const angle=Math.atan2(sy0,sx0);
-          const edgeX=cx+Math.cos(angle)*(cx-margin);
-          const edgeY=cy+Math.sin(angle)*(cy-margin);
-          positionIndicator(indicatorEls[i],edgeX,edgeY,angle,dist,enemies.type[i]);
-          continue;
-        }
-        const sx=baseWidth*0.5+(eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2])/dp*1.8*mD;
-        const sy=baseHeight*0.5-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2])/dp*1.8*mD;
-        // Check if on-screen
-        const onScreen=sx>=margin&&sx<=baseWidth-margin&&sy>=margin&&sy<=baseHeight-margin;
-        if(onScreen){indicatorEls[i].style.display='none';continue;}
-        // Off-screen: clamp to edge
-        const angle=Math.atan2(sy-cy,sx-cx);
-        const abscos=Math.abs(Math.cos(angle)),abssin=Math.abs(Math.sin(angle));
-        let edgeX,edgeY;
-        if(abscos*(baseHeight-2*margin)>abssin*(baseWidth-2*margin)){
-          edgeX=cx+Math.sign(Math.cos(angle))*(cx-margin);
-          edgeY=cy+Math.tan(angle)*Math.sign(Math.cos(angle))*(cx-margin);
-          edgeY=Math.max(margin,Math.min(baseHeight-margin,edgeY));
-        }else{
-          edgeY=cy+Math.sign(Math.sin(angle))*(cy-margin);
-          edgeX=cx+(1/Math.tan(angle))*Math.sign(Math.sin(angle))*(cy-margin);
-          edgeX=Math.max(margin,Math.min(baseWidth-margin,edgeX));
-        }
-        positionIndicator(indicatorEls[i],edgeX,edgeY,angle,dist,enemies.type[i]);
-      }
-    }
-
-    /* ---- Fleet callout HUD ---- */
-    let _fleetCalloutEls = null;
-    function _ensureFleetCalloutEls() {
-      if (_fleetCalloutEls) return;
-      _fleetCalloutEls = [
-        document.getElementById('fleet-callout-0'),
-        document.getElementById('fleet-callout-1'),
-        document.getElementById('fleet-callout-2')
-      ];
-      for (const el of _fleetCalloutEls) {
-        if (el) el.addEventListener('animationend', function() { this.classList.remove('visible'); });
-      }
-    }
-    function showFleetCallouts(fleetResults) {
-      _ensureFleetCalloutEls();
-      if (!_fleetCalloutEls) return;
-      for (let i = 0; i < 3; i++) {
-        const el = _fleetCalloutEls[i];
-        if (!el) continue;
-        if (i >= fleetResults.length) { el.classList.remove('visible'); continue; }
-        const fr = fleetResults[i];
-        el.querySelector('.fleet-callout-text').textContent = fr.callout;
-        if (fr.isBoss) el.classList.add('boss'); else el.classList.remove('boss');
-        const dx = fr.centroidX - flyPos[0];
-        const dz = fr.centroidZ - flyPos[2];
-        const angle = Math.atan2(dx, dz);
-        const chevron = el.querySelector('.fleet-callout-chevron');
-        chevron.style.transform = 'rotate(' + ((angle * 180 / Math.PI) + 180) + 'deg)';
-        el.style.animationDelay = (i * 1.2) + 's';
-        el.classList.remove('visible');
-        void el.offsetWidth;
-        el.classList.add('visible');
-      }
-    }
 
     /* ---- Render loop ---- */
     const hS=document.getElementById('hud-spin'),hD=document.getElementById('hud-dist'),
@@ -1308,113 +313,15 @@
 
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
-      const dtSec=Math.min(ft*0.001,0.1);
-      const simDtSec=dtSec;
-      simTime+=simDtSec;
+      simTime+=Math.min(ft*0.001,0.1);
       ftSmooth+=(Math.min(ft,100.0)-ftSmooth)*0.15;   // low-pass the jittery frame-time
       dv.setFloat32(0x028,ftSmooth,true);
       dv.setFloat32(0x010,simTime,true);
       wMem();
       wf();
-      // --- Death sequence state machine ---
-      if (playerState.deathPhase > 0) {
-        const prevTimer = playerState.deathTimer;
-        playerState.deathTimer += simDtSec;
-        if (playerState.deathPhase === 1) {
-          // FLICKER phase (~1.0s): ship flickers, small sparks every ~0.25s
-          if (Math.floor(playerState.deathTimer / 0.25) > Math.floor(prevTimer / 0.25)) {
-            spawnExplosion(flyPos[0] + (Math.random()-0.5)*PLAYER_SIZE_KM, 0, flyPos[2] + (Math.random()-0.5)*PLAYER_SIZE_KM, PLAYER_SIZE_KM*0.5);
-          }
-          if (playerState.deathTimer > 1.0) {
-            playerState.deathPhase = 2;
-            playerState.deathTimer = 0;
-            deathCamSaved.az = navCamAz;
-            deathCamSaved.el = navCamEl;
-            deathCamSaved.dist = navCamDist;
-            initBreakup();
-          }
-        } else if (playerState.deathPhase === 2) {
-          // BREAKUP phase (~1.5s): pieces tumble outward, no ship mesh
-          updateBreakup(simDtSec);
-          if (playerState.deathTimer > 1.5) {
-            playerState.deathPhase = 3;
-            playerState.deathTimer = 0;
-            triggerDetonationAtShip();
-          }
-        } else if (playerState.deathPhase === 3) {
-          // DETONATION phase (~3.5s): volumetric explosion, camera pulls out
-          navCamDist += (NAV_CAM_DIST_MAX*0.6 - navCamDist) * simDtSec * 0.8;
-          navCamEl += (0.6 - navCamEl) * simDtSec * 0.5;
-          if (playerState.deathTimer > 3.5) {
-            playerState.deathPhase = 4;
-            showGameOverScreen();
-          }
-        }
-      }
-      // Per-frame combat/fly simulation -- fully gated so none of it runs outside fly mode.
-      if(flyMode){
-      updateNav(simDtSec,simTime);
-      updateMissiles(simDtSec);
-      if(flyMode)updateExplosions(simDtSec);
-      // Missile trail ring buffer: push positions, decay alphas
-      if(flyMode&&missileCount>0){for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){if(!missile.alive[mi])continue;const mta=missile.fuel[mi]>0?1.0:0.3;const mth=missileTrailHead;missileTrailPos[mth*3]=missile.posX[mi];missileTrailPos[mth*3+1]=0;missileTrailPos[mth*3+2]=missile.posZ[mi];if(missileTrailAlpha[mth]<=0)missileTrailCount++;missileTrailAlpha[mth]=mta;missileTrailType[mth]=missile.type[mi];missileTrailHead=(missileTrailHead+1)%missileTrailMaxPts;}}
-      for(let mt=0;mt<missileTrailMaxPts;mt++){if(missileTrailAlpha[mt]>0){missileTrailAlpha[mt]-=simDtSec*3.0;if(missileTrailAlpha[mt]<=0){missileTrailAlpha[mt]=0;missileTrailCount=Math.max(0,missileTrailCount-1);}}}
-      // Update shield positions (follow ship) -- only when alive
-      if(flyMode&&shieldCount>0&&playerState.alive)updateShieldPositions();
-      // Track time survived -- only when not in death sequence
-      if(flyMode&&playerState.deathPhase===0)playerState.stats.timeSurvived+=simDtSec;
-      // Update wave system (before AI so new spawns get first AI tick)
-      if(flyMode&&playerState.alive)updateWaveSystem(simDtSec);
-      // Update enemy AI state machine (only when player alive)
-      if(enemyCount>0&&playerState.alive){
-        updateEnemyAI(simDtSec,simTime,flyPos,flyVel,orbitBody);
-        rebinEntities();
-      }
-      updateProjectiles(simDtSec, simTime);
-      checkProjectileHits();
-      checkBodyCollisions(simTime);
-      updateParticles(simDtSec);
-      } // end if(flyMode) per-frame combat/fly simulation
       const rs=dv.getFloat32(0x06C,true);
       if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
-      if(flyMode){
-        // Camera target: use deathPos during death phases 2+ (breakup/detonation/gameOver)
-        const camTargetX = playerState.deathPhase >= 2 ? deathPos[0] : flyPos[0];
-        const camTargetY = playerState.deathPhase >= 2 ? deathPos[1] : flyPos[1];
-        const camTargetZ = playerState.deathPhase >= 2 ? deathPos[2] : flyPos[2];
-        const cx=camTargetX+navCamDist*Math.cos(navCamEl)*Math.sin(navCamAz);
-        const cy=camTargetY+navCamDist*Math.sin(navCamEl);
-        const cz=camTargetZ+navCamDist*Math.cos(navCamEl)*Math.cos(navCamAz);
-        _camP[0]=cx;_camP[1]=cy;_camP[2]=cz;
-        _camF[0]=camTargetX-cx;_camF[1]=camTargetY-cy;_camF[2]=camTargetZ-cz;
-        v3norm(_camF,_camF);
-        v3cross(_camR,_camF,_worldUp);v3norm(_camR,_camR);
-        v3cross(_camU,_camR,_camF);v3norm(_camU,_camU);
-        // Write camera position for ray march shader in ABSTRACT units (flyPos is km, divide by ORBIT_SCALE)
-        dv.setFloat32(0x030,cx/ORBIT_SCALE,true);dv.setFloat32(0x034,cy/ORBIT_SCALE,true);dv.setFloat32(0x038,cz/ORBIT_SCALE,true);
-        dv.setFloat32(0x03C,_camF[0],true);dv.setFloat32(0x040,_camF[1],true);dv.setFloat32(0x044,_camF[2],true);
-        dv.setFloat32(0x048,_camR[0],true);dv.setFloat32(0x04C,_camR[1],true);dv.setFloat32(0x050,_camR[2],true);
-        dv.setFloat32(0x054,_camU[0],true);dv.setFloat32(0x058,_camU[1],true);dv.setFloat32(0x05C,_camU[2],true);
-        // Nav mode hover detection: check if mouse is near a planet on screen
-        // Planet positions converted to km for comparison with km-scale _camP
-        hP=-1;
-        if(mSX>=0){
-          const mD=Math.min(baseWidth,baseHeight);
-          for(let i=0;i<5;i++){
-            const b=0x070+i*12;
-            const px=dv.getFloat32(b,true)*ORBIT_SCALE,py=dv.getFloat32(b+4,true)*ORBIT_SCALE,pz=dv.getFloat32(b+8,true)*ORBIT_SCALE;
-            const dx=px-_camP[0],dy=py-_camP[1],dz=pz-_camP[2];
-            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
-            if(dp<=0)continue;
-            const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mD;
-            const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mD;
-            const ar=Math.max((planetData[i].radius*BODY_SCALE/dp)*mD*1.8, 30); // min 30px hit area
-            const tdx=mSX-sx,tdy=mSY-sy;
-            if(tdx*tdx+tdy*tdy<ar*ar){hP=i;break;}
-          }
-        }
-        if(!dr)canvas.style.cursor=hP>=0?'pointer':'crosshair';
-      }else{
+      {
         // Throttle the 250-step hover trace: recompute on mouse move or every other frame;
         // otherwise reuse the previous hP. Clear hP when the mouse leaves the canvas.
         if(mSX<0)hP=-1;
@@ -1426,7 +333,6 @@
           const rX=dv.getFloat32(0x048,true),rY=dv.getFloat32(0x04C,true),rZ=dv.getFloat32(0x050,true);
           const uX=dv.getFloat32(0x054,true),uY=dv.getFloat32(0x058,true),uZ=dv.getFloat32(0x05C,true);
           const rH=dv.getFloat32(0x060,true);
-          const oS=flyMode?2.0:1.0;
           const mD=Math.min(baseWidth,baseHeight);
           const nX=(mSX-baseWidth*0.5)/(1.8*mD),nY=(baseHeight*0.5-mSY)/(1.8*mD);
           let rdx=fX+rX*nX+uX*nY,rdy=fY+rY*nX+uY*nY,rdz=fZ+rZ*nX+uZ*nY;
@@ -1460,20 +366,20 @@
           let dt0=Math.max(0.002,Math.min(0.08*(r0-rH),3.0));
           let [ax0,ay0,az0]=accel(px,py,pz,vx,vy,vz);
           let vhx=vx+0.5*dt0*ax0,vhy=vy+0.5*dt0*ay0,vhz=vz+0.5*dt0*az0;
-          const escR=Math.max(100*oS,Math.sqrt(cpx*cpx+cpy*cpy+cpz*cpz)+20);
+          const escR=Math.max(100,Math.sqrt(cpx*cpx+cpy*cpy+cpz*cpz)+20);
           let bestI=-1;
           for(let step=0;step<250;step++){
             const r=Math.sqrt(px*px+py*py+pz*pz);
             if(r<rH*1.05)break;
             if(r>escR)break;
-            if(r>100*oS&&(px*vx+py*vy+pz*vz)>0)break;
+            if(r>100&&(px*vx+py*vy+pz*vz)>0)break;
             const dt=Math.max(0.002,Math.min(0.08*(r-rH),3.0));
             const ppx=px,ppy=py,ppz=pz;
             px+=vhx*dt;py+=vhy*dt;pz+=vhz*dt;
             const [ax,ay,az]=accel(px,py,pz,vhx,vhy,vhz);
             vx=vhx+0.5*dt*ax;vy=vhy+0.5*dt*ay;vz=vhz+0.5*dt*az;
             vhx+=dt*ax;vhy+=dt*ay;vhz+=dt*az;
-            if(r>16&&r<100*oS){
+            if(r>16&&r<100){
               const sx=px-ppx,sy=py-ppy,sz=pz-ppz;
               const sL2=sx*sx+sy*sy+sz*sz;
               for(let i=0;i<pp.length;i++){
@@ -1493,15 +399,12 @@
         if(!dr)canvas.style.cursor=hP>=0?'pointer':'grab';
         else canvas.style.cursor='grabbing';
       }
-      const flyDist=flyMode?Math.sqrt(
-        dv.getFloat32(0x030,true)**2+dv.getFloat32(0x034,true)**2+dv.getFloat32(0x038,true)**2
-      ):camDist;
       // --- Pass 1: render the scene into the low-res offscreen target ---
       gl.bindFramebuffer(gl.FRAMEBUFFER,sceneFBO);
       gl.viewport(0,0,lowW,lowH);
       gl.uniform2f(uR,lowW,lowH);          // raymarch frames against its actual (low-res) grid
       gl.uniform1f(uT,simTime);
-      gl.uniform1f(uCD,flyDist);
+      gl.uniform1f(uCD,camDist);
       gl.uniform1f(uSp,sp);
       gl.uniform3f(uCP,dv.getFloat32(0x030,true),dv.getFloat32(0x034,true),dv.getFloat32(0x038,true));
       gl.uniform3f(uCF,dv.getFloat32(0x03C,true),dv.getFloat32(0x040,true),dv.getFloat32(0x044,true));
@@ -1510,378 +413,8 @@
       gl.uniform1f(uRH,dv.getFloat32(0x060,true));
       gl.uniform1f(uRI,dv.getFloat32(0x064,true));
       gl.uniform1f(uHP,hP);
-      gl.uniform1f(uOS,flyMode?2.0:1.0);
       for(let i=0;i<5;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
-      let detCount=0;
-      for(let i=0;i<6;i++){
-        const s=detSlots[i];
-        if(s.active){
-          const detAge=simTime-s.startSimTime;
-          if(detAge>DET_DURATION){s.active=false;_detAgeFlat[i]=-1.0;}
-          else{_detPosFlat[i*3]=s.pos[0];_detPosFlat[i*3+1]=s.pos[1];_detPosFlat[i*3+2]=s.pos[2];_detAgeFlat[i]=detAge;detCount++;}
-        }else{_detAgeFlat[i]=-1.0;}
-      }
-      gl.uniform1fv(uDetAge[0],_detAgeFlat);
-      if(detCount>0)gl.uniform3fv(uDetPos[0],_detPosFlat);
-      gl.uniform1i(uDetCount,detCount);
-      if(detCount===0&&nukeBtn.classList.contains('detonated')){
-        nukeBtn.classList.remove('detonated');
-        nukeBtn.innerHTML='<span class="nuke-icon">\u2622</span> DETONATE';
-      }
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-      if(flyMode){
-        v3cross(_shipR,flyFwd,flyUp);v3norm(_shipR,_shipR);
-        // CRR: camera position in km (float64) -- read from data view (abstract) and scale to km
-        // The data view 0x030 was written in abstract units for the ray march shader.
-        // Camera vectors (fwd/right/up) are direction-only and unit-length, so no scaling needed.
-        _camWX=dv.getFloat32(0x030,true)*ORBIT_SCALE;_camWY=dv.getFloat32(0x034,true)*ORBIT_SCALE;_camWZ=dv.getFloat32(0x038,true)*ORBIT_SCALE;
-        _camP[0]=_camWX;_camP[1]=_camWY;_camP[2]=_camWZ;
-        _camF[0]=dv.getFloat32(0x03C,true);_camF[1]=dv.getFloat32(0x040,true);_camF[2]=dv.getFloat32(0x044,true);
-        _camR[0]=dv.getFloat32(0x048,true);_camR[1]=dv.getFloat32(0x04C,true);_camR[2]=dv.getFloat32(0x050,true);
-        _camU[0]=dv.getFloat32(0x054,true);_camU[1]=dv.getFloat32(0x058,true);_camU[2]=dv.getFloat32(0x05C,true);
-        const minDim=Math.min(canvas.width,canvas.height);
-        const fovY=2*Math.atan(canvas.height/(2*minDim*1.8));
-        const aspect=canvas.width/canvas.height;
-        // CRR: gated perspective matrix -- km-appropriate near/far in flyMode
-        // With log depth: full range [1.0, 600000]. Without: tighter [10.0, 300000] (accept minor Z-fighting)
-        mat4Perspective(fovY,aspect,extFragDepth?1.0:10.0,extFragDepth?6000000:3000000,_proj);
-        const _lookTarget = playerState.deathPhase >= 2 ? deathPos : flyPos;
-        // CRR: view matrix with camera at origin -- look target is camera-relative
-        const _crrLook=[_lookTarget[0]-_camWX,_lookTarget[1]-_camWY,_lookTarget[2]-_camWZ];
-        mat4LookAt([0,0,0],_crrLook,_camU,_view);
-        mat4Mul(_proj,_view,_vpMat);
-        // CRR: ship model uses camera-relative position
-        const _crrShipPos=[flyPos[0]-_camWX,flyPos[1]-_camWY,flyPos[2]-_camWZ];
-        mat4Model(_crrShipPos,flyFwd,flyUp,_shipR,_model);
-        mat4Mul(_view,_model,_t16);
-        mat4Mul(_proj,_t16,_mvp);
-        mat3NormalFromMat4(_t16,_normM);
-        v3scale(_toLW,flyPos,-1);v3norm(_toLW,_toLW);
-        _toLV[0]=_view[0]*_toLW[0]+_view[4]*_toLW[1]+_view[8]*_toLW[2];
-        _toLV[1]=_view[1]*_toLW[0]+_view[5]*_toLW[1]+_view[9]*_toLW[2];
-        _toLV[2]=_view[2]*_toLW[0]+_view[6]*_toLW[1]+_view[10]*_toLW[2];
-        gl.clear(gl.DEPTH_BUFFER_BIT);
-        gl.enable(gl.DEPTH_TEST);
-
-        // --- Enemy instanced rendering (multi-geometry per archetype) ---
-        if(enemyCount>0){
-          const instResult=updateInstanceBuffer(simTime,_camWX,_camWY,_camWZ);
-          if(instResult.totalCount>0){
-            gl.useProgram(enemyPg);
-            gl.uniformMatrix4fv(enemyLocs.uViewProj,false,_vpMat);
-            gl.uniform3f(enemyLocs.uLightDir,_toLV[0],_toLV[1],_toLV[2]);
-            // CRR: black hole position in camera-relative space
-            gl.uniform3f(enemyLocs.uBhPos,-_camWX,-_camWY,-_camWZ);
-            gl.uniform1f(enemyLocs.uTime,simTime);
-            gl.disableVertexAttribArray(aP);
-            // Upload full instance data once
-            gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-            gl.bufferSubData(gl.ARRAY_BUFFER,0,instanceData.subarray(0,instResult.totalCount*ENEMY_INST_FLOATS));
-            const INST_STRIDE=ENEMY_INST_FLOATS*4;
-            // Draw each archetype type with its own geometry
-            let instOffset=0;
-            for(let at=0;at<5;at++){
-              const typeCount=instResult.typeCounts[at];
-              if(typeCount===0){continue;}
-              const geo=archetypeGeo[at];
-              // Per-vertex attributes (divisor 0)
-              gl.bindBuffer(gl.ARRAY_BUFFER,geo.posBuf);
-              gl.enableVertexAttribArray(enemyLocs.aPos);
-              gl.vertexAttribPointer(enemyLocs.aPos,3,gl.FLOAT,false,0,0);
-              gl.bindBuffer(gl.ARRAY_BUFFER,geo.nrmBuf);
-              gl.enableVertexAttribArray(enemyLocs.aNorm);
-              gl.vertexAttribPointer(enemyLocs.aNorm,3,gl.FLOAT,false,0,0);
-              // Per-instance attributes from instance buffer at offset
-              gl.bindBuffer(gl.ARRAY_BUFFER,enemyInstBuf);
-              const byteOff=instOffset*INST_STRIDE;
-              gl.enableVertexAttribArray(enemyLocs.aInstPos);
-              gl.vertexAttribPointer(enemyLocs.aInstPos,3,gl.FLOAT,false,INST_STRIDE,byteOff);
-              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,1);
-              gl.enableVertexAttribArray(enemyLocs.aInstHeading);
-              gl.vertexAttribPointer(enemyLocs.aInstHeading,1,gl.FLOAT,false,INST_STRIDE,byteOff+12);
-              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,1);
-              gl.enableVertexAttribArray(enemyLocs.aInstColor);
-              gl.vertexAttribPointer(enemyLocs.aInstColor,4,gl.FLOAT,false,INST_STRIDE,byteOff+16);
-              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,1);
-              gl.enableVertexAttribArray(enemyLocs.aInstScale);
-              gl.vertexAttribPointer(enemyLocs.aInstScale,1,gl.FLOAT,false,INST_STRIDE,byteOff+32);
-              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,1);
-              gl.enableVertexAttribArray(enemyLocs.aInstFlash);
-              gl.vertexAttribPointer(enemyLocs.aInstFlash,1,gl.FLOAT,false,INST_STRIDE,byteOff+36);
-              iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,1);
-              // Draw this archetype
-              gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,geo.idxBuf);
-              iExt.drawElementsInstancedANGLE(gl.TRIANGLES,geo.idxCount,gl.UNSIGNED_SHORT,0,typeCount);
-              instOffset+=typeCount;
-            }
-            // Reset divisors once after loop
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstPos,0);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstHeading,0);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstColor,0);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstScale,0);
-            iExt.vertexAttribDivisorANGLE(enemyLocs.aInstFlash,0);
-            gl.disableVertexAttribArray(enemyLocs.aPos);
-            gl.disableVertexAttribArray(enemyLocs.aNorm);
-            gl.disableVertexAttribArray(enemyLocs.aInstPos);
-            gl.disableVertexAttribArray(enemyLocs.aInstHeading);
-            gl.disableVertexAttribArray(enemyLocs.aInstColor);
-            gl.disableVertexAttribArray(enemyLocs.aInstScale);
-            gl.disableVertexAttribArray(enemyLocs.aInstFlash);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-          }
-          // Billboard enemy rendering (LOD tier 2: 10,000-50,000 km)
-          if(instResult.bbTotalCount>0){
-            gl.useProgram(trajPg);
-            gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
-            gl.enable(gl.DEPTH_TEST);
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-            gl.bindBuffer(gl.ARRAY_BUFFER,billboardGlBuf);
-            gl.bufferData(gl.ARRAY_BUFFER,billboardData.subarray(0,instResult.bbTotalCount*3),gl.DYNAMIC_DRAW);
-            gl.enableVertexAttribArray(trajLocs.aPos);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            // Render per-archetype group with distinct color and size
-            let bbDrawOffset=0;
-            for(let bt=0;bt<5;bt++){
-              const bbCount=instResult.bbTypeCounts[bt];
-              if(bbCount===0)continue;
-              const c=ARCHETYPE_COLORS[bt];
-              gl.uniform4f(trajLocs.uColor,c[0],c[1],c[2],1.0);
-              gl.uniform1f(trajLocs.uPtSize,BILLBOARD_SIZES[bt]);
-              gl.drawArrays(gl.POINTS,bbDrawOffset,bbCount);
-              bbDrawOffset+=bbCount;
-            }
-            gl.disableVertexAttribArray(trajLocs.aPos);
-            gl.disable(gl.BLEND);
-          }
-        }
-
-        // Ship mesh rendering: gated by death phase
-        // Phase 0 (alive) or phase 1 (flicker): draw ship
-        // Phase 2 (breakup): draw breakup debris instead
-        // Phase 3+ (detonation/game over): draw nothing
-        gl.disableVertexAttribArray(aP);
-        if (playerState.deathPhase === 0 || playerState.deathPhase === 1) {
-          // During flicker: skip rendering every other cycle based on sin(timer*30)
-          const showShip = playerState.deathPhase === 0 || Math.sin(playerState.deathTimer * 30) > 0;
-          if (showShip) {
-            gl.useProgram(shipPg);
-            gl.uniformMatrix4fv(shipLocs.uMvp,false,_mvp);
-            gl.uniformMatrix3fv(shipLocs.uNorm,false,_normM);
-            gl.uniform3f(shipLocs.uColor,SHIP_COLOR[0],SHIP_COLOR[1],SHIP_COLOR[2]);
-            gl.uniform3f(shipLocs.uLight,_toLV[0],_toLV[1],_toLV[2]);
-            { // Engine glow: full during transfer, half during altitude adjust, off otherwise
-              const thrustIntensity=(orbitState===ORBIT_STATE.TRANSFER)?1.0
-                                    :(altUpHeld||altDownHeld)?0.5:0.0;
-              gl.uniform1f(shipLocs.uThrust,thrustIntensity);
-            }
-            gl.bindBuffer(gl.ARRAY_BUFFER,shipPosBuf);
-            gl.enableVertexAttribArray(shipLocs.aPos);
-            gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.bindBuffer(gl.ARRAY_BUFFER,shipNrmBuf);
-            gl.enableVertexAttribArray(shipLocs.aNorm);
-            gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,shipIdxBuf);
-            gl.drawElements(gl.TRIANGLES,shipIdxCount,gl.UNSIGNED_SHORT,0);
-            gl.disableVertexAttribArray(shipLocs.aPos);
-            gl.disableVertexAttribArray(shipLocs.aNorm);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-          }
-        } else if (playerState.deathPhase === 2) {
-          // Breakup phase: render tumbling debris pieces
-          renderBreakupPieces();
-        }
-        // Phase 3+: no ship or debris rendered (detonation VFX handles it)
-
-        // Shield piece rendering (after ship, before missiles) -- only when alive
-        if(shieldCount>0&&playerState.alive)renderShieldPieces();
-
-        // SoA missile body rendering (individual draw calls -- max 24 missiles, tiny geometry)
-        if(missileCount>0){
-          const _mpArr=[0,0,0],_mfArr=[0,0,0];
-          for(let mi=0;mi<MAX_MISSILES_ACTIVE;mi++){
-            if(!missile.alive[mi])continue;
-            // CRR: camera-relative missile position
-            _mpArr[0]=missile.posX[mi]-_camWX;_mpArr[1]=0-_camWY;_mpArr[2]=missile.posZ[mi]-_camWZ;
-            _mfArr[0]=missile.fwdX[mi];_mfArr[1]=0;_mfArr[2]=missile.fwdZ[mi];
-            v3cross(_mR,_mfArr,_worldUp);v3norm(_mR,_mR);
-            // Scale nuclear missiles by 1.8x
-            if(missile.type[mi]===1){
-              _mfArr[0]*=1.8;_mfArr[2]*=1.8;_mR[0]*=1.8;_mR[2]*=1.8;
-              const _nukeUp=[0,1.8,0];
-              mat4Model(_mpArr,_mfArr,_nukeUp,_mR,_mMod);
-            }else{
-              mat4Model(_mpArr,_mfArr,_worldUp,_mR,_mMod);
-            }
-            mat4Mul(_view,_mMod,_mT16);
-            mat4Mul(_proj,_mT16,_mMvp);
-            mat3NormalFromMat4(_mT16,_mNorm);
-            gl.uniformMatrix4fv(shipLocs.uMvp,false,_mMvp);
-            gl.uniformMatrix3fv(shipLocs.uNorm,false,_mNorm);
-            const mc=missile.type[mi]===1?NUKE_MISSILE_COLOR:MISSILE_COLOR;
-            gl.uniform3f(shipLocs.uColor,mc[0],mc[1],mc[2]);
-            gl.uniform1f(shipLocs.uThrust,missile.fuel[mi]>0?1.0:0.0);
-            gl.bindBuffer(gl.ARRAY_BUFFER,missilePosBuf);
-            gl.enableVertexAttribArray(shipLocs.aPos);
-            gl.vertexAttribPointer(shipLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.bindBuffer(gl.ARRAY_BUFFER,missileNrmBuf);
-            gl.enableVertexAttribArray(shipLocs.aNorm);
-            gl.vertexAttribPointer(shipLocs.aNorm,3,gl.FLOAT,false,0,0);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,missileIdxBuf);
-            gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
-            gl.disableVertexAttribArray(shipLocs.aPos);
-            gl.disableVertexAttribArray(shipLocs.aNorm);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,null);
-          }
-        }
-
-        aimDir=computeAimDir(mSX,mSY,_camP,_camF,_camR,_camU,fovY,aspect);
-
-        // Weapon preview + projectile rendering (combat mode)
-        // Override preview for most recently selected tactical target
-        if(combatMode&&tacTargets.length>0){
-          const _lastTac=tacTargets[tacTargets.length-1];
-          if(enemies.alive[_lastTac.enemyIdx]&&_lastTac.weaponIdx<2){
-            const _savedAimT=aimDir;
-            const _savedWpnT=selectedWeapon;
-            const _tdx=enemies.posX[_lastTac.enemyIdx]-flyPos[0];
-            const _tdy=(enemies.posY?enemies.posY[_lastTac.enemyIdx]:0)-flyPos[1];
-            const _tdz=enemies.posZ[_lastTac.enemyIdx]-flyPos[2];
-            const _tlen=Math.sqrt(_tdx*_tdx+_tdy*_tdy+_tdz*_tdz);
-            if(_tlen>0.01){
-              aimDir=[_tdx/_tlen,_tdy/_tlen,_tdz/_tlen];
-              selectedWeapon=_lastTac.weaponIdx;
-              computeWeaponPreview(simTime);
-              aimDir=_savedAimT;
-              selectedWeapon=_savedWpnT;
-            }else{
-              computeWeaponPreview(simTime);
-            }
-          }else{
-            computeWeaponPreview(simTime);
-          }
-        }else{
-          computeWeaponPreview(simTime);
-        }
-        renderProjectiles(gl,trajPg,trajLocs,_vpMat,projGlBuf,_camWX,_camWY,_camWZ);
-        renderParticles(gl,trajPg,trajLocs,_vpMat,_camWX,_camWY,_camWZ);
-        renderWeaponPreview(gl,trajPg,trajLocs,_vpMat,projGlBuf,_camWX,_camWY,_camWZ);
-
-        // Billboard explosions (uses _view and _vpMat)
-        renderExplosions(gl,iExt,_view,_vpMat,_camWX,_camWY,_camWZ);
-
-        gl.useProgram(trajPg);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
-        gl.uniformMatrix4fv(trajLocs.uMvp,false,_vpMat);
-        gl.uniform1f(trajLocs.uPtSize,2.0);
-
-        // VIEW-02: orbit trajectory preview removed (combat mode always on, weapon preview replaces it)
-
-        // VIEW-01: L-point position computation (runs every frame for orbit capture, regardless of visibility)
-        {
-          let lIdx=0;
-          for(let pi=0;pi<LPOINT_PLANETS.length;pi++){
-            const lpData=computeLagrangePoints(LPOINT_PLANETS[pi],simTime);
-            if(!lpData){lIdx+=4;continue;}
-            const pts=[lpData.L1,lpData.L2,lpData.L4,lpData.L5];
-            for(let li=0;li<4;li++){
-              const flat=lIdx*3;
-              lPointPositions[flat]=pts[li][0];
-              lPointPositions[flat+1]=pts[li][1];
-              lPointPositions[flat+2]=pts[li][2];
-              lIdx++;
-            }
-          }
-        }
-
-        // VIEW-02: orbit ring, transfer crosshair, and L-point marker rendering removed (navigation overlays)
-
-        if(aimDir&&orbitState===ORBIT_STATE.FREE){
-          const lineLen=2.0;
-          // CRR: camera-relative aim line positions
-          _aimLine[0]=flyPos[0]-_camWX;_aimLine[1]=flyPos[1]-_camWY;_aimLine[2]=flyPos[2]-_camWZ;
-          _aimLine[3]=flyPos[0]+aimDir[0]*lineLen-_camWX;_aimLine[4]=flyPos[1]-_camWY;_aimLine[5]=flyPos[2]+aimDir[2]*lineLen-_camWZ;
-          gl.bindBuffer(gl.ARRAY_BUFFER,aimLineBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,_aimLine,gl.DYNAMIC_DRAW);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,0.549,0.863,1.0,0.7);
-          gl.uniform1f(trajLocs.uPtSize,1.0);
-          gl.drawArrays(gl.LINES,0,2);
-        }
-
-        // SoA missile trail rendering (two passes: regular + nuclear)
-        if(missileTrailCount>0){
-          // Pass 1: Regular missile trails (orange)
-          let regCount=0;
-          for(let mt=0;mt<missileTrailMaxPts;mt++){
-            if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==0)continue;
-            // CRR: camera-relative trail positions
-            _mtRenderBuf[regCount*3]=missileTrailPos[mt*3]-_camWX;
-            _mtRenderBuf[regCount*3+1]=missileTrailPos[mt*3+1]-_camWY;
-            _mtRenderBuf[regCount*3+2]=missileTrailPos[mt*3+2]-_camWZ;
-            regCount++;
-          }
-          if(regCount>0){
-            gl.bindBuffer(gl.ARRAY_BUFFER,missileTrailBuf);
-            gl.bufferData(gl.ARRAY_BUFFER,_mtRenderBuf.subarray(0,regCount*3),gl.DYNAMIC_DRAW);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,1.0,0.5,0.15,0.6);
-            gl.uniform1f(trajLocs.uPtSize,2.5);
-            gl.drawArrays(gl.POINTS,0,regCount);
-          }
-          // Pass 2: Nuclear missile trails (white-hot)
-          let nukeCount=0;
-          for(let mt=0;mt<missileTrailMaxPts;mt++){
-            if(missileTrailAlpha[mt]<=0||missileTrailType[mt]!==1)continue;
-            // CRR: camera-relative trail positions
-            _mtRenderBuf[nukeCount*3]=missileTrailPos[mt*3]-_camWX;
-            _mtRenderBuf[nukeCount*3+1]=missileTrailPos[mt*3+1]-_camWY;
-            _mtRenderBuf[nukeCount*3+2]=missileTrailPos[mt*3+2]-_camWZ;
-            nukeCount++;
-          }
-          if(nukeCount>0){
-            gl.bindBuffer(gl.ARRAY_BUFFER,missileTrailBuf);
-            gl.bufferData(gl.ARRAY_BUFFER,_mtRenderBuf.subarray(0,nukeCount*3),gl.DYNAMIC_DRAW);
-            gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-            gl.uniform4f(trajLocs.uColor,1.0,0.9,0.8,0.8);
-            gl.uniform1f(trajLocs.uPtSize,3.5);
-            gl.drawArrays(gl.POINTS,0,nukeCount);
-          }
-        }
-
-        // Render lock target markers in world-space (X crosses on locked enemies)
-        for(let ti=0;ti<lockState.targets.length;ti++){
-          const lk=lockState.targets[ti];
-          if(!enemies.alive[lk.enemyIdx])continue;
-          // CRR: camera-relative enemy positions for lock markers
-          const ex=enemies.posX[lk.enemyIdx]-_camWX,ez=enemies.posZ[lk.enemyIdx]-_camWZ;
-          const ey=0-_camWY;
-          _tgtMark[0]=ex-1.5;_tgtMark[1]=ey;_tgtMark[2]=ez-1.5;
-          _tgtMark[3]=ex+1.5;_tgtMark[4]=ey;_tgtMark[5]=ez+1.5;
-          _tgtMark[6]=ex-1.5;_tgtMark[7]=ey;_tgtMark[8]=ez+1.5;
-          _tgtMark[9]=ex+1.5;_tgtMark[10]=ey;_tgtMark[11]=ez-1.5;
-          gl.bindBuffer(gl.ARRAY_BUFFER,targetMarkerBuf);
-          gl.bufferData(gl.ARRAY_BUFFER,_tgtMark,gl.DYNAMIC_DRAW);
-          gl.vertexAttribPointer(trajLocs.aPos,3,gl.FLOAT,false,0,0);
-          gl.uniform4f(trajLocs.uColor,1.0,0.3,0.2,0.9);
-          gl.uniform1f(trajLocs.uPtSize,6.0);
-          gl.drawArrays(gl.LINES,0,4);
-          _tgtDot[0]=ex;_tgtDot[1]=ey;_tgtDot[2]=ez;
-          gl.bufferData(gl.ARRAY_BUFFER,_tgtDot,gl.DYNAMIC_DRAW);
-          gl.drawArrays(gl.POINTS,0,1);
-        }
-
-        // VIEW-02: tactical range rings removed (navigation overlay)
-
-        gl.disableVertexAttribArray(trajLocs.aPos);
-        gl.disable(gl.BLEND);
-        gl.disable(gl.DEPTH_TEST);
-        gl.useProgram(pg);
-        gl.bindBuffer(gl.ARRAY_BUFFER,bf);
-        gl.enableVertexAttribArray(aP);
-        gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
-      }
       // --- Pass 2: FXAA resolve the low-res scene up to the full-res canvas ---
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);
       gl.viewport(0,0,canvas.width,canvas.height);
@@ -1896,195 +429,13 @@
       gl.bindBuffer(gl.ARRAY_BUFFER,bf);
       gl.enableVertexAttribArray(aP);
       gl.vertexAttribPointer(aP,2,gl.FLOAT,false,0,0);
-      if(flyMode){
-        for(let i=0;i<pL.length;i++)pL[i].classList.remove('visible','hovered');
-        flySpdEl.textContent=v3len(flyVel).toFixed(1);
-        flyPosEl.textContent=flyPos[0].toFixed(0)+', '+flyPos[1].toFixed(0)+', '+flyPos[2].toFixed(0);
-        // Bullet time removed (Phase 10); warp indicator: Phase 14
-        // Damage vignette and HP bar update
-        {
-          const hpRatio=playerState.hp/playerState.maxHp;
-          if(hpRatio<0.3){
-            const intensity=1.0-(hpRatio/0.3);
-            vignetteEl.style.setProperty('--vignette-alpha',(intensity*0.7).toFixed(2));
-          }else{
-            vignetteEl.style.setProperty('--vignette-alpha','0');
-          }
-          hpBarEl.style.width=(hpRatio*100).toFixed(1)+'%';
-          hpTextEl.textContent=Math.max(0,Math.round(playerState.hp));
-          if(hpRatio<0.25){hpBarEl.className='hp-bar critical';}
-          else if(hpRatio<0.5){hpBarEl.className='hp-bar warning';}
-          else{hpBarEl.className='hp-bar';}
-          // Bottom bar HP
-          const hpPct=(hpRatio*100).toFixed(1)+'%';
-          hudHpFillEl.style.width=hpPct;
-          hudHpTextEl.textContent=Math.max(0,Math.round(playerState.hp));
-          if(hpRatio<0.25){hudHpFillEl.className='hud-hp-bar-fill critical';}
-          else if(hpRatio<0.5){hudHpFillEl.className='hud-hp-bar-fill warning';}
-          else{hudHpFillEl.className='hud-hp-bar-fill';}
-        }
-        // VIEW-03: km altitude formatting helper
-        function fmtKm(val) {
-          if (val < 1000) return val.toFixed(1) + ' km';
-          return Math.round(val).toLocaleString() + ' km';
-        }
-        // Altitude HUD readout
-        if(orbitState===ORBIT_STATE.ORBITING){
-          const bodyName=getTargetName(orbitBody);
-          altValEl.textContent=fmtKm(orbitAltitude)+(bodyName?' · '+bodyName:'');
-        }else if(orbitState===ORBIT_STATE.TRANSFER){
-          const tgtName=getTargetName(transferTarget);
-          altValEl.textContent='\u2192 '+(tgtName||'TRANSFER')+' '+fmtKm(targetOrbitAlt);
-        }else{
-          altValEl.textContent='FREE';
-        }
-        // Bottom bar orbit info
-        if(orbitState===ORBIT_STATE.ORBITING){
-          const bodyName=getTargetName(orbitBody).toUpperCase();
-          hudOrbitEl.textContent=bodyName+' \u00B7 '+fmtKm(orbitAltitude)+' \u00B7 ORBITING';
-        }else if(orbitState===ORBIT_STATE.TRANSFER){
-          const tgtName=getTargetName(transferTarget).toUpperCase();
-          hudOrbitEl.textContent=tgtName+' \u00B7 '+fmtKm(targetOrbitAlt)+' \u00B7 TRANSFER';
-        }else{
-          hudOrbitEl.textContent='FREE FLIGHT';
-        }
-        // Bottom bar wave counter
-        if(waveState===WAVE_BREATHER){
-          hudWaveEl.textContent='WAVE '+(waveNumber+1)+' \u00B7 INCOMING';
-        }else if(waveState===WAVE_IDLE){
-          hudWaveEl.textContent='';
-        }else{
-          hudWaveEl.textContent='WAVE '+waveNumber+' \u00B7 '+enemyCount+(enemyCount===1?' ENEMY':' ENEMIES');
-        }
-        // Bottom bar mode toggle text
-        hudModeToggleEl.textContent='COMBAT';
-        updateMissileUI();
-        // Bottom bar weapon boxes (always updated, not gated on combatMode)
-        {
-          const WPN_CD_DURATIONS=[KINETIC_COOLDOWN,PLASMA_COOLDOWN,MISSILE_COOLDOWN_REGULAR,MISSILE_COOLDOWN_NUKE];
-          for(let w=0;w<4;w++){
-            const cdEnd=weaponCooldownEnd[w];
-            const cdRemain=Math.max(0,cdEnd-simTime);
-            const fillPct=cdRemain>0?((1-cdRemain/WPN_CD_DURATIONS[w])*100):100;
-            wpnFillEls[w].style.width=fillPct.toFixed(1)+'%';
-            wpnCdEls[w].textContent=cdRemain>0?cdRemain.toFixed(1):'';
-            wpnBoxEls[w].classList.toggle('selected',w===selectedWeapon);
-            // Lock count for missile weapons when selected
-            if(w>=2&&w===selectedWeapon){
-              const lc=getLockCount();
-              wpnLockEls[w].textContent=lc>0?lc+'/'+lockState.maxTargets:'';
-            }else{
-              wpnLockEls[w].textContent='';
-            }
-          }
-        }
-        // VIEW-01: combat always on -- indicators always visible
-        combatIndicatorEl.style.display='block';
-        weaponIndicatorEl.style.display='block';
-        // Lock reticle DOM update: project locked enemy positions to screen
-        if(selectedWeapon>=2&&lockState.targets.length>0){
-          lockReticlesContainer.style.display='block';
-          const mDR=Math.min(baseWidth,baseHeight);
-          for(let ri=0;ri<lockReticleDivs.length;ri++){
-            if(ri<lockState.targets.length){
-              const lk=lockState.targets[ri];
-              if(!enemies.alive[lk.enemyIdx]){lockReticleDivs[ri].style.display='none';continue;}
-              const eDx=enemies.posX[lk.enemyIdx]-_camP[0];
-              const eDy=(enemies.posY?enemies.posY[lk.enemyIdx]:0)-_camP[1];
-              const eDz=enemies.posZ[lk.enemyIdx]-_camP[2];
-              const eDp=eDx*_camF[0]+eDy*_camF[1]+eDz*_camF[2];
-              if(eDp<=0){lockReticleDivs[ri].style.display='none';continue;}
-              const eSx=baseWidth*0.5+(eDx*_camR[0]+eDy*_camR[1]+eDz*_camR[2])/eDp*1.8*mDR;
-              const eSy=baseHeight*0.5-(eDx*_camU[0]+eDy*_camU[1]+eDz*_camU[2])/eDp*1.8*mDR;
-              if(eSx<-50||eSx>baseWidth+50||eSy<-50||eSy>baseHeight+50){
-                lockReticleDivs[ri].style.display='none';continue;
-              }
-              lockReticleDivs[ri].style.display='block';
-              lockReticleDivs[ri].style.left=(eSx-12)+'px';
-              lockReticleDivs[ri].style.top=(eSy-12)+'px';
-              const countSpan=lockReticleDivs[ri].querySelector('.lock-count');
-              if(countSpan)countSpan.textContent=lk.count>1?'x'+lk.count:'';
-            }else{
-              lockReticleDivs[ri].style.display='none';
-            }
-          }
-        }else{
-          lockReticlesContainer.style.display='none';
-          for(let ri=0;ri<lockReticleDivs.length;ri++)lockReticleDivs[ri].style.display='none';
-        }
-        // Off-screen enemy indicators
-        if(playerState.alive&&playerState.deathPhase===0){updateEnemyIndicators();}
-        else{hideAllIndicators();}
-        // Tactical marker per-frame update (unified with combat mode)
-        if(combatMode&&playerState.alive){
-          tacMarkerContainer.style.display='block';
-          const mDT=Math.min(baseWidth,baseHeight);
-          // Dead target cleanup: remove dead enemies from tacTargets (iterate backward for safe splice)
-          for(let j=tacTargets.length-1;j>=0;j--){
-            if(!enemies.alive[tacTargets[j].enemyIdx])tacTargets.splice(j,1);
-          }
-          const _tacWpnColors=['rgba(255,255,255,0.9)','rgba(0,220,255,0.9)','rgba(255,160,80,0.9)','rgba(255,60,40,0.9)'];
-          for(let i=0;i<MAX_ENEMIES;i++){
-            const mel=tacMarkerEls[i];
-            if(!enemies.alive[i]){mel.style.display='none';mel.classList.remove('selected','hovered');continue;}
-            const dx=enemies.posX[i]-_camP[0];
-            const dy=(enemies.posY?enemies.posY[i]:0)-_camP[1];
-            const dz=enemies.posZ[i]-_camP[2];
-            const dp=dx*_camF[0]+dy*_camF[1]+dz*_camF[2];
-            if(dp<=0){mel.style.display='none';mel.classList.remove('on-screen','hovered');continue;}
-            const sx=baseWidth*0.5+(dx*_camR[0]+dy*_camR[1]+dz*_camR[2])/dp*1.8*mDT;
-            const sy=baseHeight*0.5-(dx*_camU[0]+dy*_camU[1]+dz*_camU[2])/dp*1.8*mDT;
-            const onScreen=sx>=0&&sx<=baseWidth&&sy>=0&&sy<=baseHeight;
-            if(!onScreen){mel.style.display='none';mel.classList.remove('on-screen','hovered');continue;}
-            mel.style.display='block';
-            mel.style.transform='translate('+(sx-20)+'px,'+(sy-20)+'px)';
-            if(!mel.classList.contains('on-screen'))mel.classList.add('on-screen');
-            const eType=enemies.type[i];
-            const edx=enemies.posX[i]-flyPos[0],edz=enemies.posZ[i]-flyPos[2];
-            const dist=Math.sqrt(edx*edx+edz*edz);
-            mel._typeSpan.textContent='['+ARCHETYPE_ABBREVS[eType]+']';
-            mel._distSpan.textContent=Math.floor(dist)+'u';
-            const ac=ARCHETYPE_COLORS[eType];
-            mel._typeSpan.style.color='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
-            // JS-based hover detection (markers have pointer-events:none to allow canvas clicks)
-            const mHoverDx=mSX-sx,mHoverDy=mSY-sy;
-            if(mHoverDx*mHoverDx+mHoverDy*mHoverDy<625){if(!mel.classList.contains('hovered'))mel.classList.add('hovered');}
-            else{mel.classList.remove('hovered');}
-            // Always populate HP for hover-to-reveal
-            mel._hpSpan.textContent='HP '+Math.ceil(enemies.hp[i])+'/'+ARCHETYPE_HP[eType];
-            // Selection state rendering
-            const tacEntry=getTacEntry(i);
-            if(tacEntry){
-              if(!mel.classList.contains('selected'))mel.classList.add('selected');
-              mel._ringDiv.style.borderColor='rgba('+Math.round(ac[0]*255)+','+Math.round(ac[1]*255)+','+Math.round(ac[2]*255)+',0.9)';
-              // Weapon badge with cooldown check
-              const wIdx=tacEntry.weaponIdx;
-              const onCooldown=simTime<weaponCooldownEnd[wIdx];
-              if(onCooldown){
-                const remaining=(weaponCooldownEnd[wIdx]-simTime).toFixed(1);
-                mel._wpnSpan.textContent='['+WEAPON_ABBREVS[wIdx]+' '+remaining+'s]';
-                if(!mel._wpnSpan.classList.contains('dimmed'))mel._wpnSpan.classList.add('dimmed');
-              }else{
-                mel._wpnSpan.textContent='['+WEAPON_ABBREVS[wIdx]+']';
-                mel._wpnSpan.classList.remove('dimmed');
-              }
-              mel._wpnSpan.style.color=_tacWpnColors[wIdx];
-            }else{
-              mel.classList.remove('selected');
-              mel._wpnSpan.textContent='';
-              mel._wpnSpan.classList.remove('dimmed');
-            }
-          }
-        }else if(!combatMode){
-          tacMarkerContainer.style.display='none';
-        }
-      }else{
+      {
         for(let i=0;i<5;i++){const b=0x0B8+i*12,sx=dv.getFloat32(b,true),sy=dv.getFloat32(b+4,true),dp=dv.getFloat32(b+8,true),lb=pL[i];
           if(dp>0&&sx>-100&&sx<baseWidth+100&&sy>-100&&sy<baseHeight+100){const ar=(planetData[i].radius/dp)*Math.min(baseWidth,baseHeight)*1.8;lb.style.transform='translate(calc('+sx+'px - 50%),'+(sy-ar-12)+'px)';lb.classList.add('visible')}else{lb.classList.remove('visible')}
           if(i===hP)lb.classList.add('hovered');else lb.classList.remove('hovered');
         }
       }
-      fC++;if(now-lFT>=500){const fps=fC/(now-lFT)*1000;hF.textContent=Math.round(fps);hS.textContent=sp.toFixed(3);hD.textContent=(flyMode?flyDist:camDist).toFixed(1)+' M';hSc.textContent=renderScale<0.99?Math.round(renderScale*100)+'% RES':'';fC=0;lFT=now}
+      fC++;if(now-lFT>=500){const fps=fC/(now-lFT)*1000;hF.textContent=Math.round(fps);hS.textContent=sp.toFixed(3);hD.textContent=camDist.toFixed(1)+' M';hSc.textContent=renderScale<0.99?Math.round(renderScale*100)+'% RES':'';fC=0;lFT=now}
       requestAnimationFrame(render);
     }
    </script>

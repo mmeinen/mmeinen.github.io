@@ -72,7 +72,6 @@
       background: rgba(255,64,80,0.08);
     }
   </style>
-  <script src="js/scene/scale.js"></script>
 </head>
 <body>
   <h1>// REGRESSION TESTS</h1>
@@ -154,14 +153,12 @@
         return;
       }
 
-      // --- Fetch combat files ---
-      let shadersText, mathText, combatText;
+      // --- Fetch shader file ---
+      let shadersText;
       try {
         shadersText = await (await fetch('js/scene/shaders.js')).text();
-        mathText = await (await fetch('js/scene/math.js')).text();
-        combatText = await (await fetch('js/scene/combat.js')).text();
       } catch(e) {
-        showError('Could not fetch combat files: ' + e.message);
+        showError('Could not fetch js/scene/shaders.js: ' + e.message);
       }
 
       // --- Extract shader source (fsSource lives in js/scene/shaders.js, NOT index.html) ---
@@ -169,19 +166,18 @@
       if (!shaderMatch) { showError('Could not extract fragment shader source from js/scene/shaders.js.'); render(); return; }
       const shader = shaderMatch[1];
 
-      // --- Extract JS (everything in the <script> block) ---
-      const scriptMatch = text.match(/<script>([\s\S]*?)<\/script>/);
-      if (!scriptMatch) { showError('Could not extract <script> block.'); render(); return; }
-      const js = scriptMatch[1];
+      // --- Extract JS (all inline <script> blocks, concatenated) ---
+      const scriptBlocks = [...text.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+      if (!scriptBlocks.length) { showError('Could not extract <script> block.'); render(); return; }
+      const js = scriptBlocks.join('\n');
 
       // =============================================
       // 1. Early escape threshold > renderable objects
       // =============================================
 
-      // Pattern: if (r > mix(LOW, HIGH, step(...)) && dot(pos, vel) > 0.0) break;
-      // Extracts LOW (menu-mode / orbitScale 1.0 value).
+      // Pattern: if (r > LOW && dot(pos, vel) > 0.0) break;
       const escapeThreshold = extractShaderFloat(
-        shader, /if\s*\(\s*r\s*>\s*mix\(\s*([\d.]+)\s*,\s*[\d.]+\s*,\s*step\([^)]*\)\s*\)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
+        shader, /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
       );
       assert(escapeThreshold !== null,
         'Extraction: early escape threshold found',
@@ -221,11 +217,11 @@
       }
 
       // Invariant 1c: convergence escape threshold > farthest planet edge
-      // Line: ... && dot(pos, pos) > N * u_orbitScale * u_orbitScale && ... break;
-      // N = R^2 at orbitScale 1.0. A too-low N kills outbound rays bound for far-side
-      // planets before they arrive -> flat-bottom planet clipping (the bug this guards).
+      // Line: ... && dot(pos, pos) > N && ... break;
+      // N = R^2. A too-low N kills outbound rays bound for far-side planets
+      // before they arrive -> flat-bottom planet clipping (the bug this guards).
       const convergenceSq = extractShaderFloat(
-        shader, /dot\s*\(\s*pos\s*,\s*pos\s*\)\s*>\s*([\d.]+)\s*\*\s*u_orbitScale/
+        shader, /dot\s*\(\s*pos\s*,\s*pos\s*\)\s*>\s*([\d.]+)/
       );
       assert(convergenceSq !== null,
         'Extraction: convergence escape threshold found',
@@ -259,19 +255,17 @@
         'Extraction: default camDist found',
         defaultCamDist !== null ? `value = ${defaultCamDist}` : 'regex matched nothing');
 
-      // Step: max(0.002, min(MULT * (r - r_h), stepCap)) where stepCap = mix(CAP, ...).
-      // The cap is now a variable (nav-mode adaptive), so extract it from its mix() def;
-      // CAP is the first mix arg = normal/menu-mode cap.
+      // Step: max(0.002, min(MULT * (r - r_h), CAP)) -- the ray march loop's step,
+      // anchored on the (r - r_h) term so it isn't confused with the dt0 seed step.
       const stepMatch = shader.match(
-        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*stepCap\s*\)\s*\)/
+        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*([\d.]+)\s*\)\s*\)/
       );
-      const stepCapMatch = shader.match(/float\s+stepCap\s*=\s*mix\(\s*([\d.]+)\s*,/);
       const stepMin = stepMatch ? parseFloat(stepMatch[1]) : null;
       const stepMult = stepMatch ? parseFloat(stepMatch[2]) : null;
-      const stepCap = stepCapMatch ? parseFloat(stepCapMatch[1]) : null;
-      assert(stepMatch !== null && stepCapMatch !== null,
+      const stepCap = stepMatch ? parseFloat(stepMatch[3]) : null;
+      assert(stepMatch !== null,
         'Extraction: step size parameters found',
-        (stepMatch && stepCapMatch) ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
+        stepMatch ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
 
       // Invariant 2: conservative budget > 2 × camDist
       // Most of the path is at r >> r_h, so step ≈ cap for distant segments.
@@ -305,10 +299,9 @@
       // 4. Planet check range covers all orbits
       // =============================================
 
-      // Pattern: if (r > LOW && r < mix(HIGH, ..., step(...)) && accumulatedAlpha ...
-      // Extracts LOW and HIGH (menu-mode / orbitScale 1.0 value).
+      // Pattern: if (r > LOW && r < HIGH && accumulatedAlpha ...
       const rangeMatch = shader.match(
-        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*mix\(\s*([\d.]+)\s*,\s*[\d.]+\s*,\s*step\([^)]*\)\s*\)\s*&&\s*accumulatedAlpha/
+        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
       );
       const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
       const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
@@ -903,260 +896,6 @@
         assert(defaultCamDist !== null,
           'Scene structure: camDist preserved',
           defaultCamDist !== null ? `let camDist = ${defaultCamDist}` : 'not found');
-      }
-
-      // =============================================
-      // COMBAT RENDERING TESTS — Wave 0 invariants
-      // =============================================
-
-      // Test 1: ANGLE_instanced_arrays extension acquired
-      assert(text.match(/getExtension\s*\(\s*['"]ANGLE_instanced_arrays['"]\s*\)/),
-        'Combat Rendering: ANGLE_instanced_arrays extension acquired',
-        'index.html must acquire ANGLE_instanced_arrays');
-
-      // Test 2: Instanced draw call used
-      assert(text.match(/drawElementsInstancedANGLE/),
-        'Combat Rendering: instanced draw call used',
-        'index.html must call drawElementsInstancedANGLE');
-
-      // Test 3: enemyPg shader program exists (separate from pg/shipPg)
-      if (shadersText) {
-        assert(shadersText.match(/const\s+enemyVS\s*=/),
-          'Combat Rendering: enemyVS shader string in shaders.js',
-          'js/scene/shaders.js must define enemyVS');
-        assert(shadersText.match(/const\s+enemyFS\s*=/),
-          'Combat Rendering: enemyFS shader string in shaders.js',
-          'js/scene/shaders.js must define enemyFS');
-      }
-
-      // Test 4: Enemy shaders not inside ray march fsSource
-      assert(!shader.match(/a_instPos|a_instColor|a_instHeading|enemyPg/),
-        'Combat Rendering: no enemy code in ray march fsSource',
-        'fsSource must not contain enemy shader identifiers');
-
-      // Test 5: createGruntGeometry exists in math.js
-      if (mathText) {
-        assert(mathText.match(/function\s+createGruntGeometry/),
-          'Combat Rendering: createGruntGeometry exists in math.js',
-          'js/scene/math.js must define createGruntGeometry');
-      }
-
-      // Test 6: Enemy entity store exists in combat.js
-      if (combatText) {
-        assert(combatText.match(/function\s+spawnEnemy/),
-          'Combat Rendering: spawnEnemy exists in combat.js',
-          'js/scene/combat.js must define spawnEnemy');
-        assert(combatText.match(/function\s+removeEnemy/),
-          'Combat Rendering: removeEnemy exists in combat.js',
-          'js/scene/combat.js must define removeEnemy');
-        assert(combatText.match(/function\s+updateInstanceBuffer/),
-          'Combat Rendering: updateInstanceBuffer exists in combat.js',
-          'js/scene/combat.js must define updateInstanceBuffer');
-      }
-
-      // Test 7: Radial bin collision exists in combat.js
-      if (combatText) {
-        assert(combatText.match(/function\s+rebinEntities/),
-          'Combat Rendering: rebinEntities exists in combat.js',
-          'js/scene/combat.js must define rebinEntities');
-        assert(combatText.match(/function\s+getCollisionCandidates/),
-          'Combat Rendering: getCollisionCandidates exists in combat.js',
-          'js/scene/combat.js must define getCollisionCandidates');
-      }
-
-      // Test 8: Per-instance divisor cleanup (state leak prevention)
-      assert(text.match(/vertexAttribDivisorANGLE\s*\([^,]+,\s*0\s*\)/),
-        'Combat Rendering: divisor cleanup (state leak prevention)',
-        'index.html must reset divisors to 0 after instanced draw');
-
-      // =============================================
-      // ORBITAL MECHANICS TESTS — Phase 2 invariants
-      // =============================================
-
-      let orbitalText, navText;
-      try {
-        orbitalText = await (await fetch('js/scene/orbital.js')).text();
-        navText = await (await fetch('js/scene/nav.js')).text();
-      } catch(e) {
-        showError('Could not fetch orbital/nav files: ' + e.message);
-      }
-
-      // Test 1: orbital.js contains ORBIT_STATE enum with ORBITING, TRANSFER, FREE
-      if (orbitalText) {
-        assert(orbitalText.match(/ORBIT_STATE\s*=/) &&
-               orbitalText.match(/ORBITING/) &&
-               orbitalText.match(/TRANSFER/) &&
-               orbitalText.match(/FREE/),
-          'Orbital Mechanics: ORBIT_STATE enum with ORBITING, TRANSFER, FREE',
-          'js/scene/orbital.js must define ORBIT_STATE with all three states');
-      }
-
-      // Test 2: orbital.js contains computeSOI function
-      if (orbitalText) {
-        assert(orbitalText.match(/function\s+computeSOI/),
-          'Orbital Mechanics: computeSOI function exists',
-          'js/scene/orbital.js must define computeSOI');
-      }
-
-      // Test 3: orbital.js contains computeHohmannDV function
-      if (orbitalText) {
-        assert(orbitalText.match(/function\s+computeHohmannDV/),
-          'Orbital Mechanics: computeHohmannDV function exists',
-          'js/scene/orbital.js must define computeHohmannDV');
-      }
-
-      // Test 4: orbital.js contains computeLagrangePoints function
-      if (orbitalText) {
-        assert(orbitalText.match(/function\s+computeLagrangePoints/),
-          'Orbital Mechanics: computeLagrangePoints function exists',
-          'js/scene/orbital.js must define computeLagrangePoints');
-      }
-
-      // Test 5: orbital.js contains circularizeOrbit function
-      if (orbitalText) {
-        assert(orbitalText.match(/function\s+circularizeOrbit/),
-          'Orbital Mechanics: circularizeOrbit function exists',
-          'js/scene/orbital.js must define circularizeOrbit');
-      }
-
-      // Test 6: nav.js contains orbitState variable
-      if (navText) {
-        assert(navText.match(/let\s+orbitState/),
-          'Orbital Mechanics: orbitState variable in nav.js',
-          'js/scene/nav.js must define orbitState');
-      }
-
-      // Test 7: nav.js contains initiateTransfer function
-      if (navText) {
-        assert(navText.match(/function\s+initiateTransfer/),
-          'Orbital Mechanics: initiateTransfer function in nav.js',
-          'js/scene/nav.js must define initiateTransfer');
-      }
-
-      // Test 8: nav.js contains checkSOICapture function
-      if (navText) {
-        assert(navText.match(/function\s+checkSOICapture/),
-          'Orbital Mechanics: checkSOICapture function in nav.js',
-          'js/scene/nav.js must define checkSOICapture');
-      }
-
-      // Test 9: nav.js contains updateAltitude function
-      if (navText) {
-        assert(navText.match(/function\s+updateAltitude/),
-          'Orbital Mechanics: updateAltitude function in nav.js',
-          'js/scene/nav.js must define updateAltitude');
-      }
-
-      // Test 10: index.html loads orbital.js script
-      assert(text.match(/src=["']js\/scene\/orbital\.js["']/),
-        'Orbital Mechanics: index.html loads orbital.js',
-        'index.html must include orbital.js script tag');
-
-      // Test 11: index.html contains createCapitalShipGeometry (not createBoxGeometry for ship)
-      if (mathText) {
-        assert(mathText.match(/function\s+createCapitalShipGeometry/) &&
-               text.match(/createCapitalShipGeometry\s*\(\s*\)/),
-          'Orbital Mechanics: createCapitalShipGeometry in use',
-          'math.js must define createCapitalShipGeometry and index.html must call it');
-      }
-
-      // Test 12: shaders.js contains u_thrustIntensity uniform
-      if (shadersText) {
-        assert(shadersText.match(/u_thrustIntensity/),
-          'Orbital Mechanics: u_thrustIntensity uniform in shaders.js',
-          'js/scene/shaders.js must reference u_thrustIntensity');
-      }
-
-      // =============================================
-      // SCALE FOUNDATION (Phase 10) — scale.js constants
-      // =============================================
-
-      // SCALE-01: Body sizes
-      {
-        assert(typeof BODY_SCALE === 'number' && BODY_SCALE === 800,
-          'Scale Foundation: SCALE-01 BODY_SCALE === 800',
-          `BODY_SCALE = ${typeof BODY_SCALE === 'number' ? BODY_SCALE : 'undefined'}`);
-
-        // 5 planets (one per family member) at BODY_SCALE=4000: radius * 2 * 4000
-        const expectedDiameters = [20000, 16000, 12000, 11200, 10400];
-        const names = ['Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Mars'];
-        let allMatch = Array.isArray(PLANET_DIAMETER_KM) && PLANET_DIAMETER_KM.length === 5;
-        let mismatch = '';
-        if (allMatch) {
-          for (let i = 0; i < 5; i++) {
-            if (PLANET_DIAMETER_KM[i] !== expectedDiameters[i]) {
-              allMatch = false;
-              mismatch = `${names[i]}: got ${PLANET_DIAMETER_KM[i]}, expected ${expectedDiameters[i]}`;
-              break;
-            }
-          }
-        }
-        assert(allMatch,
-          'Scale Foundation: SCALE-01 planet diameters correct',
-          allMatch ? 'all 5 planet diameters match' : (mismatch || 'PLANET_DIAMETER_KM missing or wrong length'));
-      }
-
-      // SCALE-02: Jupiter orbit at ~50,000 km
-      {
-        const jupiterOrbit = typeof ORBIT_SCALE === 'number' ? ORBIT_SCALE * 38 : NaN;
-        assert(jupiterOrbit >= 49500 && jupiterOrbit <= 50500,
-          'Scale Foundation: SCALE-02 Jupiter orbit ~50,000 km',
-          `ORBIT_SCALE * 38 = ${jupiterOrbit} km (expected 49,500-50,500)`);
-      }
-
-      // SCALE-03: Archetype sizes
-      {
-        const checks = [
-          ['PLAYER_SIZE_KM', typeof PLAYER_SIZE_KM !== 'undefined' ? PLAYER_SIZE_KM : null, 10],
-          ['CAPITAL_SIZE_KM', typeof CAPITAL_SIZE_KM !== 'undefined' ? CAPITAL_SIZE_KM : null, 8],
-          ['GRUNT_SIZE_KM', typeof GRUNT_SIZE_KM !== 'undefined' ? GRUNT_SIZE_KM : null, 0.5],
-          ['SWARM_SIZE_KM', typeof SWARM_SIZE_KM !== 'undefined' ? SWARM_SIZE_KM : null, 0.5],
-        ];
-        let allOk = true;
-        let details = [];
-        for (const [name, val, exp] of checks) {
-          if (val !== exp) allOk = false;
-          details.push(`${name}=${val}`);
-        }
-        assert(allOk,
-          'Scale Foundation: SCALE-03 archetype sizes correct',
-          details.join(', '));
-      }
-
-      // TIME-02: BH_GM_KM Kepler derivation check
-      {
-        // Independently compute GM from Kepler's law
-        const r_j = 38 * (typeof ORBIT_SCALE === 'number' ? ORBIT_SCALE : 0);
-        const T_j = 60.0;
-        const gmExpected = (4 * Math.PI * Math.PI * Math.pow(r_j, 3)) / (T_j * T_j);
-        const gmActual = typeof BH_GM_KM === 'number' ? BH_GM_KM : 0;
-        const tolerance = Math.abs(gmActual - gmExpected) / gmExpected;
-        assert(tolerance < 0.001,
-          'Scale Foundation: TIME-02 BH_GM_KM matches Kepler derivation (<0.1%)',
-          `BH_GM_KM = ${gmActual.toExponential(4)}, expected ${gmExpected.toExponential(4)}, diff ${(tolerance * 100).toFixed(4)}%`);
-
-        // Verify T(Jupiter) = 2*pi*sqrt(r^3/GM) is ~60s
-        const T_check = 2 * Math.PI * Math.sqrt(
-          Math.pow(typeof JUPITER_ORBIT_KM === 'number' ? JUPITER_ORBIT_KM : 0, 3) / gmActual
-        );
-        assert(T_check >= 59.5 && T_check <= 60.5,
-          'Scale Foundation: TIME-02 T(Jupiter) from BH_GM_KM is 59.5-60.5s',
-          `T(Jupiter) = ${T_check.toFixed(4)}s`);
-      }
-
-      // SCALE-07: Collision bins
-      {
-        const bw = typeof BIN_WIDTH_KM === 'number' ? BIN_WIDTH_KM : 0;
-        const nb = typeof NUM_BINS_KM === 'number' ? NUM_BINS_KM : 0;
-        assert(bw === 5000,
-          'Scale Foundation: SCALE-07 BIN_WIDTH_KM === 5000',
-          `BIN_WIDTH_KM = ${bw}`);
-        assert(nb === 24,
-          'Scale Foundation: SCALE-07 NUM_BINS_KM === 24',
-          `NUM_BINS_KM = ${nb}`);
-        assert(bw * nb > 113176,
-          'Scale Foundation: SCALE-07 bins cover beyond Neptune orbit',
-          `${bw} * ${nb} = ${bw * nb} km > 113,176 km (Neptune orbit)`);
       }
 
       // =============================================

@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>GEOMORPH — Erosion Simulator</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#060a14;
+    font-family:'Segoe UI',system-ui,sans-serif;color:rgba(60,140,255,.9)}
+  canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:1;display:block;touch-action:none}
+  .hud{position:fixed;z-index:10;background:rgba(8,14,30,.72);border:1px solid rgba(60,140,255,.35);
+    border-radius:6px;padding:10px 14px;font-size:12px;letter-spacing:.06em;
+    backdrop-filter:blur(3px);user-select:none}
+  #title{top:14px;left:14px}
+  #title h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.18em;color:rgba(120,180,255,.95)}
+  #title .sub{font-size:10px;opacity:.75;margin-top:2px}
+  #title a{color:rgba(60,140,255,.85);text-decoration:none;font-size:11px;display:inline-block;margin-top:6px}
+  #title a:hover{color:#9cf}
+  #climate{top:14px;right:14px;min-width:230px;text-align:right}
+  #season{font-size:14px;font-weight:600;color:rgba(150,200,255,.95);letter-spacing:.12em}
+  #year{font-size:10px;opacity:.75;margin-top:2px}
+  #precipRow{margin-top:8px;display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  #precipLbl{font-size:11px;min-width:86px;text-align:right}
+  #precipLbl.storm{color:rgba(255,160,80,.95);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  #precipBarWrap{width:90px;height:8px;border:1px solid rgba(60,140,255,.4);border-radius:4px;overflow:hidden}
+  #precipBar{height:100%;width:0%;background:linear-gradient(90deg,rgba(60,140,255,.5),rgba(120,190,255,.95));transition:width .4s}
+  #snowinfo{font-size:10px;opacity:.7;margin-top:6px}
+  #controls{bottom:14px;left:14px}
+  #controls .row{display:flex;align-items:center;gap:6px;margin-top:6px}
+  #controls .row:first-child{margin-top:0}
+  #controls .lab{font-size:10px;opacity:.75;width:64px;letter-spacing:.1em}
+  button{background:rgba(20,40,80,.6);border:1px solid rgba(60,140,255,.4);color:rgba(140,190,255,.9);
+    font-size:11px;padding:3px 9px;border-radius:4px;cursor:pointer;font-family:inherit;letter-spacing:.05em}
+  button:hover{background:rgba(40,80,150,.6)}
+  button.on{background:rgba(60,140,255,.45);color:#fff;border-color:rgba(120,190,255,.9)}
+  button:disabled{opacity:.45;cursor:default;color:rgba(255,160,80,.9);border-color:rgba(255,160,80,.5)}
+  #stats{bottom:14px;right:14px;text-align:right;font-size:11px}
+  #help{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:10;font-size:10px;
+    color:rgba(60,140,255,.55);letter-spacing:.08em;text-align:center;pointer-events:none}
+  #msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;display:none;
+    max-width:420px;text-align:center;font-size:13px;line-height:1.5}
+  @media (max-width:720px){ #help{display:none} #controls{font-size:11px} }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="hud" id="title">
+  <h1>GEOMORPH</h1>
+  <div class="sub">EROSION SIMULATOR · ROCKY MOUNTAIN PROVINCE</div>
+  <a href="../index.html">&larr; Back to Menu</a>
+</div>
+
+<div class="hud" id="climate">
+  <div id="season">SPRING</div>
+  <div id="year">YEAR 1 · DAY 0</div>
+  <div id="precipRow">
+    <span id="precipLbl">DRY</span>
+    <div id="precipBarWrap"><div id="precipBar"></div></div>
+  </div>
+  <div id="snowinfo">SNOWLINE — m</div>
+</div>
+
+<div class="hud" id="controls">
+  <div class="row"><span class="lab">TIME</span>
+    <button id="bPause">⏸</button>
+    <button data-speed="2" class="spd on">1×</button>
+    <button data-speed="4" class="spd">2×</button>
+    <button data-speed="8" class="spd">4×</button>
+  </div>
+  <div class="row"><span class="lab">EROSION</span>
+    <button data-ero="1" class="ero">×1</button>
+    <button data-ero="3" class="ero">×3</button>
+    <button data-ero="10" class="ero on">×10</button>
+    <button data-ero="30" class="ero">×30</button>
+  </div>
+  <div class="row"><span class="lab">TERRAIN</span>
+    <button id="bRegen">⟳ REGENERATE</button>
+  </div>
+  <div class="row"><span class="lab">VOLCANO</span>
+    <button id="bCald">▲ ERUPT</button>
+  </div>
+  <div class="row"><span class="lab">IMPACT</span>
+    <button id="bMet">☄ METEOR</button>
+  </div>
+  <div class="row"><span class="lab">MODE</span>
+    <button id="bWalk">⛰ WALK</button>
+  </div>
+</div>
+
+<div class="hud" id="stats">
+  <div id="fps">-- FPS</div>
+  <div id="seed" style="opacity:.6;font-size:10px;margin-top:2px">SEED —</div>
+</div>
+
+<div id="help">drag orbit · right-drag / shift-drag pan · wheel zoom · SPACE pause · R new terrain · F walk mode</div>
+<div class="hud" id="msg"></div>
+<div class="hud" id="loading" style="top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;letter-spacing:.14em">
+  GENERATING TERRAIN &amp; SPINNING UP RIVERS…</div>
+
+<script>
+'use strict';
+// ============================================================================
+// GEOMORPH — GPU hydraulic + thermal erosion (virtual-pipes shallow-water
+// model, Mei et al. 2007) on a 2-material column heightfield: layered bedrock
+// with periodic hard caprock strata + a mobile soil/regolith layer. Hard-over-
+// soft strata produce stepped canyon walls and retreating waterfall knickpoints.
+// Voxel cel-shaded rendering: quantized height terraces, flat faceted normals,
+// banded 3-tone light ramp. Terrain + water draw as 64-cell chunks with LOD
+// (vertex stride 1/2/4/8 by eye distance), per-chunk seam skirts, and frustum
+// culling. First-person walk mode (pointer lock, jump physics) collides against
+// a small readPixels height window. Self-contained: runs from file://.
+//
+// Scale: 1 cell = 1 height-unit ≈ 5 m, map 1024 cells ≈ 5.1 km, relief ≈ 1000 m.
+// Terrain texture layout: R=bedrock, G=soil, B=water depth, A=suspended sediment.
+// ============================================================================
+
+const N = 1024;            // sim grid resolution (5 m/cell)
+const DT = 0.12;           // sim timestep (time-units)
+const YEAR_TU = 1300;      // time-units per simulated year
+const BASE_Y = -10.0;      // base of the boundary skirt walls
+const QSTEP = 3.0;         // render-only height quantization (voxel terrace step ≈ 15 m)
+const CHUNK = 64;          // cells per chunk side (LOD + frustum-cull granularity)
+const CN = N/CHUNK;        // chunks per map side
+const STRIDES = [1,2,4,8]; // LOD vertex strides
+const LOD_D = [200,500,1300];  // eye-distance cutoffs for strides 1/2/4 (beyond: 8)
+const chunkLo = new Float32Array(CN*CN), chunkHi = new Float32Array(CN*CN);
+
+// Catastrophic events (triggered from the HUD)
+let cal = null;             // active volcanic event {x, z, R, t0}
+// ring radius (cells); summit-crater drop, cone build height, ash depth (units)
+const CAL_R=120, CAL_DROP=22, CAL_BUILD=60, CAL_ASH=10;
+let met = null;             // active meteor impact {x, z, R, t0}
+// Barringer-analog simple crater: radius (cells), bowl depth, rim height (units)
+const MET_R=100, MET_D=40, MET_RIM=8;
+
+// Physics constants (per time-unit). Erosion multiplier scales the K group.
+const P = {
+  g: 4.0,          // pipe acceleration coefficient (g·A/l)
+  fluxDamp: 0.995,
+  Kc: 0.20,        // sediment capacity coefficient
+  KsSoil: 0.9,     // soil dissolution rate
+  KsRock: 0.35,    // bedrock dissolution rate (× strata erodibility)
+  Kd: 0.35,        // deposition rate
+  Kt: 0.9,         // thermal (talus) creep rate
+  talus: 0.8,      // stable height step per cell before soil slides (~39°)
+  KtRock: 0.06,    // cliff-crumble rate (rock → scree above threshold)
+  cliff: 2.4,      // per-cell drop that triggers cliff crumble (~67°)
+};
+
+// Seasonal keyframes at [winter, spring, summer, fall], cosine-interpolated.
+// Heights are in 5 m units: snowline 55 ≈ 1700 m displayed, 160 ≈ 2200 m.
+const SEASON = {
+  names: ['WINTER','SPRING','SUMMER','FALL'],
+  rain:     [0.00002, 0.00012, 0.00002, 0.00007],
+  melt:     [0.00001, 0.00025, 0.00002, 0.0],
+  evap:     [0.0015,  0.002,   0.010,   0.004],
+  snowline: [55, 85, 160, 100],
+  stormP:   [0.0, 0.10, 0.55, 0.30],   // storm spawn probability / sec
+};
+
+// ---------------------------------------------------------------------------
+// GL setup
+// ---------------------------------------------------------------------------
+const cv = document.getElementById('cv');
+const gl = cv.getContext('webgl2', {antialias:true, alpha:false});
+function fatal(t){ const m=document.getElementById('msg'); m.style.display='block'; m.textContent=t; throw new Error(t); }
+if (!gl) fatal('WebGL2 is required for this simulation and is not available in this browser.');
+if (!gl.getExtension('EXT_color_buffer_float'))
+  fatal('This simulation needs float render targets (EXT_color_buffer_float), which this GPU/browser does not expose.');
+
+const H = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n';
+
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    fatal('Shader error: ' + gl.getShaderInfoLog(s));
+  return s;
+}
+function program(vs, fs){
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+    fatal('Link error: ' + gl.getProgramInfoLog(p));
+  const u = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i=0;i<n;i++){ const info = gl.getActiveUniform(p,i); u[info.name] = gl.getUniformLocation(p, info.name); }
+  return {p, u};
+}
+
+function target(fmt){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  if(fmt==='rg8') gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, N, N, 0, gl.RG, gl.UNSIGNED_BYTE, null);
+  else            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, N, N, 0, gl.RGBA, gl.FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+    fatal('Float framebuffer incomplete — this GPU cannot run the simulation.');
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return {tex, fbo};
+}
+
+let terr = [target(), target()];   // ping-pong terrain state
+let flux = [target(), target()];   // ping-pong pipe flux (L,R,B,T outflow)
+const velT = target();             // depth-averaged velocity
+let disp = [target(), target()];   // ping-pong smoothed water display state (render only)
+let wet  = [target('rg8'), target('rg8')]; // ping-pong R=ground wetness, G=basalt stain
+let lava = [target(), target()];   // ping-pong lava layer: R=depth, G=heat (0..1)
+
+// ---------------------------------------------------------------------------
+// Shared GLSL
+// ---------------------------------------------------------------------------
+// Strata erodibility — 20-unit (~100 m) beds; keep in sync with rockColor().
+const EROD = `
+float erod(float y){
+  float band = fract(y/20.0);
+  float layer = floor(y/20.0);
+  float jit = fract(sin(layer*12.9898)*43758.5453);
+  float cap = step(0.70, band);            // top 30% of each stratum = hard caprock
+  return mix(0.85 + 0.5*jit, 0.10, cap);   // caprock erodes ~8× slower
+}`;
+
+const FSQ_VS = H + `
+void main(){
+  vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2));
+  gl_Position = vec4(p*2.0-1.0, 0.0, 1.0);
+}`;
+
+const DECL_N = `const int N=${N};\n`;
+const CLAMP_T = `vec4 TT(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_T,c,0); }\n`;
+const CLAMP_F = `vec4 FF(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_F,c,0); }\n`;
+
+// --- Pass 1: precipitation + snowmelt sources -------------------------------
+const rainFS = H + `
+uniform sampler2D u_T;
+uniform float u_dt,u_rain,u_melt,u_snowline,u_stormR;
+uniform vec3 u_storm;   // x, y, intensity
+out vec4 o;
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  float h=t.r+t.g;
+  float oro = 0.55 + 0.9*smoothstep(30.0,150.0,h);           // orographic uplift
+  float r = u_rain*oro;
+  if(u_storm.z>0.0){
+    vec2 dp=vec2(C)-u_storm.xy;
+    r += u_storm.z*exp(-dot(dp,dp)/(u_stormR*u_stormR));     // convective cell
+  }
+  r += u_melt*smoothstep(u_snowline-30.0,u_snowline+25.0,h); // snowpack melt
+  t.b = min(t.b + u_dt*r, 40.0);
+  o = t;
+}`;
+
+// --- Pass 2: outflow flux (virtual pipes) -----------------------------------
+const fluxFS = H + `
+uniform sampler2D u_T,u_F,u_L;
+uniform float u_dt,u_g,u_damp;
+out vec4 o;
+` + DECL_N + CLAMP_T + `
+float LV(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_L,c,0).r; }
+float Hh(ivec2 c){ vec4 t=TT(c); return t.r+t.g+t.b+LV(c); }   // lava dams water
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  float h=t.r+t.g+t.b+LV(C);
+  vec4 dH=vec4(h-Hh(C+ivec2(-1,0)), h-Hh(C+ivec2(1,0)), h-Hh(C+ivec2(0,-1)), h-Hh(C+ivec2(0,1)));
+  vec4 f=texelFetch(u_F,C,0);
+  f=max(vec4(0.0), f*u_damp + u_dt*u_g*dH);
+  float s=f.x+f.y+f.z+f.w;
+  if(s>0.0) f *= min(1.0, t.b/(s*u_dt+1e-6));   // never drain below zero depth
+  o=f;
+}`;
+
+// --- Pass 3: water depth update + evaporation + open boundaries -------------
+const waterSimFS = H + `
+uniform sampler2D u_T,u_F;
+uniform float u_dt,u_evap;
+out vec4 o;
+` + DECL_N + CLAMP_F + `
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec4 f=texelFetch(u_F,C,0);
+  float fin = FF(C+ivec2(-1,0)).y + FF(C+ivec2(1,0)).x + FF(C+ivec2(0,-1)).w + FF(C+ivec2(0,1)).z;
+  float d = t.b + u_dt*(fin-(f.x+f.y+f.z+f.w));
+  d = max(d*(1.0-u_evap*u_dt), 0.0);
+  if(C.x==0||C.y==0||C.x==N-1||C.y==N-1){ d=0.0; t.a=0.0; }  // map edge = outlet
+  o=vec4(t.r,t.g,d,t.a);
+}`;
+
+// --- Pass 4: depth-averaged velocity ----------------------------------------
+const velFS = H + `
+uniform sampler2D u_T,u_F;
+out vec4 o;
+` + DECL_N + CLAMP_F + `
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 f=texelFetch(u_F,C,0);
+  float u = 0.5*(FF(C+ivec2(-1,0)).y - f.x + f.y - FF(C+ivec2(1,0)).x);
+  float w = 0.5*(FF(C+ivec2(0,-1)).w - f.z + f.w - FF(C+ivec2(0,1)).z);
+  float d = texelFetch(u_T,C,0).b;
+  vec2 v = vec2(u,w)/(d+0.08);
+  float L=length(v);
+  if(L>4.0) v*=4.0/L;
+  o=vec4(v,0.0,0.0);
+}`;
+
+// --- Pass 5: stream-power erosion / deposition ------------------------------
+const erosionFS = H + `
+uniform sampler2D u_T,u_V;
+uniform float u_dt,u_Kc,u_KsS,u_KsR,u_Kd;
+out vec4 o;
+` + DECL_N + CLAMP_T + EROD + `
+float land(ivec2 c){ vec4 t=TT(c); return t.r+t.g; }
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  float hL=land(C+ivec2(-1,0)), hR=land(C+ivec2(1,0)), hB=land(C+ivec2(0,-1)), hT=land(C+ivec2(0,1));
+  vec3 nrm=normalize(vec3(hL-hR, 2.0, hB-hT));
+  float sinA=sqrt(max(1.0-nrm.y*nrm.y, 0.0));
+  vec2 v=texelFetch(u_V,C,0).xy;
+  float depthFac=smoothstep(0.002,0.03,t.b);
+  float cap=u_Kc*max(sinA,0.02)*length(v)*depthFac;   // capacity C = Kc·sin(α)·|v|
+  float m=t.a;
+  if(cap>m){
+    // relaxation factors clamped to 1 so high erosion multipliers can't overshoot
+    float ds=min(t.g, min(u_dt*u_KsS,1.0)*(cap-m));   // strip soil first
+    float soilCover=clamp(t.g/0.05,0.0,1.0);
+    float dr=(1.0-soilCover)*min(u_dt*u_KsR*erod(t.r),1.0)*(cap-m);
+    dr=min(min(dr,0.05), max(t.r-0.5,0.0));           // then incise bedrock
+    t.r-=dr; t.g-=ds; m+=ds+dr;
+  }else{
+    float dep=min(m, min(u_dt*u_Kd,1.0)*(m-cap));
+    t.g+=dep; m-=dep;
+  }
+  o=vec4(t.r, max(t.g,0.0), t.b, min(m,5.0));
+}`;
+
+// --- Pass 6: semi-Lagrangian sediment advection -----------------------------
+const advectFS = H + `
+uniform sampler2D u_T,u_V;
+uniform float u_dt;
+out vec4 o;
+` + DECL_N + CLAMP_T + `
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec2 v=texelFetch(u_V,C,0).xy;
+  vec2 p=vec2(C)-v*u_dt;
+  vec2 pf=floor(p), fr=p-pf;
+  ivec2 p0=ivec2(pf);
+  float m00=TT(p0).a, m10=TT(p0+ivec2(1,0)).a, m01=TT(p0+ivec2(0,1)).a, m11=TT(p0+ivec2(1,1)).a;
+  float m=mix(mix(m00,m10,fr.x), mix(m01,m11,fr.x), fr.y);
+  o=vec4(t.rgb, m);
+}`;
+
+// --- Pass 7: thermal erosion (talus creep) + cliff crumble ------------------
+const thermalFS = H + `
+uniform sampler2D u_T;
+uniform float u_dt,u_Kt,u_talus,u_KtR,u_cliff;
+out vec4 o;
+` + DECL_N + CLAMP_T + `
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  float h=t.r+t.g;
+  const ivec2 offs[4]=ivec2[4](ivec2(-1,0),ivec2(1,0),ivec2(0,-1),ivec2(0,1));
+  float net=0.0, maxDrop=0.0;
+  for(int i=0;i<4;i++){
+    vec4 tn=TT(C+offs[i]);
+    float hn=tn.r+tn.g;
+    // pairwise-symmetric transfers: both cells compute identical amounts
+    float outT=min(min(u_Kt*u_dt*max(h-hn-u_talus,0.0), t.g*0.25), max(h-hn,0.0)*0.25);
+    float inT =min(min(u_Kt*u_dt*max(hn-h-u_talus,0.0), tn.g*0.25), max(hn-h,0.0)*0.25);
+    net += inT-outT;
+    maxDrop=max(maxDrop, h-hn);
+  }
+  t.g=max(t.g+net, 0.0);
+  // oversteepened rock faces shed scree (rock converts to soil in place)
+  float cr=min(min(u_KtR*u_dt*max(maxDrop-u_cliff,0.0), 0.04), max(t.r-0.5,0.0));
+  t.r-=cr; t.g+=cr;
+  o=t;
+}`;
+
+// --- Pass 8 (event): caldera — tumescence, tephra fall, ring-fault collapse --
+// Sequence follows documented caldera-forming eruptions: broad inflation over
+// the magma chamber, plinian tephra blanket thinning exponentially with
+// distance (Pyle 1989) with proximal ignimbrite ponding, then episodic piston
+// subsidence on steep ring faults (Kilauea 2018 collapsed in ~62 discrete
+// drops — pulsed here), surface water flashing to steam in the hot zone.
+// Rates are per time-unit, integrated over u_dt each substep.
+const calFS = H + `
+uniform sampler2D u_T;
+uniform vec4 u_cal;    // vent x, z, ring radius R, event age (TU)
+uniform float u_dt;
+out vec4 o;
+float env(float a,float s,float e){ return smoothstep(s-8.0,s+8.0,a)*(1.0-smoothstep(e-12.0,e,a)); }
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec2 dp=vec2(C)-u_cal.xy;
+  float r=length(dp), R=u_cal.z, a=u_cal.w;
+  // 1) tumescence: ~30 m broad bulge as the chamber pressurizes
+  t.r += u_dt*env(a,0.0,60.0)*0.115*exp(-r*r/(1.3*R*R));
+  // 2) plinian phase: thick tephra blanket deposited as fresh erodible ash
+  //    (soil), exponential thinning away from the rim (Pyle-style)
+  float ash=exp(-max(r-R,0.0)/R)*(0.55+0.45*smoothstep(0.3*R,R,r));
+  t.g += u_dt*env(a,55.0,140.0)*0.14*ash;
+  // 2b) cone building: proximal spatter/agglomerate stacks a ~300 m stratocone
+  //     around the vent — 70% welded (rock), 30% loose tephra (soil), giving
+  //     real stratovolcano structure: erodible mantle over resistant core
+  float cone=pow(max(1.0-r/(0.9*R),0.0),1.4)*env(a,55.0,170.0)*0.60;
+  t.r += u_dt*cone*0.7;
+  t.g += u_dt*cone*0.3;
+  // 3) summit collapse: episodic piston drops on a ring fault WITHIN the new
+  //    cone (~660 m crater, ~110 m deep) — the edifice survives, net-positive
+  float pulse=0.3+1.4*pow(0.5+0.5*sin(a*0.6),4.0);
+  float f=1.0-smoothstep(0.45*R,0.58*R,r);
+  t.r -= u_dt*env(a,130.0,230.0)*0.34*pulse*f;
+  t.r = max(t.r,2.0);
+  // 4) hot zone flashes surface water / suspended load to steam until it cools
+  float hot=(env(a,55.0,140.0)+env(a,130.0,260.0))*(1.0-smoothstep(0.9*R,1.15*R,r));
+  t.b*=exp(-2.5*hot*u_dt);
+  t.a*=exp(-2.5*hot*u_dt);
+  // 5) lahar source: eruptive heat melts flank snowpack / condenses steam into
+  //    a meltwater pulse on the outer slopes that mobilizes the fresh ash
+  t.b += u_dt*0.004*env(a,90.0,260.0)*exp(-pow((r-1.15*R)/(0.35*R),2.0));
+  o=t;
+}`;
+
+// --- Pass 11 (event): meteor impact — Barringer-style simple crater ---------
+// Excavation to final morphology in ~1 s of wall time (real 1 km craters
+// excavate in ~10 s): parabolic bowl of depth 0.2D, a raised rim (~0.04D,
+// half structural bedrock uplift + half ejecta), and a continuous ejecta
+// blanket thinning as (r/R)^-3 (McGetchin 1973) out to ~3.5 radii. The
+// modification stage then loosens the floor into a fallback-breccia lens.
+const metFS = H + `
+uniform sampler2D u_T;
+uniform vec4 u_met;    // impact x, z, crater radius R, age (TU)
+uniform float u_dt;
+out vec4 o;
+float hash12(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float env(float a,float s,float e){ return smoothstep(s-3.0,s+3.0,a)*(1.0-smoothstep(e-5.0,e,a)); }
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec2 dp=vec2(C)-u_met.xy;
+  float r=length(dp), R=u_met.z, a=u_met.w, x=r/R;
+  float exca=env(a,0.0,15.0)*u_dt/13.0;       // integrates to ~1 over the window
+  float bowl=${MET_D.toFixed(1)}*max(1.0-x*x,0.0);
+  float rim=${MET_RIM.toFixed(1)}*exp(-pow((r-R)/(0.16*R),2.0));
+  float ej = r>R ? min(${MET_RIM.toFixed(1)}*pow(x,-3.0),${MET_RIM.toFixed(1)})*smoothstep(3.6,2.2,x) : 0.0;
+  float hum=0.7+0.6*hash12(vec2(C));          // hummocky ejecta texture
+  t.r += exca*(rim*0.5 - bowl);               // uplifted rim half is bedrock
+  t.g += exca*(rim*0.5 + ej*hum);             // the rest is loose ejecta
+  // modification stage: fallback breccia lens loosens the floor (rock -> rubble)
+  float brec=env(a,12.0,30.0)*(u_dt/16.0)*6.0*(1.0-smoothstep(0.55*R,0.75*R,r));
+  brec=min(brec, max(t.r-2.0,0.0));
+  t.r-=brec; t.g+=brec;
+  // shock + fireball flash-vaporizes surface water across the blast zone
+  float vap=env(a,0.0,15.0)*(1.0-smoothstep(1.2*R,1.8*R,r));
+  t.b*=exp(-4.0*vap*u_dt);
+  t.a*=exp(-4.0*vap*u_dt);
+  t.r=max(t.r,2.0); t.g=max(t.g,0.0);
+  o=t;
+}`;
+
+// --- Passes 9+10: effusive lava — viscous spread, cooling, solidification ---
+// Lava is a Bingham-style fluid: hot lava creeps downslope; as it cools its
+// yield strength rises so fronts stall and thicken (natural levees, lobes);
+// cooled lava accretes onto bedrock, permanently building the landscape.
+// solidConv MUST stay identical in both passes: the flow pass subtracts it
+// from the lava column and the deposit pass adds it to bedrock, both computed
+// from the same pre-update lava state.
+const SOLID = `
+float solidConv(float d,float h,float dt){
+  return min(d, dt*d*(0.002+0.035*smoothstep(0.35,0.10,h)));
+}`;
+const lavaFS = H + `
+uniform sampler2D u_T,u_L;
+uniform vec4 u_cal;    // vent x, z, R, age (age<0: no volcanic event)
+uniform vec4 u_met;    // impact x, z, R, age (age<0: no impact)
+uniform float u_dt;
+out vec4 o;
+` + DECL_N + CLAMP_T + SOLID + `
+vec4 LL(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_L,c,0); }
+float env(float a,float s,float e){ return smoothstep(s-8.0,s+8.0,a)*(1.0-smoothstep(e-12.0,e,a)); }
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec4 l=texelFetch(u_L,C,0);
+  vec2 dp=vec2(C)-u_cal.xy;
+  float r=length(dp), R=u_cal.z, a=u_cal.w;
+  // effusion (voluminous): summit vent, flank ring fissures through and after
+  // the collapse, then waning effusion ponding in the summit crater
+  float emit = env(a,60.0,140.0)*smoothstep(0.18*R,0.0,r)*0.22
+             + env(a,140.0,360.0)*exp(-pow((r-1.02*R)/(0.10*R),2.0))*0.12
+             + env(a,240.0,500.0)*smoothstep(0.25*R,0.0,r)*0.10;
+  // impact melt: a modest sheet pooling in the crater floor after excavation
+  emit += env(u_met.w,15.0,30.0)*smoothstep(0.30*u_met.z,0.0,length(vec2(C)-u_met.xy))*0.20;
+  float conv=solidConv(l.r,l.g,u_dt);            // (matched by the deposit pass)
+  float d=l.r-conv, h=l.g;
+  // pairwise-symmetric viscous creep over the composite surface
+  float mob=smoothstep(0.20,0.65,h);
+  float yld=0.3+1.4*(1.0-h);
+  float H=t.r+t.g+l.r;
+  const ivec2 offs[4]=ivec2[4](ivec2(-1,0),ivec2(1,0),ivec2(0,-1),ivec2(0,1));
+  float net=0.0;
+  for(int i=0;i<4;i++){
+    vec4 tn=TT(C+offs[i]); vec4 ln=LL(C+offs[i]);
+    float Hn=tn.r+tn.g+ln.r;
+    float mobN=smoothstep(0.20,0.65,ln.g), yn=0.3+1.4*(1.0-ln.g);
+    float outT=min(min(1.2*u_dt*mob *max(H-Hn-yld,0.0), l.r *0.2), max(H-Hn,0.0)*0.25);
+    float inT =min(min(1.2*u_dt*mobN*max(Hn-H-yn ,0.0), ln.r*0.2), max(Hn-H,0.0)*0.25);
+    net+=inT-outT;
+  }
+  d=max(d+net+u_dt*emit, 0.0);
+  h*=exp(-u_dt*(0.006+0.02/(d*2.0+0.4)));        // thin distal lobes freeze first
+  if(emit>0.0) h=1.0;                            // vents stay at eruption temperature
+  o=vec4(d,h,0.0,0.0);
+}`;
+const lavaDepFS = H + `
+uniform sampler2D u_T,u_L;
+uniform float u_dt;
+out vec4 o;
+` + SOLID + `
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  vec4 l=texelFetch(u_L,C,0);
+  t.r+=solidConv(l.r,l.g,u_dt);                  // cooled lava becomes new bedrock
+  float smother=clamp(l.r*2.0,0.0,1.0);          // flows boil off water beneath them
+  t.b*=exp(-6.0*smother*u_dt);
+  t.a*=exp(-6.0*smother*u_dt);
+  o=t;
+}`;
+
+// --- Display smoothing: EMA + wetness-weighted blur of the water surface ----
+// The virtual-pipes solver oscillates at grid scale; water renders from this
+// temporally smoothed copy instead of the raw sim state (physics untouched).
+// Layout: R=surface height (land+depth), G=depth, B=speed, A=sediment.
+const dispFS = H + `
+uniform sampler2D u_T,u_V,u_D,u_L;
+uniform float u_k;
+out vec4 o;
+` + DECL_N + CLAMP_T + `
+float LV(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_L,c,0).r; }
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  vec4 t=texelFetch(u_T,C,0);
+  float s=t.r+t.g+t.b+LV(C), ws=1.0;
+  const ivec2 offs[4]=ivec2[4](ivec2(-1,0),ivec2(1,0),ivec2(0,-1),ivec2(0,1));
+  for(int i=0;i<4;i++){                       // blur only across wet-wet pairs so
+    vec4 tn=TT(C+offs[i]);                    // shorelines don't smear onto land
+    float w=0.5*step(0.01,tn.b)*step(0.01,t.b);
+    s+=w*(tn.r+tn.g+tn.b+LV(C+offs[i])); ws+=w;
+  }
+  vec4 cur=vec4(s/ws, t.b, length(texelFetch(u_V,C,0).xy), t.a);
+  o=mix(texelFetch(u_D,C,0), cur, u_k);
+}`;
+
+// --- Ground wetness: asymmetric relaxation toward water presence -------------
+// Rises fast when water arrives, drains slowly after it leaves (per-frame rates)
+// so terrain darkening / snow / thin sheets fade in and out instead of blinking.
+const wetFS = H + `
+uniform sampler2D u_T,u_W,u_L;
+uniform float u_up,u_dn,u_reset;
+out vec4 o;
+void main(){
+  ivec2 C=ivec2(gl_FragCoord.xy);
+  float t=smoothstep(0.006,0.06,texelFetch(u_T,C,0).b);   // water presence 0..1
+  vec2 wb=texelFetch(u_W,C,0).rg;
+  float w=wb.r;
+  w+=(t-w)*(t>w?u_up:u_dn);
+  // basalt stain: cooling lava marks the ground permanently (cleared on regen)
+  vec2 l=texelFetch(u_L,C,0).rg;
+  float stain=smoothstep(0.05,0.5,l.x)*smoothstep(0.5,0.15,l.y);
+  float bas = u_reset>0.5 ? stain : max(wb.g, stain);
+  o=vec4(w,bas,0.0,1.0);
+}`;
+
+// ---------------------------------------------------------------------------
+// Render shaders — voxel cel-shaded heightfield (quantized terraces, hard bands)
+// ---------------------------------------------------------------------------
+const STRATA_COLOR = `
+vec3 rockColor(float y){
+  float band=fract(y/20.0);
+  float layer=floor(y/20.0);
+  float jit=fract(sin(layer*12.9898)*43758.5453);
+  float cap=step(0.70,band);                                       // hard stratum edge
+  vec3 soft=mix(vec3(0.58,0.34,0.24), vec3(0.66,0.45,0.28), jit);  // redrock
+  vec3 hard=mix(vec3(0.46,0.45,0.48), vec3(0.55,0.53,0.50), jit);  // granite cap
+  return mix(soft,hard,cap);
+}
+vec3 soilColor(float y, float jit){
+  // hard treeline: sage green below, alpine tan above (per-cell jitter breaks the seam)
+  return mix(vec3(0.36,0.44,0.26), vec3(0.62,0.53,0.38), step(100.0+30.0*jit, y));
+}`;
+
+const terrVS = H + `
+uniform sampler2D u_T,u_W,u_L;
+uniform mat4 u_mvp;
+uniform ivec2 u_org;      // chunk origin in cells
+uniform int u_stride;     // LOD vertex stride
+uniform int u_vs;         // verts per chunk side
+out vec3 v_w;
+out vec4 v_mat;
+out float v_wet;
+out float v_bas;
+out vec2 v_lav;           // lava depth, heat
+` + DECL_N + `
+const float BASE=${BASE_Y.toFixed(1)};
+const float Q=${QSTEP.toFixed(1)};
+void main(){
+  int id=gl_VertexID;
+  int G=u_vs*u_vs;
+  ivec2 lij; int side=-1;
+  if(id<G){
+    lij=ivec2(id%u_vs, id/u_vs);
+  }else{                                // per-chunk skirt ring hides LOD seams
+    int s=id-G; side=s/u_vs; int k=s-side*u_vs;
+    lij = side==0? ivec2(0,k) : side==1? ivec2(u_vs-1,k) : side==2? ivec2(k,0) : ivec2(k,u_vs-1);
+  }
+  ivec2 cell=clamp(u_org+lij*u_stride, ivec2(0), ivec2(N-1));
+  vec4 t=texelFetch(u_T,cell,0);
+  vec2 lv=texelFetch(u_L,cell,0).rg;
+  float h=floor((t.r+t.g+lv.x)/Q)*Q;    // quantized voxel terraces incl. lava layer
+  float y=h;
+  if(side>=0){
+    // map-boundary skirts drop to BASE (cross-section walls); interior seams 26u
+    bool mapEdge=(side==0&&cell.x==0)||(side==1&&cell.x==N-1)||(side==2&&cell.y==0)||(side==3&&cell.y==N-1);
+    y = mapEdge ? BASE : max(h-26.0, BASE);
+  }
+  v_w=vec3(float(cell.x), y, float(cell.y));
+  v_mat=t;
+  vec2 wb=texelFetch(u_W,cell,0).rg;
+  v_wet=wb.x; v_bas=wb.y; v_lav=lv;
+  gl_Position=u_mvp*vec4(v_w,1.0);
+}`;
+
+const terrFS = H + `
+in vec3 v_w;
+in vec4 v_mat;
+in float v_wet;
+in float v_bas;
+in vec2 v_lav;
+uniform vec3 u_sun,u_fog,u_cam;
+uniform float u_snowline,u_dim;
+uniform vec3 u_cal;       // vent x, z, R (R=1 when no event)
+uniform float u_calAsh;   // 0..1 once tephra has fallen
+out vec4 o;
+` + STRATA_COLOR + `
+float hash12(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vnoise(vec2 p){
+  vec2 i=floor(p), f=fract(p);
+  f=f*f*(3.0-2.0*f);
+  float a=hash12(i), b=hash12(i+vec2(1,0)), c=hash12(i+vec2(0,1)), d=hash12(i+vec2(1,1));
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+}
+void main(){
+  // flat faceted normal from screen-space derivatives, oriented toward the camera
+  vec3 n=normalize(cross(dFdx(v_w), dFdy(v_w)));
+  n*=sign(dot(n, u_cam-v_w));
+  float y=v_w.y;
+  vec2 cell=floor(v_w.xz);
+  float cj=hash12(cell);                                 // per-voxel jitter
+  // flat terrace tops keep soil; terrace walls expose bedrock strata
+  float soilAmt=step(0.7,n.y)*step(0.05,v_mat.g);
+  vec3 alb=mix(rockColor(min(y,v_mat.r)), soilColor(y,cj), soilAmt);
+  // tephra blanket: gray ash tint on soil, thinning with distance from the rim;
+  // as erosion strips the ash (soil gone), strata show through again
+  float calR=length(v_w.xz-u_cal.xy);
+  alb=mix(alb, vec3(0.51,0.49,0.47),
+          0.85*u_calAsh*soilAmt*exp(-max(calR-u_cal.z,0.0)/u_cal.z));
+  // solidified flow fields: matte basalt stain wherever lava has frozen
+  alb=mix(alb, vec3(0.20,0.19,0.19)*(0.9+0.2*cj), 0.9*v_bas*(1.0-soilAmt*0.6));
+  // live lava layer: dark crust, faintly umber while still hot (no emissive)
+  float lavC=smoothstep(0.03,0.30,v_lav.x);
+  alb=mix(alb, mix(vec3(0.15,0.14,0.15), vec3(0.24,0.13,0.08), v_lav.y), lavC);
+  alb*=0.90+0.18*floor(vnoise(cell*0.045)*3.0)/3.0;      // posterized macro tint
+  alb*=0.95+0.10*cj;                                     // per-voxel tint variation
+  alb*=mix(1.0, 0.60, 0.9*smoothstep(0.12,0.65,v_wet)); // gradual damp darkening
+  float snow=step(u_snowline+(cj-0.5)*10.0, y)
+            *step(0.6,n.y)
+            *(1.0-smoothstep(0.10,0.45,v_wet))
+            *(1.0-lavC);                       // no snow on an active flow
+  alb=mix(alb, vec3(0.93,0.95,0.99), snow);
+  float ndl=max(dot(n,u_sun),0.0);
+  float band = ndl>0.62?1.0 : ndl>0.32?0.66 : 0.38;      // 3-tone cel ramp
+  vec3 col=alb*((0.26+0.80*band)*u_dim) + alb*vec3(0.05,0.07,0.11); // sun + sky fill
+  col=mix(col,u_fog,smoothstep(800.0,4200.0,length(v_w-u_cam)));
+  o=vec4(col,1.0);
+}`;
+
+// Water verts sit on a 2× finer grid than the terrain (2.5 m vs 5 m cells) and
+// bilinear-sample the smoothed display texture, so the surface is continuous:
+// pools render dead flat at the true land+depth height (no terrace quantization).
+const waterVS = H + `
+uniform sampler2D u_D,u_W;
+uniform mat4 u_mvp;
+uniform ivec2 u_org;
+uniform int u_stride;
+uniform int u_vs;
+out float v_d; out float v_m; out float v_sp; out float v_wet; out vec3 v_w;
+` + DECL_N + `
+const float Q=${QSTEP.toFixed(1)};
+vec4 fetchD(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_D,c,0); }
+float fetchW(ivec2 c){ c=clamp(c,ivec2(0),ivec2(N-1)); return texelFetch(u_W,c,0).r; }
+float sampleW(vec2 p){
+  vec2 pf=floor(p), fr=p-pf;
+  ivec2 p0=ivec2(pf);
+  return mix(mix(fetchW(p0),fetchW(p0+ivec2(1,0)),fr.x),
+             mix(fetchW(p0+ivec2(0,1)),fetchW(p0+ivec2(1,1)),fr.x), fr.y);
+}
+void main(){
+  int id=gl_VertexID;
+  ivec2 lij=ivec2(id%u_vs, id/u_vs);
+  vec2 p=min(vec2(u_org)+vec2(lij)*(float(u_stride)*0.5), vec2(float(N-1)));
+  vec2 pf=floor(p), fr=p-pf;
+  ivec2 p0=ivec2(pf);
+  vec4 t00=fetchD(p0), t10=fetchD(p0+ivec2(1,0)), t01=fetchD(p0+ivec2(0,1)), t11=fetchD(p0+ivec2(1,1));
+  vec4 bil=mix(mix(t00,t10,fr.x), mix(t01,t11,fr.x), fr.y);
+  // wet-weighted sample: dry-bank texels carry zero depth and tall land height,
+  // so plain bilinear drags shore verts dry (and warps the plane) a full cell
+  // before the true shoreline — weight by wet texels only instead
+  vec4 w=vec4((1.0-fr.x)*(1.0-fr.y), fr.x*(1.0-fr.y), (1.0-fr.x)*fr.y, fr.x*fr.y)
+        *vec4(step(0.008,t00.g), step(0.008,t10.g), step(0.008,t01.g), step(0.008,t11.g));
+  float ws=w.x+w.y+w.z+w.w;
+  vec4 D = ws>0.0 ? (w.x*t00+w.y*t10+w.z*t01+w.w*t11)/ws : bil;
+  float s=D.r, d=D.g;
+  // extend the water plane into a rising bank so the terrain depth test clips it
+  // at the wall (no dry gap); verts with no wet neighbor, or beside a drop
+  // (waterfall lip), still tuck under the voxel terrain
+  float land=bil.r-bil.g;
+  bool ext = ws>0.0 && (bil.g>0.008 || land>s);
+  float y = ext ? s : floor(bil.r/Q)*Q-0.4;
+  v_d = ext ? d : 0.0;
+  v_m=D.a; v_sp=D.b; v_wet=sampleW(p);
+  v_w=vec3(p.x, y, p.y);
+  gl_Position=u_mvp*vec4(v_w,1.0);
+}`;
+
+const waterRenderFS = H + `
+in float v_d; in float v_m; in float v_sp; in float v_wet; in vec3 v_w;
+uniform vec3 u_sun,u_fog,u_cam;
+uniform float u_dim;
+out vec4 o;
+void main(){
+  if(v_d<0.004) discard;
+  vec3 vd=normalize(u_cam-v_w);
+  vec3 n=normalize(cross(dFdx(v_w), dFdy(v_w)));
+  n*=sign(dot(n,vd));
+  // depth palette: shallows / channel / deep pool, soft band edges
+  vec3 col=mix(vec3(0.30,0.60,0.78), vec3(0.13,0.35,0.62), smoothstep(0.5,1.1,v_d));
+  col=mix(col, vec3(0.05,0.16,0.42), smoothstep(2.0,3.2,v_d));
+  col=mix(col, vec3(0.45,0.38,0.28), 0.5*smoothstep(0.15,0.35,v_m));  // silt tint
+  float foam=smoothstep(1.2,1.9,v_sp);                    // rapids & falls (smoothed speed)
+  col=mix(col, vec3(0.94,0.97,1.0), foam*0.85);
+  float ndl=max(dot(n,u_sun),0.0);
+  float band=mix(0.7,1.0,smoothstep(0.55,0.65,ndl));      // 2-tone ramp, soft edge
+  col*=(0.45+0.60*band)*u_dim;
+  vec3 hv=normalize(vd+u_sun);
+  col+=smoothstep(0.975,0.995,max(dot(n,hv),0.0))*0.5*u_dim;  // specular glint
+  float a=mix(0.80,0.97,smoothstep(0.0,1.2,v_d));
+  a=max(a, foam*0.9);
+  a*=smoothstep(0.004,0.05,v_d);                          // depth-fade shoreline
+  // thin transient sheets ride the slow wetness ramp; deep water is always shown
+  a*=mix(smoothstep(0.15,0.55,v_wet), 1.0, smoothstep(0.30,0.70,v_d));
+  col=mix(col,u_fog,smoothstep(800.0,4200.0,length(v_w-u_cam)));
+  o=vec4(col,a);
+}`;
+
+const skyVS = H + `
+out vec2 v_uv;
+void main(){
+  vec2 p=vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2));
+  v_uv=p;
+  gl_Position=vec4(p*2.0-1.0, 0.999, 1.0);
+}`;
+const skyFS = H + `
+in vec2 v_uv;
+uniform float u_storm;
+out vec4 o;
+void main(){
+  vec3 top=mix(vec3(0.10,0.16,0.30), vec3(0.12,0.13,0.18), u_storm);
+  vec3 hor=mix(vec3(0.55,0.62,0.72), vec3(0.35,0.37,0.42), u_storm);
+  float y=floor(clamp(v_uv.y,0.0,1.0)*6.0)/6.0;   // banded cel sky
+  vec3 col=mix(hor,top,pow(y,1.3));
+  col+=vec3(0.10,0.08,0.05)*(1.0-u_storm)*pow(1.0-y,3.0);   // horizon glow
+  o=vec4(col,1.0);
+}`;
+
+const pRain    = program(FSQ_VS, rainFS);
+const pFlux    = program(FSQ_VS, fluxFS);
+const pWaterSim= program(FSQ_VS, waterSimFS);
+const pVel     = program(FSQ_VS, velFS);
+const pErosion = program(FSQ_VS, erosionFS);
+const pAdvect  = program(FSQ_VS, advectFS);
+const pThermal = program(FSQ_VS, thermalFS);
+const pDisp    = program(FSQ_VS, dispFS);
+const pWet     = program(FSQ_VS, wetFS);
+const pCal     = program(FSQ_VS, calFS);
+const pMet     = program(FSQ_VS, metFS);
+const pLava    = program(FSQ_VS, lavaFS);
+const pLavaDep = program(FSQ_VS, lavaDepFS);
+const pTerr    = program(terrVS, terrFS);
+const pWat     = program(waterVS, waterRenderFS);
+const pSky     = program(skyVS, skyFS);
+
+// ---------------------------------------------------------------------------
+// Meshes — attributeless (geometry derived from gl_VertexID); index buffers only.
+// One small index buffer per LOD stride, reused for every chunk via u_org/u_stride.
+// Terrain chunks carry a skirt ring (seam cover + map cross-section walls);
+// water chunks are grid-only.
+// ---------------------------------------------------------------------------
+const emptyVAO = gl.createVertexArray();
+
+function chunkIndices(vs, skirt){
+  const q=vs-1, G=vs*vs;
+  const idx=new Uint32Array(q*q*6 + (skirt? 4*q*6 : 0));
+  let p=0;
+  for(let j=0;j<q;j++) for(let i=0;i<q;i++){
+    const a=j*vs+i;
+    idx[p++]=a;    idx[p++]=a+1; idx[p++]=a+vs;
+    idx[p++]=a+vs; idx[p++]=a+1; idx[p++]=a+vs+1;
+  }
+  if(skirt){
+    const edgeId=(side,k)=> side===0? k*vs : side===1? k*vs+q : side===2? k : q*vs+k;
+    for(let side=0;side<4;side++) for(let k=0;k<q;k++){
+      const tA=edgeId(side,k), tB=edgeId(side,k+1);
+      const sA=G+side*vs+k, sB=sA+1;
+      idx[p++]=tA; idx[p++]=sA; idx[p++]=tB;
+      idx[p++]=tB; idx[p++]=sA; idx[p++]=sB;
+    }
+  }
+  return idx;
+}
+function lodMesh(stride, skirt, density){
+  const vs=CHUNK*(density||1)/stride+1;
+  const idx=chunkIndices(vs, skirt);
+  const vao=gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return {vao, count:idx.length, vs, stride};
+}
+const terrLOD = STRIDES.map(s=>lodMesh(s,true));
+const watLOD  = STRIDES.map(s=>lodMesh(s,false,2));   // 2× density: 2.5 m water grid
+
+// ---------------------------------------------------------------------------
+// Terrain generation (JS simplex noise, uploaded once per regenerate)
+// ---------------------------------------------------------------------------
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function makeNoise(sd){
+  const rand=mulberry32(sd);
+  const perm=new Uint8Array(512), p=new Uint8Array(256);
+  for(let i=0;i<256;i++) p[i]=i;
+  for(let i=255;i>0;i--){ const j=(rand()*(i+1))|0; const t=p[i]; p[i]=p[j]; p[j]=t; }
+  for(let i=0;i<512;i++) perm[i]=p[i&255];
+  const G=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+  const F2=0.5*(Math.sqrt(3)-1), G2=(3-Math.sqrt(3))/6;
+  return function(x,y){
+    const s=(x+y)*F2, i=Math.floor(x+s), j=Math.floor(y+s);
+    const t=(i+j)*G2, x0=x-(i-t), y0=y-(j-t);
+    const i1=x0>y0?1:0, j1=x0>y0?0:1;
+    const x1=x0-i1+G2, y1=y0-j1+G2, x2=x0-1+2*G2, y2=y0-1+2*G2;
+    const ii=i&255, jj=j&255;
+    let n=0, t0=0.5-x0*x0-y0*y0;
+    if(t0>0){ t0*=t0; const g=G[perm[ii+perm[jj]]&7]; n+=t0*t0*(g[0]*x0+g[1]*y0); }
+    let t1=0.5-x1*x1-y1*y1;
+    if(t1>0){ t1*=t1; const g=G[perm[ii+i1+perm[jj+j1]]&7]; n+=t1*t1*(g[0]*x1+g[1]*y1); }
+    let t2=0.5-x2*x2-y2*y2;
+    if(t2>0){ t2*=t2; const g=G[perm[ii+1+perm[jj+1]]&7]; n+=t2*t2*(g[0]*x2+g[1]*y2); }
+    return 70*n;
+  };
+}
+const sstep=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+const mixf=(a,b,t)=>a+(b-a)*t;
+
+let seed=0;
+function genTerrain(newSeed){
+  seed=newSeed>>>0;
+  const noise=makeNoise(seed);
+  const rand=mulberry32(seed^0x9e3779b9);
+  const ph1=rand()*6.28, ph2=rand()*6.28;
+  const hgt=new Float32Array(N*N);
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    const u=i/N, v=j/N;
+    const wx=u+0.18*noise(u*2.1+7.3, v*2.1);
+    const wy=v+0.18*noise(u*2.1, v*2.1+3.1);
+    // ridged fBm, ranges stretched roughly N-S (Front Range style)
+    let r=0, amp=1, fr=2.6, sum=0;
+    for(let o=0;o<5;o++){
+      let n=noise(wx*fr, wy*fr*0.55+o*9.7);
+      n=1-Math.abs(n); n*=n;
+      r+=n*amp; sum+=amp; amp*=0.48; fr*=2.1;
+    }
+    r/=sum;
+    const west=sstep(0.72,0.28,u);
+    const mountains=Math.pow(r,1.35)*150*(0.35+0.65*west);
+    const tilt=(1-u)*30;
+    const plateau=50+8*noise(u*5,v*5)+3*noise(u*11,v*11);
+    const mwest=sstep(0.30,0.55,u);
+    let h=mixf(tilt+mountains, plateau, mwest*0.85);
+    // seed channel: meandering low corridor from the ranges to the east edge
+    const zc=0.5+0.16*Math.sin(u*5.2+ph1)+0.08*Math.sin(u*11.7+ph2);
+    const dz=(v-zc)*N;
+    h-=18*Math.exp(-dz*dz/(2*18*18))*sstep(0.15,0.45,u);
+    h-=sstep(0.92,1.0,u)*16;                       // east-edge outlet ramp
+    h+=sstep(0.10,0.0,v)*16+sstep(0.90,1.0,v)*16;  // gentle N/S rims keep drainage inside
+    hgt[j*N+i]=Math.max(h,3.0);
+  }
+  // per-chunk height bounds for frustum culling (±30 margin for later erosion)
+  for(let cz=0;cz<CN;cz++)for(let cx=0;cx<CN;cx++){
+    let lo=1e9, hi=-1e9;
+    for(let j=cz*CHUNK;j<=Math.min((cz+1)*CHUNK,N-1);j++)
+      for(let i=cx*CHUNK;i<=Math.min((cx+1)*CHUNK,N-1);i++){
+        const h=hgt[j*N+i]; if(h<lo)lo=h; if(h>hi)hi=h;
+      }
+    chunkLo[cz*CN+cx]=lo-30; chunkHi[cz*CN+cx]=hi+30;
+  }
+  const data=new Float32Array(N*N*4);
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    const k=j*N+i, h=hgt[k];
+    const hx=hgt[j*N+Math.min(i+1,N-1)]-hgt[j*N+Math.max(i-1,0)];
+    const hz=hgt[Math.min(j+1,N-1)*N+i]-hgt[Math.max(j-1,0)*N+i];
+    const slope=Math.hypot(hx,hz)*0.5;
+    const soil=Math.min(2.5, Math.max(0.15, 2.5-3.5*slope));
+    data[k*4+0]=h-soil;   // bedrock
+    data[k*4+1]=soil;     // soil / regolith
+    data[k*4+2]=0;        // water
+    data[k*4+3]=0;        // suspended sediment
+  }
+  for(const t of terr){
+    gl.bindTexture(gl.TEXTURE_2D, t.tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,data);
+  }
+  const zero=new Float32Array(N*N*4);
+  for(const f of flux){
+    gl.bindTexture(gl.TEXTURE_2D, f.tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,zero);
+  }
+  for(const l of lava){
+    gl.bindTexture(gl.TEXTURE_2D, l.tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,zero);
+  }
+  gl.bindTexture(gl.TEXTURE_2D, velT.tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA32F,N,N,0,gl.RGBA,gl.FLOAT,zero);
+  document.getElementById('seed').textContent='SEED '+seed.toString(16).toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// Climate / seasons
+// ---------------------------------------------------------------------------
+let simTU = YEAR_TU*0.20;   // start late winter, heading into spring melt
+let storm = null;           // {x, y, i, r, vx, vy, end}
+// (volcanic + impact event state/constants are declared with the sim constants)
+const rng = mulberry32((Math.random()*1e9)|0);
+
+function seasonCurve(f, keys){
+  const x=f*4, i=Math.floor(x)%4, t=x-Math.floor(x);
+  const u=(1-Math.cos(t*Math.PI))/2;
+  return keys[i]+(keys[(i+1)%4]-keys[i])*u;
+}
+function climate(){
+  const f=(simTU%YEAR_TU)/YEAR_TU;
+  return {
+    f, idx: Math.floor(f*4)%4,
+    rain: seasonCurve(f, SEASON.rain),
+    melt: seasonCurve(f, SEASON.melt),
+    evap: seasonCurve(f, SEASON.evap),
+    snowline: seasonCurve(f, SEASON.snowline),
+    stormP: seasonCurve(f, SEASON.stormP),
+  };
+}
+function updateStorm(dtSec, cl){
+  if(storm){
+    storm.x+=storm.vx*dtSec; storm.y+=storm.vy*dtSec;
+    if(simTU>storm.end) storm=null;
+  }else if(rng()<cl.stormP*dtSec*0.35){
+    storm={
+      x:100+rng()*(N-200), y:100+rng()*(N-200),
+      i:0.0015+rng()*0.0025, r:120+rng()*120,
+      vx:10+rng()*20, vy:(rng()-0.5)*20,
+      end:simTU+(60+rng()*90),
+    };
+  }
+}
+
+function triggerMeteor(){
+  let x,z;
+  if(mode==='walk'){ x=player.x+Math.sin(player.yaw)*160; z=player.z+Math.cos(player.yaw)*160; }
+  else{ x=cam.tx; z=cam.tz; }
+  const m=MET_R+30;
+  met={x:clampf(x,m,N-m), z:clampf(z,m,N-m), R:MET_R, t0:simTU};
+  for(let cz=0;cz<CN;cz++)for(let cx=0;cx<CN;cx++){
+    const d=Math.hypot(cx*CHUNK+CHUNK/2-met.x, cz*CHUNK+CHUNK/2-met.z), k=cz*CN+cx;
+    if(d<MET_R*1.6+CHUNK){ chunkLo[k]-=MET_D+10; chunkHi[k]+=MET_RIM+10; }
+    else if(d<MET_R*3.6+CHUNK){ chunkHi[k]+=MET_RIM+4; }
+  }
+}
+
+function triggerCaldera(){
+  // vent under the view center (orbit) or ~900 m ahead of the player (walk)
+  let x,z;
+  if(mode==='walk'){ x=player.x+Math.sin(player.yaw)*180; z=player.z+Math.cos(player.yaw)*180; }
+  else{ x=cam.tx; z=cam.tz; }
+  const m=CAL_R+50;
+  cal={x:clampf(x,m,N-m), z:clampf(z,m,N-m), R:CAL_R, t0:simTU};
+  // widen frustum-cull height bounds for chunks the event will reshape
+  for(let cz=0;cz<CN;cz++)for(let cx=0;cx<CN;cx++){
+    if(Math.hypot(cx*CHUNK+CHUNK/2-cal.x, cz*CHUNK+CHUNK/2-cal.z)<CAL_R*1.5+CHUNK){
+      const k=cz*CN+cx;
+      chunkLo[k]-=CAL_DROP+12; chunkHi[k]+=CAL_BUILD+CAL_ASH+22;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Simulation step
+// ---------------------------------------------------------------------------
+let eroMult=10;
+function bindTex(unit, tex){ gl.activeTexture(gl.TEXTURE0+unit); gl.bindTexture(gl.TEXTURE_2D, tex); }
+function pass(prog, out, set){
+  gl.useProgram(prog.p);
+  set(prog.u);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+}
+function stepSim(cl){
+  gl.bindVertexArray(emptyVAO);
+  gl.viewport(0,0,N,N);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+  const sx=storm?storm.x:0, sy=storm?storm.y:0, si=storm?storm.i:0, sr=storm?storm.r:100;
+
+  // 1 precipitation: terr0 -> terr1
+  bindTex(0, terr[0].tex);
+  pass(pRain, terr[1], u=>{
+    gl.uniform1i(u.u_T,0);
+    gl.uniform1f(u.u_dt,DT); gl.uniform1f(u.u_rain,cl.rain); gl.uniform1f(u.u_melt,cl.melt);
+    gl.uniform1f(u.u_snowline,cl.snowline); gl.uniform3f(u.u_storm,sx,sy,si); gl.uniform1f(u.u_stormR,sr);
+  });
+  // 2 flux: terr1 + flux0 (+ lava as bed) -> flux1
+  bindTex(0, terr[1].tex); bindTex(1, flux[0].tex); bindTex(2, lava[0].tex);
+  pass(pFlux, flux[1], u=>{
+    gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_F,1); gl.uniform1i(u.u_L,2);
+    gl.uniform1f(u.u_dt,DT); gl.uniform1f(u.u_g,P.g); gl.uniform1f(u.u_damp,P.fluxDamp);
+  });
+  // 3 water depth: terr1 + flux1 -> terr0
+  bindTex(0, terr[1].tex); bindTex(1, flux[1].tex);
+  pass(pWaterSim, terr[0], u=>{
+    gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_F,1);
+    gl.uniform1f(u.u_dt,DT); gl.uniform1f(u.u_evap,cl.evap);
+  });
+  // 4 velocity: terr0 + flux1 -> vel
+  bindTex(0, terr[0].tex); bindTex(1, flux[1].tex);
+  pass(pVel, velT, u=>{ gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_F,1); });
+  // 5 erosion/deposition: terr0 + vel -> terr1
+  bindTex(0, terr[0].tex); bindTex(1, velT.tex);
+  pass(pErosion, terr[1], u=>{
+    gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_V,1);
+    gl.uniform1f(u.u_dt,DT); gl.uniform1f(u.u_Kc,P.Kc);
+    gl.uniform1f(u.u_KsS,P.KsSoil*eroMult); gl.uniform1f(u.u_KsR,P.KsRock*eroMult);
+    gl.uniform1f(u.u_Kd,P.Kd*eroMult);
+  });
+  // 6 sediment advection: terr1 + vel -> terr0
+  bindTex(0, terr[1].tex); bindTex(1, velT.tex);
+  pass(pAdvect, terr[0], u=>{ gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_V,1); gl.uniform1f(u.u_dt,DT); });
+  // 7 thermal: terr0 -> terr1, then swap so terr[0] is always current
+  bindTex(0, terr[0].tex);
+  pass(pThermal, terr[1], u=>{
+    gl.uniform1i(u.u_T,0);
+    gl.uniform1f(u.u_dt,DT); gl.uniform1f(u.u_Kt,P.Kt*Math.min(eroMult,10));
+    gl.uniform1f(u.u_talus,P.talus); gl.uniform1f(u.u_KtR,P.KtRock*Math.min(eroMult,10));
+    gl.uniform1f(u.u_cliff,P.cliff);
+  });
+  terr=[terr[1],terr[0]];
+  flux=[flux[1],flux[0]];
+  // 8-11 catastrophic events: volcanic tectonics/tephra/lahar, meteor
+  // excavation, then lava deposit + flow (shared by eruption and impact melt).
+  // Both lava passes read the same pre-update lava[0] so solidConv matches.
+  if(cal && simTU-cal.t0<280){
+    bindTex(0, terr[0].tex);
+    pass(pCal, terr[1], u=>{
+      gl.uniform1i(u.u_T,0); gl.uniform1f(u.u_dt,DT);
+      gl.uniform4f(u.u_cal, cal.x, cal.z, cal.R, simTU-cal.t0);
+    });
+    terr=[terr[1],terr[0]];
+  }
+  if(met && simTU-met.t0<40){
+    bindTex(0, terr[0].tex);
+    pass(pMet, terr[1], u=>{
+      gl.uniform1i(u.u_T,0); gl.uniform1f(u.u_dt,DT);
+      gl.uniform4f(u.u_met, met.x, met.z, met.R, simTU-met.t0);
+    });
+    terr=[terr[1],terr[0]];
+  }
+  if((cal && simTU-cal.t0<900) || (met && simTU-met.t0<400)){
+    bindTex(0, terr[0].tex); bindTex(1, lava[0].tex);
+    pass(pLavaDep, terr[1], u=>{
+      gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_L,1); gl.uniform1f(u.u_dt,DT);
+    });
+    terr=[terr[1],terr[0]];
+    bindTex(0, terr[0].tex); bindTex(1, lava[0].tex);
+    pass(pLava, lava[1], u=>{
+      gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_L,1); gl.uniform1f(u.u_dt,DT);
+      gl.uniform4f(u.u_cal, cal?cal.x:0, cal?cal.z:0, cal?cal.R:1, cal?simTU-cal.t0:-1000);
+      gl.uniform4f(u.u_met, met?met.x:0, met?met.z:0, met?met.R:1, met?simTU-met.t0:-1000);
+    });
+    lava=[lava[1],lava[0]];
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  simTU+=DT;
+}
+
+// once per FRAME (not per substep): fold current sim state into the smoothed
+// water display texture. k=1 snaps (used after regenerate), ~0.2 trails ~5 frames.
+function updateDisp(k){
+  gl.bindVertexArray(emptyVAO);
+  gl.viewport(0,0,N,N);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+  bindTex(0, terr[0].tex); bindTex(1, velT.tex); bindTex(2, disp[0].tex); bindTex(3, lava[0].tex);
+  pass(pDisp, disp[1], u=>{
+    gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_V,1); gl.uniform1i(u.u_D,2); gl.uniform1i(u.u_L,3);
+    gl.uniform1f(u.u_k,k);
+  });
+  disp=[disp[1],disp[0]];
+  // ground wetness: rise fast (~0.2 s), drain slow (~2 s); k=1 snaps + clears basalt
+  bindTex(0, terr[0].tex); bindTex(1, wet[0].tex); bindTex(2, lava[0].tex);
+  pass(pWet, wet[1], u=>{
+    gl.uniform1i(u.u_T,0); gl.uniform1i(u.u_W,1); gl.uniform1i(u.u_L,2);
+    gl.uniform1f(u.u_up, k>=1?1:0.10); gl.uniform1f(u.u_dn, k>=1?1:0.02);
+    gl.uniform1f(u.u_reset, k>=1?1:0);
+  });
+  wet=[wet[1],wet[0]];
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+
+// ---------------------------------------------------------------------------
+// Camera + matrices
+// ---------------------------------------------------------------------------
+const cam={ tx:N/2, ty:60, tz:N/2, yaw:-1.2, pitch:0.62, dist:1100 };
+const clampf=(x,a,b)=>Math.min(b,Math.max(a,x));
+
+function mat4mul(a,b){
+  const o=new Float32Array(16);
+  for(let c=0;c<4;c++)for(let r=0;r<4;r++)
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  return o;
+}
+function perspective(fov,asp,near,far){
+  const f=1/Math.tan(fov/2), o=new Float32Array(16);
+  o[0]=f/asp; o[5]=f; o[10]=(far+near)/(near-far); o[11]=-1; o[14]=2*far*near/(near-far);
+  return o;
+}
+function lookAt(ex,ey,ez,tx,ty,tz){
+  let zx=ex-tx, zy=ey-ty, zz=ez-tz;
+  const zl=Math.hypot(zx,zy,zz)||1; zx/=zl; zy/=zl; zz/=zl;
+  let xx=zz, xy=0, xz=-zx;                        // up(0,1,0) × z
+  const xl=Math.hypot(xx,xy,xz)||1; xx/=xl; xz/=xl;
+  const yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;   // z × x
+  const o=new Float32Array(16);
+  o[0]=xx; o[1]=yx; o[2]=zx;
+  o[4]=xy; o[5]=yy; o[6]=zy;
+  o[8]=xz; o[9]=yz; o[10]=zz;
+  o[12]=-(xx*ex+xy*ey+xz*ez);
+  o[13]=-(yx*ex+yy*ey+yz*ez);
+  o[14]=-(zx*ex+zy*ey+zz*ez);
+  o[15]=1;
+  return o;
+}
+function eyePos(){
+  return [
+    cam.tx+cam.dist*Math.sin(cam.yaw)*Math.cos(cam.pitch),
+    cam.ty+cam.dist*Math.sin(cam.pitch),
+    cam.tz+cam.dist*Math.cos(cam.yaw)*Math.cos(cam.pitch),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Walk mode — first-person exploration on the eroding terrain.
+// Collision uses a small readPixels window around the player, refreshed every
+// frame, so the ground stays live while erosion reshapes it underfoot.
+// Units: 1 = 5 m. Player is stylized-scale: eye 2u, jump clears one 3u terrace.
+// ---------------------------------------------------------------------------
+let mode='orbit';
+const player={x:N/2, z:N/2, y:60, vy:0, yaw:0, pitch:-0.08};
+const EYE_H=2.0, GRAV=32.0, JUMP_V=15.0, WALK_SP=13.0, SPRINT_SP=26.0;
+const keys=new Set();
+
+const HW=24;                              // height-cache window (cells)
+const hBuf=new Float32Array(HW*HW*4);
+const lBuf=new Float32Array(HW*HW*4);
+let hOx=0, hOz=0;
+function refreshHeights(){
+  hOx=Math.min(Math.max(Math.floor(player.x)-(HW>>1),0), N-HW);
+  hOz=Math.min(Math.max(Math.floor(player.z)-(HW>>1),0), N-HW);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, terr[0].fbo);
+  gl.readPixels(hOx,hOz,HW,HW,gl.RGBA,gl.FLOAT,hBuf);
+  if(cal||met){                           // active flows carry you on top of them
+    gl.bindFramebuffer(gl.FRAMEBUFFER, lava[0].fbo);
+    gl.readPixels(hOx,hOz,HW,HW,gl.RGBA,gl.FLOAT,lBuf);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+function cellQ(i,j){                      // quantized land height (matches render)
+  i=Math.min(Math.max(i-hOx,0),HW-1); j=Math.min(Math.max(j-hOz,0),HW-1);
+  const k=(j*HW+i)*4;
+  return Math.floor((hBuf[k]+hBuf[k+1]+((cal||met)?lBuf[k]:0))/QSTEP)*QSTEP;
+}
+function groundAt(x,z){                   // bilinear over quantized cell corners
+  const i=Math.floor(x), j=Math.floor(z), fx=x-i, fz=z-j;
+  return mixf(mixf(cellQ(i,j),cellQ(i+1,j),fx), mixf(cellQ(i,j+1),cellQ(i+1,j+1),fx), fz);
+}
+function waterAt(x,z){
+  const i=Math.min(Math.max(Math.floor(x)-hOx,0),HW-1), j=Math.min(Math.max(Math.floor(z)-hOz,0),HW-1);
+  return hBuf[(j*HW+i)*4+2];
+}
+function tryMove(dx,dz){
+  const nx=clampf(player.x+dx,2,N-2), nz=clampf(player.z+dz,2,N-2);
+  const dist=Math.hypot(nx-player.x,nz-player.z);
+  // slope gate: flats/gentle rises pass, terrace walls (rise 3/run 1) block
+  if(groundAt(nx,nz)<=player.y+Math.max(1.5*dist,0.05)){ player.x=nx; player.z=nz; return true; }
+  return false;
+}
+function stepWalk(dt){
+  refreshHeights();
+  let mx=0,mz=0;
+  if(keys.has('KeyW'))mz+=1; if(keys.has('KeyS'))mz-=1;
+  if(keys.has('KeyD'))mx+=1; if(keys.has('KeyA'))mx-=1;
+  if(mx||mz){
+    const l=Math.hypot(mx,mz); mx/=l; mz/=l;
+    let sp=(keys.has('ShiftLeft')||keys.has('ShiftRight'))?SPRINT_SP:WALK_SP;
+    if(waterAt(player.x,player.z)>0.3) sp*=0.55;               // wading slows you
+    const sy=Math.sin(player.yaw), cy=Math.cos(player.yaw);
+    const dx=(mz*sy - mx*cy)*sp*dt;                            // fwd=(sy,cy), right=(-cy,sy)
+    const dz=(mz*cy + mx*sy)*sp*dt;
+    if(!tryMove(dx,dz)){ tryMove(dx,0)||tryMove(0,dz); }       // slide along walls
+  }
+  const grounded=player.y<=groundAt(player.x,player.z)+0.02;
+  if(grounded && keys.has('Space')) player.vy=JUMP_V;
+  player.vy=Math.max(player.vy-GRAV*dt,-60);
+  player.y+=player.vy*dt;
+  const g=groundAt(player.x,player.z);
+  if(player.y<=g){ player.y=g; player.vy=0; }
+}
+function enterWalk(){
+  mode='walk';
+  player.x=clampf(cam.tx,8,N-8); player.z=clampf(cam.tz,8,N-8);
+  const eo=eyePos();
+  player.yaw=Math.atan2(cam.tx-eo[0], cam.tz-eo[2]);           // keep orbit view heading
+  player.pitch=-0.08; player.vy=0;
+  refreshHeights();
+  player.y=groundAt(player.x,player.z);
+  const b=$('bWalk'); b.classList.add('on'); b.textContent='⛰ EXIT WALK';
+  const r=cv.requestPointerLock(); if(r&&r.catch) r.catch(()=>{});
+  updateHelp();
+}
+function exitWalk(){
+  mode='orbit';
+  if(document.pointerLockElement===cv) document.exitPointerLock();
+  cam.tx=player.x; cam.ty=player.y+EYE_H; cam.tz=player.z;     // orbit around where you stood
+  const b=$('bWalk'); b.classList.remove('on'); b.textContent='⛰ WALK';
+  updateHelp();
+}
+function updateHelp(){
+  $('help').textContent = mode==='orbit'
+    ? 'drag orbit · right-drag / shift-drag pan · wheel zoom · SPACE pause · R new terrain · F walk mode'
+    : (document.pointerLockElement===cv
+      ? 'WASD move · SPACE jump · SHIFT sprint · R new terrain · F exit walk'
+      : 'CLICK to capture mouse · F exit walk');
+}
+document.addEventListener('pointerlockchange',updateHelp);
+document.addEventListener('mousemove',e=>{
+  if(mode!=='walk'||document.pointerLockElement!==cv) return;
+  player.yaw-=e.movementX*0.0024;
+  player.pitch=clampf(player.pitch-e.movementY*0.0024,-1.45,1.45);
+});
+cv.addEventListener('click',()=>{
+  if(mode==='walk'&&document.pointerLockElement!==cv){
+    const r=cv.requestPointerLock(); if(r&&r.catch) r.catch(()=>{});
+  }
+});
+addEventListener('blur',()=>keys.clear());
+
+// ---------------------------------------------------------------------------
+// Input: orbit / pan / zoom (mouse + touch)
+// ---------------------------------------------------------------------------
+const pts=new Map();
+let pinchD=0;
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  if(mode!=='orbit') return;
+  cv.setPointerCapture(e.pointerId);
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY,btn:e.button,shift:e.shiftKey});
+  if(pts.size===2){
+    const [a,b]=[...pts.values()];
+    pinchD=Math.hypot(a.x-b.x,a.y-b.y);
+  }
+});
+cv.addEventListener('pointerup',e=>pts.delete(e.pointerId));
+cv.addEventListener('pointercancel',e=>pts.delete(e.pointerId));
+function pan(dx,dy){
+  const k=cam.dist*0.0016;
+  const rx=Math.cos(cam.yaw), rz=-Math.sin(cam.yaw);   // screen-right (horizontal)
+  const fx=-Math.sin(cam.yaw), fz=-Math.cos(cam.yaw);  // toward-camera horizontal
+  cam.tx=clampf(cam.tx-(dx*rx+dy*fx)*k, -100, N+100);
+  cam.tz=clampf(cam.tz-(dx*rz+dy*fz)*k, -100, N+100);
+}
+cv.addEventListener('pointermove',e=>{
+  if(mode!=='orbit') return;
+  const p=pts.get(e.pointerId);
+  if(!p) return;
+  const dx=e.clientX-p.x, dy=e.clientY-p.y;
+  p.x=e.clientX; p.y=e.clientY;
+  if(pts.size===2){
+    const [a,b]=[...pts.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinchD>0) cam.dist=clampf(cam.dist*pinchD/Math.max(d,1), 100, 3200);
+    pinchD=d;
+    pan(dx*0.5,dy*0.5);
+  }else if(p.btn===2||p.shift){
+    pan(dx,dy);
+  }else{
+    cam.yaw-=dx*0.005;
+    cam.pitch=clampf(cam.pitch+dy*0.004, 0.12, 1.45);
+  }
+});
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  if(mode!=='orbit') return;
+  cam.dist=clampf(cam.dist*Math.exp(e.deltaY*0.0012), 100, 3200);
+},{passive:false});
+
+let speed=2, paused=false;
+addEventListener('keydown',e=>{
+  if(e.code==='Space') e.preventDefault();
+  keys.add(e.code);
+  if(e.repeat) return;
+  if(e.code==='KeyF'){ mode==='walk' ? exitWalk() : enterWalk(); }
+  else if(e.code==='Space' && mode==='orbit') setPaused(!paused);
+  else if(e.key==='r'||e.key==='R') regen();
+  else if(e.key==='1') setSpeed(2);
+  else if(e.key==='2') setSpeed(4);
+  else if(e.key==='3') setSpeed(8);
+});
+addEventListener('keyup',e=>keys.delete(e.code));
+
+// ---------------------------------------------------------------------------
+// UI wiring
+// ---------------------------------------------------------------------------
+const $=id=>document.getElementById(id);
+function setPaused(v){ paused=v; $('bPause').textContent = paused?'▶':'⏸'; $('bPause').classList.toggle('on',paused); }
+function setSpeed(s){
+  speed=s;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.toggle('on', +b.dataset.speed===s));
+  setPaused(false);
+}
+document.querySelectorAll('.spd').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.speed)));
+document.querySelectorAll('.ero').forEach(b=>b.addEventListener('click',()=>{
+  eroMult=+b.dataset.ero;
+  document.querySelectorAll('.ero').forEach(x=>x.classList.toggle('on',x===b));
+}));
+$('bPause').addEventListener('click',()=>setPaused(!paused));
+$('bRegen').addEventListener('click',()=>regen());
+$('bWalk').addEventListener('click',()=>{ mode==='walk' ? exitWalk() : enterWalk(); });
+$('bCald').addEventListener('click',()=>{ if(!cal || simTU-cal.t0>=230) triggerCaldera(); });
+$('bMet').addEventListener('click',()=>{ if(!met || simTU-met.t0>=40) triggerMeteor(); });
+// drop focus after any button click so SPACE (pause/jump) never re-triggers it
+document.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>b.blur()));
+
+function regen(){
+  $('loading').style.display='block';
+  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{   // let the loading text paint first
+    genTerrain((Math.random()*0xffffffff)>>>0);
+    storm=null; cal=null; met=null;
+    warmup(160);
+    if(mode==='walk'){ refreshHeights(); player.y=groundAt(player.x,player.z); player.vy=0; }
+    $('loading').style.display='none';
+  }); });
+}
+function warmup(steps){
+  // pre-run with spring rains at 1× erosion so rivers already exist on reveal
+  const saved=eroMult; eroMult=1;
+  const cl={rain:0.00012, melt:0.0002, evap:0.002, snowline:85};
+  for(let i=0;i<steps;i++) stepSim(cl);
+  eroMult=saved;
+  updateDisp(1.0);   // snap the smoothed water display to the warmed-up state
+}
+
+function updateHUD(cl){
+  $('season').textContent=SEASON.names[cl.idx];
+  $('year').textContent='YEAR '+(Math.floor(simTU/YEAR_TU)+1)+' · DAY '+Math.floor(cl.f*360);
+  const lbl=$('precipLbl');
+  let label='DRY', level=cl.rain+cl.melt;
+  if(storm){ label='STORM'; level+=storm.i*0.15; }
+  else if(cl.melt>cl.rain*1.2 && cl.melt>5e-5) label='SNOWMELT';
+  else if(cl.idx===0 && cl.rain>1.5e-5) label='SNOW';
+  else if(cl.rain>8e-5) label='RAIN';
+  else if(cl.rain>3.5e-5) label='LIGHT RAIN';
+  lbl.textContent=label;
+  lbl.classList.toggle('storm', !!storm);
+  $('precipBar').style.width=Math.min(100, level/0.0004*100)+'%';
+  $('snowinfo').textContent='SNOWLINE '+Math.round(1400+cl.snowline*5)+' m · MAP 5.1 km · CELL 5 m';
+  const bc=$('bCald');
+  if(cal){
+    const a=simTU-cal.t0;
+    bc.disabled = a<230;
+    bc.textContent = a<60?'⚠ INFLATING' : a<140?'⚠ ERUPTING' : a<230?'⚠ COLLAPSING'
+                   : a<500?'▲ ERUPT (EFFUSING)' : '▲ ERUPT';
+  }else{ bc.disabled=false; bc.textContent='▲ ERUPT'; }
+  const bm=$('bMet');
+  if(met && simTU-met.t0<40){ bm.disabled=true; bm.textContent='☄ IMPACT!'; }
+  else{ bm.disabled=false; bm.textContent='☄ METEOR'; }
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+const SUN=(()=>{ const l=Math.hypot(0.55,0.75,0.35); return [0.55/l,0.75/l,0.35/l]; })();
+let dimS=1;
+
+function frustumPlanes(m){          // m column-major; planes as [a,b,c,d], inside ≥ 0
+  const pl=[];
+  for(let i=0;i<3;i++) for(const s of [1,-1])
+    pl.push([m[3]+s*m[i], m[7]+s*m[i+4], m[11]+s*m[i+8], m[15]+s*m[i+12]]);
+  return pl;
+}
+function boxVisible(pl,x0,x1,y0,y1,z0,z1){   // p-vertex AABB test
+  for(let i=0;i<6;i++){
+    const p=pl[i];
+    if(p[0]*(p[0]>0?x1:x0)+p[1]*(p[1]>0?y1:y0)+p[2]*(p[2]>0?z1:z0)+p[3]<0) return false;
+  }
+  return true;
+}
+
+function render(cl){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.viewport(0,0,cv.width,cv.height);
+  const stormF=clampf((1-dimS)/0.38,0,1);
+  const fog=[mixf(0.55,0.35,stormF), mixf(0.62,0.37,stormF), mixf(0.72,0.42,stormF)];
+  let eye, near, far;
+  if(mode==='walk'){ eye=[player.x, player.y+EYE_H, player.z]; near=0.3; far=6000; }
+  else{ eye=eyePos(); near=2; far=9000; }
+  // seismic shake: tremor during inflation, sustained through the plinian
+  // phase, spiking with each episodic piston drop of the collapse
+  let shake=0;
+  if(cal){
+    const a=simTU-cal.t0;
+    const pulse=0.3+1.4*Math.pow(0.5+0.5*Math.sin(a*0.6),4);
+    shake=0.3*sstep(15,45,a)*(1-sstep(50,62,a))
+        + 1.1*sstep(55,75,a)*(1-sstep(132,150,a))
+        + 1.9*sstep(132,145,a)*(1-sstep(215,232,a))*pulse;
+  }
+  if(met){  // single violent impact jolt, ringing down over ~10 TU
+    const a=simTU-met.t0;
+    if(a>=0&&a<35) shake=Math.max(shake, 3.2*Math.exp(-a/6));
+  }
+  if(shake>0.01){
+    eye[0]+=(Math.random()-0.5)*shake;
+    eye[1]+=(Math.random()-0.5)*shake*0.5;
+    eye[2]+=(Math.random()-0.5)*shake;
+  }
+  let view;
+  if(mode==='walk'){
+    const cp=Math.cos(player.pitch);
+    view=lookAt(eye[0],eye[1],eye[2],
+      eye[0]+Math.sin(player.yaw)*cp, eye[1]+Math.sin(player.pitch), eye[2]+Math.cos(player.yaw)*cp);
+  }else{
+    view=lookAt(eye[0],eye[1],eye[2], cam.tx,cam.ty,cam.tz);
+  }
+  const proj=perspective(55*Math.PI/180, cv.width/Math.max(cv.height,1), near, far);
+  const mvp=mat4mul(proj,view);
+  const planes=frustumPlanes(mvp);
+
+  gl.clearColor(fog[0],fog[1],fog[2],1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  // sky (no depth writes while test disabled)
+  gl.disable(gl.DEPTH_TEST);
+  gl.bindVertexArray(emptyVAO);
+  gl.useProgram(pSky.p);
+  gl.uniform1f(pSky.u.u_storm, stormF);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+
+  // terrain chunks: frustum-culled, LOD stride picked by eye distance
+  gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(pTerr.p);
+  bindTex(0, terr[0].tex); bindTex(1, wet[0].tex); bindTex(2, lava[0].tex);
+  gl.uniform1i(pTerr.u.u_T,0); gl.uniform1i(pTerr.u.u_W,1); gl.uniform1i(pTerr.u.u_L,2);
+  gl.uniformMatrix4fv(pTerr.u.u_mvp,false,mvp);
+  gl.uniform3fv(pTerr.u.u_sun,SUN);
+  gl.uniform3fv(pTerr.u.u_fog,fog);
+  gl.uniform3fv(pTerr.u.u_cam,eye);
+  gl.uniform1f(pTerr.u.u_snowline,cl.snowline);
+  gl.uniform1f(pTerr.u.u_dim,dimS);
+  gl.uniform3f(pTerr.u.u_cal, cal?cal.x:0, cal?cal.z:0, cal?cal.R:1);
+  gl.uniform1f(pTerr.u.u_calAsh, cal? sstep(60,110,simTU-cal.t0) : 0);
+  const visChunks=[];                        // [x0,z0,lodIdx] triples, reused for water
+  for(let cz=0;cz<CN;cz++)for(let cx=0;cx<CN;cx++){
+    const k=cz*CN+cx, x0=cx*CHUNK, z0=cz*CHUNK;
+    if(!boxVisible(planes, x0,x0+CHUNK, chunkLo[k],chunkHi[k]+45, z0,z0+CHUNK)) continue;
+    const dx=x0+CHUNK*0.5-eye[0], dy=(chunkLo[k]+chunkHi[k])*0.5-eye[1], dz=z0+CHUNK*0.5-eye[2];
+    const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    const si= d<LOD_D[0]?0 : d<LOD_D[1]?1 : d<LOD_D[2]?2 : 3;
+    visChunks.push(x0,z0,si);
+    const L=terrLOD[si];
+    gl.bindVertexArray(L.vao);
+    gl.uniform2i(pTerr.u.u_org,x0,z0);
+    gl.uniform1i(pTerr.u.u_stride,L.stride);
+    gl.uniform1i(pTerr.u.u_vs,L.vs);
+    gl.drawElements(gl.TRIANGLES, L.count, gl.UNSIGNED_INT, 0);
+  }
+
+  // water surface (same visibility + LOD picks as terrain)
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.useProgram(pWat.p);
+  bindTex(0, disp[0].tex); bindTex(1, wet[0].tex);
+  gl.uniform1i(pWat.u.u_D,0); gl.uniform1i(pWat.u.u_W,1);
+  gl.uniformMatrix4fv(pWat.u.u_mvp,false,mvp);
+  gl.uniform3fv(pWat.u.u_sun,SUN);
+  gl.uniform3fv(pWat.u.u_fog,fog);
+  gl.uniform3fv(pWat.u.u_cam,eye);
+  gl.uniform1f(pWat.u.u_dim,dimS);
+  for(let i=0;i<visChunks.length;i+=3){
+    const L=watLOD[visChunks[i+2]];
+    gl.bindVertexArray(L.vao);
+    gl.uniform2i(pWat.u.u_org,visChunks[i],visChunks[i+1]);
+    gl.uniform1i(pWat.u.u_stride,L.stride);
+    gl.uniform1i(pWat.u.u_vs,L.vs);
+    gl.drawElements(gl.TRIANGLES, L.count, gl.UNSIGNED_INT, 0);
+  }
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+}
+
+// ---------------------------------------------------------------------------
+// Resize + adaptive resolution (guards the 40 FPS floor)
+// ---------------------------------------------------------------------------
+let resScale=1;
+function resize(){
+  const dpr=Math.min(devicePixelRatio||1,1.5)*resScale;
+  cv.width=Math.max(2,Math.round(innerWidth*dpr));
+  cv.height=Math.max(2,Math.round(innerHeight*dpr));
+}
+addEventListener('resize',resize);
+resize();
+
+// NaN watchdog: numerical blowup auto-resets the sim instead of going black
+const px=new Float32Array(4);
+function nanCheck(){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, terr[0].fbo);
+  gl.readPixels(N>>1, N>>1, 1, 1, gl.RGBA, gl.FLOAT, px);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if(!(isFinite(px[0])&&isFinite(px[1])&&isFinite(px[2])&&isFinite(px[3]))){
+    genTerrain(seed);
+    warmup(120);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main loop — heavy init is deferred one frame so the loading text can paint
+// ---------------------------------------------------------------------------
+let last=performance.now(), emaMs=16, fpsAcc=0, fpsN=0, fpsT=0, frames=0;
+function frame(now){
+  const dtms=Math.min(now-last,50); last=now;
+  emaMs=emaMs*0.95+dtms*0.05;
+
+  const cl=climate();
+  if(!paused){
+    updateStorm(dtms/1000*(speed/2), cl);
+    for(let k=0;k<speed;k++) stepSim(climate());
+    updateDisp(0.2);
+  }
+  let dTarget=storm?0.62:1;   // ash column blots the sun through eruption + collapse
+  if(cal){ const a=simTU-cal.t0; dTarget=Math.min(dTarget, 1-0.55*sstep(50,75,a)*(1-sstep(240,360,a))); }
+  // impact dust pall: darkens within seconds of the strike, settles out slowly
+  if(met){ const a=simTU-met.t0; dTarget=Math.min(dTarget, 1-0.45*sstep(1,8,a)*(1-sstep(90,200,a))); }
+  dimS+=(dTarget-dimS)*0.04;
+  if(mode==='walk') stepWalk(dtms/1000);
+  render(cl);
+
+  // HUD + adaptive resolution ~4×/sec
+  fpsAcc+=dtms; fpsN++; fpsT+=dtms;
+  if(fpsT>250){
+    const fps=1000/(fpsAcc/fpsN);
+    $('fps').textContent=fps.toFixed(0)+' FPS'+(resScale<1?' · '+Math.round(resScale*100)+'%':'');
+    updateHUD(cl);
+    if(fps<36 && resScale>0.5){ resScale=Math.max(0.5,resScale-0.15); resize(); }
+    else if(fps>55 && resScale<1){ resScale=Math.min(1,resScale+0.05); resize(); }
+    fpsAcc=0; fpsN=0; fpsT=0;
+  }
+  if(++frames%300===0) nanCheck();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(()=>{ requestAnimationFrame(()=>{   // two frames: ensure loading text paints
+  genTerrain((Math.random()*0xffffffff)>>>0);
+  warmup(200);
+  $('loading').style.display='none';
+  last=performance.now();
+  requestAnimationFrame(frame);
+}); });
+</script>
+</body>
+</html>

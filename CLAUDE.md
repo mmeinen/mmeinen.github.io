@@ -28,8 +28,8 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 ```
 
 ## Architecture Patterns
-- **Navigation**: WebGL black hole scene in `index.html`. 4 orbiting planets are clickable links to games. Planet hover detection via CPU ray-sphere intersection; hover glow via `u_hoveredPlanet` shader uniform. HUD labels track planet screen positions.
-- **Shader**: Fragment shader in `index.html` implements gravitational lensing with Verlet integration. Key constants have physical dependencies — see `.claude/rules/shader-conventions.md`.
+- **Navigation**: WebGL black hole scene in `index.html`. 5 orbiting planets (one per family member) are clickable; clicking opens a game-selection submenu. Planet hover detection via CPU ray-sphere intersection; hover glow via `u_hoveredPlanet` shader uniform. HUD labels track planet screen positions.
+- **Shader**: Fragment shader (`fsSource` in `js/scene/shaders.js`) implements gravitational lensing with Verlet integration. Key constants have physical dependencies — see `.claude/rules/shader-conventions.md`.
 - **Games**: Each game is a standalone HTML file or subdirectory with its own index.html. Self-contained with minimal code reuse.
 - **Styling**: Space/sci-fi HUD theme. Blue palette (`rgba(60,140,255,*)`) on dark backgrounds.
 - **No shared JS framework** — each game implements its own logic.
@@ -41,11 +41,11 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 - Canvas z-index 1, HUD overlay z-index 10, planet labels z-index 25
 
 ## Adding a New Planet/Game Link
-1. Add entry to `planetData` array in `index.html` with `oR`, `ph`, `sp`, `radius`, `name`, `href`
+1. Add entry to `planetData` array in `index.html` with `oR`, `ph`, `sp`, `radius`, `name`, `person`, `games:[{t,h}]`
 2. Add a new `u_planetN` uniform in shader and JS
 3. Add corresponding `.planet-label` div in HTML
 4. Update planet check range `if (r > LOW && r < HIGH ...)` in shader to cover new orbit
-5. Verify early escape threshold (`r > 55.0`) still exceeds new planet's `oR + radius`
+5. Verify both escape thresholds (zone `r > 100.0`, convergence `r > 90.0`) still exceed new planet's `oR + radius`
 6. Run `tests.html` to verify all shader invariants still pass
 
 ## Testing
