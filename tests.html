@@ -240,10 +240,18 @@
       // 2. Iteration budget sufficient for camera dist
       // =============================================
 
+      // Planet check range, extracted here because the step-size invariants below depend on it.
+      // Pattern: if (max(r, rNew) > LOW && min(r, rNew) < HIGH && accumulatedAlpha ...
+      const rangeMatch = shader.match(
+        /if\s*\(\s*max\s*\(\s*r\s*,\s*rNew\s*\)\s*>\s*([\d.]+)\s*&&\s*min\s*\(\s*r\s*,\s*rNew\s*\)\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
+      );
+      const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
+      const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
+
       // Loop count: the ray-march loop specifically (anchored on its first statement
-      // `float r = length(pos)` so it isn't confused with fbm/galaxy `for (int i ...)`).
+      // `minR = min(minR, r)` so it isn't confused with the galaxy `for (int i ...)` loops).
       const loopCount = extractShaderInt(
-        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)\s*\{\s*float\s+r\s*=\s*length\s*\(\s*pos\s*\)/
+        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)\s*\{\s*minR\s*=\s*min\s*\(\s*minR\s*,\s*r\s*\)/
       );
       assert(loopCount !== null,
         'Extraction: ray march loop count found',
@@ -255,56 +263,81 @@
         'Extraction: default camDist found',
         defaultCamDist !== null ? `value = ${defaultCamDist}` : 'regex matched nothing');
 
-      // Step: max(0.002, min(MULT * (r - r_h), CAP)) -- the ray march loop's step,
-      // anchored on the (r - r_h) term so it isn't confused with the dt0 seed step.
-      const stepMatch = shader.match(
-        /float\s+dt\s*=\s*max\s*\(\s*([\d.]+)\s*,\s*min\s*\(\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*,\s*([\d.]+)\s*\)\s*\)/
-      );
-      const stepMin = stepMatch ? parseFloat(stepMatch[1]) : null;
-      const stepMult = stepMatch ? parseFloat(stepMatch[2]) : null;
-      const stepCap = stepMatch ? parseFloat(stepMatch[3]) : null;
-      assert(stepMatch !== null,
-        'Extraction: step size parameters found',
-        stepMatch ? `min=${stepMin}, mult=${stepMult}, cap=${stepCap}` : 'regex matched nothing');
+      // Step size now comes from stepSize(r, r_h, L2) — curvature-adaptive, not a fixed
+      // fraction of radius. |acc| = 1.5*L2/r^4, so dt = EPS/|acc| holds the per-step deflection
+      // constant; the far field no longer gets resolved orders of magnitude finer than it needs.
+      const eps      = extractShaderFloat(shader, /float\s+dtCurv\s*=\s*([\d.]+)\s*\*\s*r2\s*\*\s*r2/);
+      const farFrac  = extractShaderFloat(shader, /float\s+dt\s*=\s*min\s*\(\s*dtCurv\s*,\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*\)/);
+      const detailM  = shader.match(/if\s*\(\s*r\s*<\s*([\d.]+)\s*\)\s*dt\s*=\s*min\s*\(\s*dt\s*,\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*\)/);
+      const detailR  = detailM ? parseFloat(detailM[1]) : null;
+      const nearFrac = detailM ? parseFloat(detailM[2]) : null;
+      const clampM   = shader.match(/return\s+clamp\s*\(\s*dt\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)/);
+      const stepMin  = clampM ? parseFloat(clampM[1]) : null;
+      const stepCap  = clampM ? parseFloat(clampM[2]) : null;
+      assert(eps !== null && farFrac !== null && detailR !== null && stepMin !== null,
+        'Extraction: stepSize() parameters found',
+        eps !== null ? `eps=${eps}, farFrac=${farFrac}, detailR=${detailR}, nearFrac=${nearFrac}, clamp=[${stepMin}, ${stepCap}]`
+                     : 'regex matched nothing — did stepSize() change shape?');
 
-      // Invariant 2: conservative budget > 2 × camDist
-      // Most of the path is at r >> r_h, so step ≈ cap for distant segments.
-      // Near the hole, steps shrink. Use a weighted estimate:
-      //   ~20 iterations near hole at avg step ~0.5, rest at cap
-      if (loopCount !== null && defaultCamDist !== null && stepCap !== null) {
-        const nearHoleIters = 20;
-        const nearHoleAvgStep = 0.5;
-        const farIters = loopCount - nearHoleIters;
-        const budget = nearHoleIters * nearHoleAvgStep + farIters * stepCap;
-        const required = 2 * defaultCamDist;
-        assert(budget > required,
-          'Iteration budget: path length > 2 × default camDist',
-          `budget ≈ ${budget.toFixed(0)} vs required ${required.toFixed(0)} (${loopCount} iters, cap ${stepCap})`);
+      // Invariant 2a: the step must never charge the horizon. dt <= farFrac * (r - r_h), so
+      // farFrac < 1 keeps a step strictly short of r_h. Half that leaves room for |vel| drift.
+      if (farFrac !== null) {
+        assert(farFrac <= 0.5,
+          'Step size: bounded well inside the distance to the horizon',
+          `farFrac ${farFrac} <= 0.5 (dt <= farFrac × (r - r_h))`);
       }
 
-      // =============================================
-      // 3. Step cap vs planet detection
-      // =============================================
+      // Invariant 2b: THE ONE THAT REPLACES THE OLD "step cap < planet radius × 4" RULE.
+      // That rule existed because a coarse step could step OVER a planet. It no longer applies:
+      // the planet test is a segment-sphere closest-approach test, exact for a straight segment
+      // at any length. What matters instead is the radial GATE. It uses min(r, rNew) as the
+      // segment's inner reach, which overstates it by at most the chord sagitta ~ r*frac²/8.
+      // That error must stay well inside the margin between the gate's outer bound and the
+      // farthest planet, or a long segment dipping into the band gets skipped -> clipped planet.
+      if (farFrac !== null && rangeHigh !== null && planets.length > 0) {
+        const maxPlanetReach = Math.max(...planets.map(p => p.oR + p.radius));
+        const sagitta = rangeHigh * farFrac * farFrac / 8;
+        const margin = rangeHigh - maxPlanetReach;
+        assert(margin > sagitta * 4,
+          'Step size: chord sagitta stays inside the planet-gate margin',
+          `sagitta ≈ ${sagitta.toFixed(2)} vs margin ${margin.toFixed(2)} (gate ${rangeHigh} − reach ${maxPlanetReach})`);
+      }
 
-      if (stepCap !== null && planets.length > 0) {
-        const minPlanetRadius = Math.min(...planets.map(p => p.radius));
-        // Step cap must be small enough that a ray segment can't skip an entire planet
-        // Factor of 4 gives margin for grazing rays (segment must overlap sphere)
-        assert(stepCap < minPlanetRadius * 4,
-          'Step cap: small enough for planet detection',
-          `cap ${stepCap} < ${minPlanetRadius} × 4 = ${minPlanetRadius * 4}`);
+      // Invariant 2c: the fine-step detail zone must cover the accretion disc, whose hit
+      // position is interpolated along the segment — coarse steps there would smear it.
+      if (detailR !== null && outerEdge !== null) {
+        assert(detailR > outerEdge + 2.0,
+          'Step size: detail zone covers the accretion disc',
+          `detailR ${detailR} > outerEdge ${outerEdge} + 2`);
+      }
+
+      // Invariant 2d: the planet gate must test the SEGMENT's radial span. Gating on the start
+      // radius alone silently clips far-side planets once steps get long.
+      const segmentGate = /max\s*\(\s*r\s*,\s*rNew\s*\)\s*>\s*[\d.]+\s*&&\s*min\s*\(\s*r\s*,\s*rNew\s*\)\s*</.test(shader);
+      assert(segmentGate,
+        'Planet gate: tests the segment radial span, not just its start',
+        segmentGate ? 'gate uses max(r, rNew) / min(r, rNew)'
+                    : 'gate must span both endpoint radii — a long step can cross the band entirely');
+
+      // Invariant 2e: iteration budget. Under dt = frac × (r - r_h) the radius shrinks
+      // geometrically, so crossing a shell costs ln(ratio)/frac steps. Budget the inbound leg
+      // (camDist -> detail zone -> horizon) and double it for a lensed round trip.
+      if (loopCount !== null && defaultCamDist !== null && farFrac !== null &&
+          detailR !== null && nearFrac !== null) {
+        const rH = 2.0;                                  // Schwarzschild horizon at spin 0
+        const outer = Math.log((defaultCamDist - rH) / (detailR - rH)) / farFrac;
+        const inner = Math.log((detailR - rH) / (rH * 0.05)) / nearFrac;
+        const needed = 2 * (outer + inner);
+        assert(loopCount > needed,
+          'Iteration budget: covers a lensed round trip from default camDist',
+          `${loopCount} iters vs ≈${needed.toFixed(0)} needed (${outer.toFixed(0)} outer + ${inner.toFixed(0)} inner, ×2)`);
       }
 
       // =============================================
       // 4. Planet check range covers all orbits
       // =============================================
 
-      // Pattern: if (r > LOW && r < HIGH && accumulatedAlpha ...
-      const rangeMatch = shader.match(
-        /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*r\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
-      );
-      const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
-      const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
+      // (rangeLow / rangeHigh are extracted above — the step-size invariants depend on them.)
       assert(rangeMatch !== null,
         'Extraction: planet check range found',
         rangeMatch ? `low=${rangeLow}, high=${rangeHigh}` : 'regex matched nothing');
@@ -382,7 +415,7 @@
       // it can't latch onto the galaxy/spiral loops earlier in the file.
       function marchLoopBody(src) {
         const m = src.match(
-          /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*\d+\s*;\s*i\s*\+\+\s*\)\s*\{\s*float\s+r\s*=\s*length\s*\(\s*pos\s*\)/);
+          /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*\d+\s*;\s*i\s*\+\+\s*\)\s*\{\s*minR\s*=\s*min\s*\(\s*minR\s*,\s*r\s*\)/);
         if (!m) return null;
         const start = src.indexOf('{', m.index);
         let i = start + 1, depth = 1;

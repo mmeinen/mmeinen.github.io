@@ -39,15 +39,37 @@ early-terminates rays that have straightened into a near-straight line and are l
 - Currently: `N = 8100.0` → `r > 90.0` (> 87.4 ✓).
 
 ### Planet Check Range
-The line `if (r > LOW && r < HIGH && accumulatedAlpha < 0.98)` gates planet tests.
+The line `if (max(r, rNew) > LOW && min(r, rNew) < HIGH && accumulatedAlpha < 0.98)` gates planet tests.
 - LOW must be less than `min(planet oR - radius)`.
 - HIGH must be greater than `max(planet oR + radius)`.
-- Currently: `16.0 < r < 100.0` (inner = 35.5 Jupiter, outer = 87.4 Neptune).
+- Currently: `16.0 … 100.0` (inner = 35.5 Jupiter, outer = 87.4 Neptune).
+- It must test the **segment span** (`r` and `rNew`), not just the start radius. Steps are now
+  curvature-adaptive and can span tens of units, so a segment can start outside the band and
+  cross it entirely — gating on the start radius alone silently clips far-side planets.
 
-### Step Size Cap
-`float dt = max(MIN, min(MULT * (r - r_h), CAP))` — the ray-march loop's step.
-- CAP must be less than `min(planet radius) * 4` — else a single step can skip a planet.
-- Currently: cap `5.0` < `1.3 * 4 = 5.2` (min planet radius is Mars at 1.3 — tight margin).
+### Step Size — `stepSize(r, r_h, L2)`
+Curvature-adaptive, NOT a fixed fraction of radius. `|acc| = 1.5*L2/r^4`, so `dt = EPS/|acc|`
+holds the deflection per step constant instead of over-resolving the far field (the old fixed
+fraction spent 5-unit steps on stretches bending by ~1e-4 rad). Worth ~1.9x on its own.
+
+    dtCurv = EPS * r^4 / (1.5*L2)     EPS      = 0.04 rad/step
+    dt     = min(dtCurv, F * (r-r_h))  F        = 0.25   (DT_R_FRAC)
+    if (r < DETAIL_R) dt = min(dt, 0.08*(r-r_h))   DETAIL_R = 20.0
+    dt     = clamp(dt, 0.002, 40.0)
+
+- **The old "cap < min planet radius × 4" rule is GONE and must not be reinstated.** It existed
+  because a coarse step could step *over* a planet. That was never the actual failure mode: the
+  planet test is a segment–sphere closest-approach test, exact for a straight segment of any
+  length. The cap does not bound planet detection.
+- What replaces it: `F` bounds the chord sagitta to about `r*F²/8`. The planet gate uses
+  `min(r, rNew)` as the segment's inner reach, which overstates it by at most that sagitta. So
+  `HIGH − max(planet reach)` must stay well above it. Currently `0.78` vs a `12.6` margin.
+- `F` must stay ≤ 0.5 so a step can never charge the horizon.
+- `DETAIL_R` must exceed the disc `outerEdge + 2`: disc hit positions are interpolated along the
+  segment, so the disc needs fine steps.
+- The CPU hover trace in `index.html` mirrors this function. **Change both together** — if they
+  diverge, the ray you can click drifts from the ray you can see.
+- All of the above are enforced by `tests.html` (suite 2).
 
 ### Iteration Budget
 The ray-march `for (int i = 0; i < N; i++)` loop count × average step must cover at least
@@ -62,8 +84,10 @@ The ray-march `for (int i = 0; i < N; i++)` loop count × average step must cove
 
 ## When Optimizing Ray Marching
 - Never lower the zone escape OR convergence escape threshold below the farthest planet reach.
-- Never raise the step cap above the smallest planet's radius × 4.
+- Keep the planet gate testing the segment's radial span, and keep the sagitta margin above.
 - Never reduce iteration count below what's needed for the camera-to-origin round trip.
+- Iteration count is NOT the lever: cutting the cap 250 → 125 measured zero change, because the
+  loop already exits on the escape conditions long before the cap. Look at occupancy instead.
 - Run `tests.html` after any optimization.
 
 ### Hot-loop occupancy (the dominant cost — measured Aug 2026)

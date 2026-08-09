@@ -64,7 +64,9 @@ Rules for anything touching that loop:
 - **Gate before you compute.** All planets orbit the `y = 0` plane, so the `planetSlab` y-extent
   check rejects the whole 5-planet test using values already live in registers.
 - Prefer array uniforms indexed by the loop counter over `(p==0)?a:(p==1)?b:...` select cascades.
-- `tests.html` suite 6 enforces these; re-run it after any loop change.
+- Step size comes from `stepSize()` and is curvature-adaptive; the CPU hover trace in
+  `index.html` mirrors it and must be changed together with it.
+- `tests.html` suites 2 and 6 enforce these; re-run it after any loop change.
 
 ## Testing
 No test framework. `tests.html` validates shader/JS invariants via regex extraction.

@@ -60,6 +60,26 @@ const fsSource = `
     return texture2D(u_bbTex, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
   }
 
+  // Ray-march step size. The Schwarzschild term gives |acc| = 1.5*L2/r^4, so dt = EPS/|acc|
+  // holds the velocity deflection per step at a constant EPS wherever the ray is. The old rule
+  // (a fixed fraction of r) over-resolved the far field by orders of magnitude -- at r = 120
+  // with impact parameter 60 it spent 5-unit steps on a stretch that bends by ~1e-4 rad.
+  //
+  // DT_R_FRAC bounds the step to a fraction of the distance to the horizon so a step can never
+  // charge past it. It also bounds how far a chord may sag inside its endpoints: for a chord of
+  // length f*r the sagitta is about r*f^2/8, i.e. under 0.8% of r at f = 0.25. The planet gate
+  // relies on that bound (see the march loop).
+  //
+  // Inside DETAIL_R the ray genuinely bends hard and disc hit positions are interpolated along
+  // the segment, so the old fine step is kept there.
+  float stepSize(float r, float r_h, float L2) {
+    float r2 = r * r;
+    float dtCurv = 0.04 * r2 * r2 / (1.5 * L2 + 1.0);   // EPS = 0.04 rad per step
+    float dt = min(dtCurv, 0.25 * (r - r_h));           // DT_R_FRAC = 0.25
+    if (r < 20.0) dt = min(dt, 0.08 * (r - r_h));       // DETAIL_R = 20.0
+    return clamp(dt, 0.002, 40.0);
+  }
+
   vec4 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
     float r = length(hitPos.xz);
     float outerEdge = 14.0;
@@ -361,7 +381,10 @@ const fsSource = `
     vec3  hitPoint = vec3(0.0);
     vec4  hitPlanet = vec4(0.0);
 
-    float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
+    // Step size, and the seed half-kick, both come from stepSize() so the Verlet half-step
+    // matches the first full step.
+    float r = length(pos);
+    float dt0 = stepSize(r, r_h, L2);
     vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
     float escapeR = max(50.0, u_camDist + 20.0);
     float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
@@ -374,7 +397,6 @@ const fsSource = `
     float planetSlab = u_planetSlab + (2.0 * u_camDist + 20.0) * pixelAngle * 1.5;
 
     for (int i = 0; i < 250; i++) {
-      float r = length(pos);
       minR = min(minR, r);
       if (accumulatedAlpha > 0.98) break;
       if (r < r_h * 1.05) {
@@ -384,13 +406,17 @@ const fsSource = `
       if (r > escapeR) break;
       if (r > 100.0 && dot(pos, vel) > 0.0) break;
 
-      float dt = max(0.002, min(0.08 * (r - r_h), 5.0));
+      float dt = stepSize(r, r_h, L2);
       vec3 prevPos = pos;
       pos += vel_half * dt;
       vec3 a = acceleration(pos, vel_half, L2, spin);
       vel = vel_half + 0.5 * dt * a;
       vel_half += dt * a;
       float newY = pos.y;
+      // Carried to the next iteration as r, so this costs no extra sqrt -- it just moves the
+      // one the loop already did. Having both endpoint radii lets the planet gate below test
+      // the segment's radial span instead of only where the segment started.
+      float rNew = length(pos);
 
       if (prevY * newY < 0.0 && accumulatedAlpha < 0.98) {
         float frac = prevY / (prevY - newY);
@@ -441,7 +467,14 @@ const fsSource = `
       // far more than the test itself -- it was ~60% of the whole frame before the slab cull.
       // Every planet orbits in the y = 0 plane, so a segment whose y-extent clears the planet
       // slab cannot hit any of them, and prevY/newY are already live: one compare kills all five.
-      if (r > 16.0 && r < 100.0 && accumulatedAlpha < 0.98
+      // Radial gate on the SEGMENT, not just where it started: with curvature-adaptive steps a
+      // single segment can span tens of units, and gating on the start radius alone would skip
+      // the test for a segment that starts outside the band and crosses into it -- silently
+      // clipping far-side planets. max(r, rNew) is the segment's true outer reach (a chord's
+      // maximum radius is always at an endpoint). min(r, rNew) overstates its inner reach by at
+      // most the chord sagitta, under 0.8% of r by the DT_R_FRAC bound in stepSize(), which is
+      // far inside the 12.6-unit margin between this 100.0 bound and Neptune's 87.4 reach.
+      if (max(r, rNew) > 16.0 && min(r, rNew) < 100.0 && accumulatedAlpha < 0.98
           && min(prevY, newY) < planetSlab && max(prevY, newY) > -planetSlab) {
         vec3 seg = pos - prevPos;
         float segL2 = dot(seg, seg);
@@ -491,6 +524,7 @@ const fsSource = `
         break;
       }
       prevY = newY;
+      r = rNew;
     }
 
     // Shade the deferred planet hit now that the march (and its register pressure) is done.
