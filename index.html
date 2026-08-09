@@ -206,9 +206,14 @@
       uCR=gl.getUniformLocation(pg,'u_camRight'),uCU=gl.getUniformLocation(pg,'u_camUp'),
       uRH=gl.getUniformLocation(pg,'u_rH'),uRI=gl.getUniformLocation(pg,'u_rIsco'),
       uHP=gl.getUniformLocation(pg,'u_hoveredPlanet'),
-      uPl=[gl.getUniformLocation(pg,'u_planet0'),gl.getUniformLocation(pg,'u_planet1'),
-           gl.getUniformLocation(pg,'u_planet2'),gl.getUniformLocation(pg,'u_planet3'),
-           gl.getUniformLocation(pg,'u_planet4')];
+      // Planets are one vec4[5] array uniform (xyz = centre, w = radius) rather than five
+      // scalars, so the shader's march loop can index it with its loop counter.
+      uPls=gl.getUniformLocation(pg,'u_planets')||gl.getUniformLocation(pg,'u_planets[0]'),
+      uPSlab=gl.getUniformLocation(pg,'u_planetSlab');
+    const planetBuf=new Float32Array(5*4);
+    // Max |y| any planet surface reaches. Orbits are all in the y = 0 plane, so this is the
+    // largest radius; derived from planetData so adding a planet cannot desync the shader.
+    gl.uniform1f(uPSlab,Math.max(...planetData.map(p=>p.radius)));
 
     // Blackbody 1D lookup texture
     const uBB=gl.getUniformLocation(pg,'u_bbTex');
@@ -413,7 +418,8 @@
       gl.uniform1f(uRH,dv.getFloat32(0x060,true));
       gl.uniform1f(uRI,dv.getFloat32(0x064,true));
       gl.uniform1f(uHP,hP);
-      for(let i=0;i<5;i++){const b=0x070+i*12;gl.uniform4f(uPl[i],dv.getFloat32(b,true),dv.getFloat32(b+4,true),dv.getFloat32(b+8,true),planetData[i].radius)}
+      for(let i=0;i<5;i++){const b=0x070+i*12,o=i*4;planetBuf[o]=dv.getFloat32(b,true);planetBuf[o+1]=dv.getFloat32(b+4,true);planetBuf[o+2]=dv.getFloat32(b+8,true);planetBuf[o+3]=planetData[i].radius}
+      gl.uniform4fv(uPls,planetBuf);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
       // --- Pass 2: FXAA resolve the low-res scene up to the full-res canvas ---
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);

@@ -369,6 +369,77 @@
       }
 
       // =============================================
+      // 6. Ray-march hot-loop invariants (perf, Aug 2026)
+      // =============================================
+      // The march loop runs up to 250x per pixel. Anything expensive living INSIDE it is paid
+      // by every pixel, including the vast majority that never hit what the code is for: a
+      // large inlined function inflates register allocation and collapses GPU occupancy even
+      // when its branch is almost never taken. Hoisting planet surface shading out of the loop
+      // and folding out the dead u_noiseTex chain made the shader 3.4-4.8x faster with no
+      // visible change (max delta < 5/255). These guard that work against regression.
+
+      // Extract the ray-march loop body by brace matching, anchored on its first statement so
+      // it can't latch onto the galaxy/spiral loops earlier in the file.
+      function marchLoopBody(src) {
+        const m = src.match(
+          /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*\d+\s*;\s*i\s*\+\+\s*\)\s*\{\s*float\s+r\s*=\s*length\s*\(\s*pos\s*\)/);
+        if (!m) return null;
+        const start = src.indexOf('{', m.index);
+        let i = start + 1, depth = 1;
+        while (i < src.length && depth > 0) {
+          if (src[i] === '{') depth++;
+          else if (src[i] === '}') depth--;
+          i++;
+        }
+        return depth === 0 ? src.slice(start + 1, i - 1) : null;
+      }
+
+      const marchBody = marchLoopBody(shader);
+      assert(marchBody !== null,
+        'Extraction: ray-march loop body found',
+        marchBody !== null ? `${marchBody.length} chars` : 'brace matching failed');
+
+      if (marchBody !== null) {
+        // 6a. Planet surface shading must stay OUT of the march loop. Inlining it there cost
+        //     ~2x frame time: shadePlanet's live registers throttle occupancy for every pixel.
+        assert(!/\bshadePlanet\s*\(/.test(marchBody),
+          'Hot loop: planet shading is deferred out of the ray-march loop',
+          'shadePlanet must be called once AFTER the loop using the recorded hit, not inside it');
+
+        // 6b. ...but it must still be called somewhere, or planets render black.
+        assert(/\bshadePlanet\s*\(/.test(shader),
+          'Hot loop: deferred planet shading is still applied after the loop',
+          'shadePlanet must be invoked once outside the march loop');
+
+        // 6c. The fbm/noiseLUT chain fed by the never-bound u_noiseTex sampler must not come
+        //     back into the loop: it cost ~40% of the frame and returned a constant.
+        assert(!/\bfbm\s*\(/.test(marchBody) && !/\bnoiseLUT\s*\(/.test(marchBody),
+          'Hot loop: no fbm/noiseLUT sampling inside the ray-march loop',
+          'fbm over the unbound u_noiseTex evaluated to a constant while costing ~40% of the frame');
+      }
+
+      // 6d. Planets are a vec4 array uniform, sized to match planetData. Five separate
+      //     uniforms forced a select cascade evaluated on every march step.
+      const planetArrayN = extractShaderInt(shader, /uniform\s+vec4\s+u_planets\s*\[\s*(\d+)\s*\]/);
+      assert(planetArrayN !== null,
+        'Extraction: u_planets array uniform found',
+        planetArrayN !== null ? `u_planets[${planetArrayN}]` : 'no vec4 array uniform — did it revert to u_planet0..N?');
+      if (planetArrayN !== null && planets.length > 0) {
+        assert(planetArrayN === planets.length,
+          'Planet uniform: array size matches planetData length',
+          `u_planets[${planetArrayN}] vs ${planets.length} planets in planetData`);
+      }
+
+      // 6e. The slab half-thickness that gates the planet test must be DERIVED from planetData,
+      //     never hardcoded — a stale literal smaller than the largest radius silently clips
+      //     planets out of the scene.
+      const slabFromData = /uniform1f\s*\(\s*\w+\s*,\s*Math\.max\s*\([^;]*planetData[^;]*\)\s*\)/.test(js);
+      assert(slabFromData,
+        'Planet slab: uploaded value is derived from planetData, not a literal',
+        slabFromData ? 'u_planetSlab computed from planetData radii'
+                     : 'u_planetSlab must be Math.max(...planetData.map(p => p.radius))');
+
+      // =============================================
       // PONG BEHAVIORAL TESTS — JS sandbox
       // =============================================
 

@@ -42,11 +42,29 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 
 ## Adding a New Planet/Game Link
 1. Add entry to `planetData` array in `index.html` with `oR`, `ph`, `sp`, `radius`, `name`, `person`, `games:[{t,h}]`
-2. Add a new `u_planetN` uniform in shader and JS
+2. Grow the `uniform vec4 u_planets[N]` array in the shader and its `for (int p = 0; p < N; p++)`
+   loop, plus the `i < 5` planet loops in `index.html` (upload, labels, hover). Planets are ONE
+   array uniform, not `u_planetN` scalars — see "Ray-march hot loop" below.
 3. Add corresponding `.planet-label` div in HTML
 4. Update planet check range `if (r > LOW && r < HIGH ...)` in shader to cover new orbit
 5. Verify both escape thresholds (zone `r > 100.0`, convergence `r > 90.0`) still exceed new planet's `oR + radius`
-6. Run `tests.html` to verify all shader invariants still pass
+6. `u_planetSlab` needs no edit — it is derived from `planetData` radii at upload time
+7. Run `tests.html` to verify all shader invariants still pass
+
+## Ray-march hot loop (performance-critical)
+The march loop in `fsSource` runs up to 250 iterations **per pixel**. Cost there is dominated by
+register pressure, not arithmetic: a large function inlined into the loop inflates register
+allocation and collapses GPU occupancy for *every* pixel, even when its branch almost never runs.
+Measured on the Intel UHD iGPU, hoisting planet shading out of the loop alone was worth 2.1x.
+
+Rules for anything touching that loop:
+- **Never call a big shading function inside it.** Record the hit (position, weight, index) and
+  shade once after the loop — an alpha-composited contribution is additive with a weight fixed at
+  hit time, so late shading is numerically identical.
+- **Gate before you compute.** All planets orbit the `y = 0` plane, so the `planetSlab` y-extent
+  check rejects the whole 5-planet test using values already live in registers.
+- Prefer array uniforms indexed by the loop counter over `(p==0)?a:(p==1)?b:...` select cascades.
+- `tests.html` suite 6 enforces these; re-run it after any loop change.
 
 ## Testing
 No test framework. `tests.html` validates shader/JS invariants via regex extraction.

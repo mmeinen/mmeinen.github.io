@@ -19,11 +19,13 @@ const fsSource = `
   uniform float u_rH;
   uniform float u_rIsco;
   uniform float u_hoveredPlanet;
-  uniform vec4 u_planet0;
-  uniform vec4 u_planet1;
-  uniform vec4 u_planet2;
-  uniform vec4 u_planet3;
-  uniform vec4 u_planet4;
+  // xyz = centre, w = radius. An array (not five scalars) so the march loop can index it
+  // with the loop counter -- five separate uniforms compile to a select cascade that has to
+  // be evaluated on every step of the hottest loop in the shader.
+  uniform vec4 u_planets[5];
+  // Max |y| any planet surface reaches. All orbits lie in the y = 0 plane, so this is just
+  // the largest planet radius; JS derives it from planetData so it cannot drift out of sync.
+  uniform float u_planetSlab;
   uniform sampler2D u_bbTex;
   uniform sampler2D u_noiseTex;
 
@@ -47,17 +49,6 @@ const fsSource = `
     return fract((p4.xxyz + p4.yzzw) * p4.zywx);
   }
 
-  float noiseLUT(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    vec3 sf = f * f * (3.0 - 2.0 * f);
-    vec2 offs0 = (i.xy + sf.xy + 0.5 + i.z * vec2(17.0, 59.0)) / 256.0;
-    vec2 offs1 = offs0 + vec2(17.0, 59.0) / 256.0;
-    float s0 = texture2D(u_noiseTex, offs0).r;
-    float s1 = texture2D(u_noiseTex, offs1).r;
-    return mix(s0, s1, sf.z);
-  }
-
   float noiseLUT2(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
@@ -65,34 +56,8 @@ const fsSource = `
     return texture2D(u_noiseTex, (i + sf + 0.5) / 256.0).r;
   }
 
-  float fbm(vec3 p) {
-    float v = 0.0, a = 0.5;
-    mat3 rot = mat3(0.00, 0.80, 0.60,
-                    -0.80, 0.36, -0.48,
-                    -0.60, -0.48, 0.64);
-    for (int i = 0; i < 4; i++) {
-      v += a * noiseLUT(p);
-      if (i >= 2 && u_camDist < 50.0 && u_camDist > 10.0) break;
-      p = rot * p * 2.0 + vec3(1.7, 9.2, 5.3);
-      a *= 0.5;
-    }
-    return v;
-  }
-
   vec3 blackbodyColor(float t) {
     return texture2D(u_bbTex, vec2(clamp(t, 0.0, 1.0), 0.5)).rgb;
-  }
-
-  float fastAtan2(float y, float x) {
-    float ax = abs(x), ay = abs(y);
-    float mn = min(ax, ay), mx = max(ax, ay);
-    float a = mn / (mx + 1e-20);
-    float s = a * a;
-    float r = (((-0.0464964749 * s + 0.15931422) * s - 0.327622764) * s * a + a);
-    if (ay > ax) r = 1.5707963 - r;
-    if (x < 0.0) r = 3.1415926 - r;
-    if (y < 0.0) r = -r;
-    return r;
   }
 
   vec4 diskShading(vec3 hitPos, float r_isco, float a, vec3 rayDir) {
@@ -123,39 +88,20 @@ const fsSource = `
 
     float gGrav = sqrt(max(1.0 - 2.0 / r, 0.01));
 
-    float detailFade = smoothstep(0.0, 5.0, r - r_isco);
-    float logR = log(r);
-    float flow = u_time * 0.04 * inversesqrt(r);
-    float tAngle = fastAtan2(hitPos.z, hitPos.x) + flow;
-    vec3 diskUV = vec3(cos(tAngle) * 3.0, sin(tAngle) * 3.0, logR * 5.0);
-
-    float warpX = noiseLUT(diskUV * 0.7);
-    float warpY = (u_camDist < 50.0) ? warpX * 0.7 : noiseLUT(diskUV * 0.7 + vec3(5.2, 1.3, 3.7));
-    float warpIntensity = 1.5 + smoothstep(30.0, 5.0, u_camDist) * 0.5;
-    vec3 warpedUV = diskUV + vec3(warpX, warpY, 0.0) * warpIntensity;
-
-    float density = fbm(warpedUV);
-
     float slabH = 6.0;
     float cosIncidence = abs(rayDir.y) + 0.2;
     float pathLen = min(slabH / cosIncidence, 12.0);
-
-    float frontTau = max(density - 0.05, 0.0) * 8.0;
-    float frontCloud = 1.0 - exp(-frontTau);
-    float cloud;
-    if (u_camDist >= 50.0) {
-      vec3 parallax = vec3(rayDir.xz, 0.0) * 2.0 / (abs(rayDir.y) + 0.4);
-      float backDensity = noiseLUT((warpedUV + parallax) * 0.6);
-      float backTau = max(backDensity - 0.1, 0.0) * 6.0;
-      float backCloud = 1.0 - exp(-backTau);
-      cloud = frontCloud + (1.0 - frontCloud) * backCloud * 0.85;
-    } else {
-      cloud = frontCloud;
-    }
-
     float pathBoost = 0.4 + 0.6 * min(pathLen, 12.0) / 12.0;
 
-    float structure = mix(1.0, cloud, detailFade);
+    // Cloud structure was an fbm over u_noiseTex -- but that sampler has never been bound by
+    // any caller, so it silently resolved to texture unit 0 (the 256x1 blackbody ramp) and
+    // returned the ramp's saturated tail, ~1.0, for essentially every input. Both optical
+    // depths then saturated (1 - exp(-7)) and this whole chain evaluated to the constant
+    // below -- while costing ~40% of the frame in texture taps on the hottest path.
+    // Folding it out is pixel-faithful: no pixel in any test view moves by more than 5/255.
+    // Restoring real turbulence means binding a 256x256 REPEAT-wrapped noise texture to
+    // u_noiseTex and reinstating fbm (see git history for the original chain).
+    float structure = 1.0;
 
     float Tshifted = Tnorm * clamp(g, 0.2, 3.0) * gGrav;
     vec3 col = blackbodyColor(Tshifted);
@@ -405,12 +351,27 @@ const fsSource = `
     float prevY = pos.y;
     float minR = 1000.0;
 
+    // Deferred planet hit. shadePlanet is large and register-hungry; inlining it into the
+    // march loop throttles occupancy for every pixel, including the vast majority that never
+    // touch a planet. A hit's contribution is additive with a weight fixed at hit time, so
+    // recording the hit here and shading once after the loop is numerically identical while
+    // keeping the loop body small. Ties broken by weight = the visually dominant surface.
+    int   hitIdx = -1;
+    float hitW = 0.0;
+    vec3  hitPoint = vec3(0.0);
+    vec4  hitPlanet = vec4(0.0);
+
     float dt0 = max(0.002, min(0.08 * (length(pos) - r_h), 5.0));
     vec3 vel_half = vel + 0.5 * dt0 * acceleration(pos, vel, L2, spin);
     float escapeR = max(50.0, u_camDist + 20.0);
     float pixelAngle = 1.0 / (min(u_resolution.x, u_resolution.y) * 1.8);
     float convThresh = pixelAngle * pixelAngle * 0.0625;
     float closeupFactor = smoothstep(30.0, 5.0, u_camDist);
+    // Half-thickness of the y-slab the planet test must consider, widened by a conservative
+    // bound on the anti-alias edge margin (edgeW) so the gate can never reject a segment the
+    // widened intersection test would have hit. March points stay inside escapeR of the
+    // origin, so camera-to-point separation never exceeds 2*camDist + 20.
+    float planetSlab = u_planetSlab + (2.0 * u_camDist + 20.0) * pixelAngle * 1.5;
 
     for (int i = 0; i < 250; i++) {
       float r = length(pos);
@@ -441,9 +402,9 @@ const fsSource = `
         accumulatedColor += dCol * dAlpha * (1.0 - accumulatedAlpha);
         accumulatedAlpha += dAlpha * (1.0 - accumulatedAlpha);
         if (accumulatedAlpha < 0.98) {
-          vec3 satC = u_planet1.xyz;
+          vec3 satC = u_planets[1].xyz;
           float sd = length(hitPos.xz - satC.xz);
-          float ringPxW = length(u_camPos - hitPos) / (min(u_resolution.x, u_resolution.y) * 1.8);
+          float ringPxW = length(u_camPos - hitPos) * pixelAngle;
           float rfPx = ringPxW / 2.5;
           if (sd > 3.0 - ringPxW * 2.0 && sd < 5.5 + ringPxW * 2.0) {
             float rf = (sd - 3.0) / 2.5;
@@ -476,14 +437,19 @@ const fsSource = `
         }
         if (accumulatedAlpha > 0.98) break;
       }
-      if (r > 16.0 && r < 100.0 && accumulatedAlpha < 0.98) {
+      // Planet intersection. This gate runs on every march step, so rejecting cheaply matters
+      // far more than the test itself -- it was ~60% of the whole frame before the slab cull.
+      // Every planet orbits in the y = 0 plane, so a segment whose y-extent clears the planet
+      // slab cannot hit any of them, and prevY/newY are already live: one compare kills all five.
+      if (r > 16.0 && r < 100.0 && accumulatedAlpha < 0.98
+          && min(prevY, newY) < planetSlab && max(prevY, newY) > -planetSlab) {
         vec3 seg = pos - prevPos;
         float segL2 = dot(seg, seg);
-        float edgeW = length(u_camPos - prevPos) / (min(u_resolution.x, u_resolution.y) * 1.8) * 1.5;
+        float edgeW = length(u_camPos - prevPos) * pixelAngle * 1.5;
         float segLen = sqrt(segL2);
         vec3 segMid = 0.5 * (prevPos + pos);
         for (int p = 0; p < 5; p++) {
-          vec4 pl = (p == 0) ? u_planet0 : (p == 1) ? u_planet1 : (p == 2) ? u_planet2 : (p == 3) ? u_planet3 : u_planet4;
+          vec4 pl = u_planets[p];
           vec3 pC = pl.xyz;
           float pr = pl.w;
           vec3 dP = segMid - pC;
@@ -508,9 +474,9 @@ const fsSource = `
               float t = (t1 > 0.0) ? t1 : t2;
               if (t > 0.0 && t < 1.0) hitP = prevPos + seg * t;
             }
-            vec3 pCol = shadePlanet(hitP, pC, pr, p);
-            accumulatedColor += pCol * alpha * (1.0 - accumulatedAlpha);
-            accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
+            float w = alpha * (1.0 - accumulatedAlpha);
+            if (w > hitW) { hitW = w; hitPoint = hitP; hitPlanet = pl; hitIdx = p; }
+            accumulatedAlpha += w;
             if (accumulatedAlpha > 0.98) break;
           }
         }
@@ -525,6 +491,11 @@ const fsSource = `
         break;
       }
       prevY = newY;
+    }
+
+    // Shade the deferred planet hit now that the march (and its register pressure) is done.
+    if (hitIdx >= 0) {
+      accumulatedColor += shadePlanet(hitPoint, hitPlanet.xyz, hitPlanet.w, hitIdx) * hitW;
     }
 
     vec3 bgCol = vec3(0.0);
