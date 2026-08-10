@@ -624,7 +624,13 @@
         (i32.store (i32.const 0x068) (i32.const -1))
       )
     )
-    ;; Adaptive resolution
+    ;; Adaptive resolution -- DEAD CODE as of Aug 2026. index.html ignores the 0x06C output and
+    ;; controls the render scale itself; this rule is stateless (its state is 0x024, which JS
+    ;; overwrites every frame), so leaving it here is inert. Do NOT wire 0x06C back up: under
+    ;; vsync a frame costs either one refresh (16.7ms) or two (33.3ms), so the 20-28ms hold band
+    ;; below is unreachable -- every frame reads as either "too fast" or "too slow" and steps,
+    ;; which pumps the resolution across its whole range about once a second. See the render-scale
+    ;; controller in index.html, and tests.html suite 5d.
     (local.set $frameTime (f32.load (i32.const 0x028)))
     (local.set $rs (f32.load (i32.const 0x024)))
     (if (f32.gt (local.get $frameTime) (f32.const 28))

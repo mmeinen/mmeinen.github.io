@@ -129,7 +129,8 @@
       lowH = Math.max(1, Math.round(baseHeight * renderScale));
       ensureSceneTarget();
     }
-    window.addEventListener('resize', resize);
+    // A resize changes the pixel count, so the measured ceiling no longer applies -- re-measure.
+    window.addEventListener('resize', () => { resize(); rsReset(); });
     resize();
 
     // Each planet is a family member; clicking opens a game-selection submenu.
@@ -316,6 +317,109 @@
                                     // per-frame delta is noisy -> the whole scene "buzzes" at idle.
                                     // Smoothing it removes the buzz while still tracking real load.
 
+    /* ---- Adaptive render scale (controlled here, NOT by the WASM) ----------------------------
+       The WASM ships its own rule (js/scene.wat: frame-time > 28ms -> scale x0.85, < 20ms ->
+       x1.05, hold in between). That rule can never hold. Under vsync a frame costs either one
+       refresh (16.7ms) or two (33.3ms), so its 20-28ms hold band falls in the gap between the
+       only two values it can ever observe: every frame reads as either "too fast" or "too slow"
+       and steps. The result is a permanent limit cycle -- +5%/frame up, -15%/frame down, which
+       sweeps the whole range in about a second and is exactly the "goes fuzzy, snaps back to
+       sharp" pumping. Three things set its amplitude: the unreachable band (it can never stop),
+       the EMA lag on the frame-time (each reversal overshoots by ~7 frames of steps), and the
+       fact that every change calls resize() -- reallocating the offscreen target makes THAT
+       frame slow, which the rule then reads as more evidence to keep cutting, driving it to the
+       floor. It stayed invisible while the shader was slow enough to pin the scale at 0.35; the
+       Aug 2026 optimisation gave the GPU headroom and the loop started swinging rail to rail.
+
+       We ignore the WASM's output (0x06C) and decide here instead. That rule's only state is
+       0x024, which JS owns and overwrites every frame, so leaving it running is inert -- no
+       WASM recompile needed. This controller is built to SETTLE rather than track:
+         - it counts missed refreshes instead of comparing milliseconds, because the vsync grid
+           makes any absolute ms target unreachable by construction;
+         - it remembers the lowest scale that missed (rsCeiling) and parks just under it, so the
+           steady state is "change nothing" instead of "keep hunting";
+         - every change is followed by a settle window, so the realloc cost of the change itself
+           is never mistaken for evidence that more change is needed.                          */
+    const RS_MIN=0.35,RS_MAX=1.0;
+    let vsyncMs=16.7;          // estimated display refresh period, tracked from the fastest frames
+    let rsWarm=60;             // ignore start-up frames (shader compile + first paints are slow)
+    let rsSettle=0;            // frames to ignore after a scale change (the FBO realloc costs one)
+    let rsMiss=0,rsGood=0;
+    let rsCeiling=RS_MAX;      // lowest scale observed to miss vsync; we stay just below it
+    let rsProbing=0;           // frames left in which a miss counts as "that probe was too far"
+    let rsRelaxAge=0,rsRelaxEvery=1800;   // how often the ceiling is allowed to creep back up
+    let rsCamDist=camDist;     // camDist the ceiling was measured at (zooming changes the cost)
+
+    function rsReset(){rsCeiling=RS_MAX;rsMiss=0;rsGood=0;rsWarm=30;rsSettle=0;rsProbing=0;rsRelaxAge=0;rsRelaxEvery=1800;rsCamDist=camDist}
+
+    function rsSet(v){
+      v=Math.max(RS_MIN,Math.min(RS_MAX,Math.round(v*200)/200));  // 0.5% grid: no sub-pixel churn
+      if(Math.abs(v-renderScale)<0.004)return;
+      renderScale=v;resize();
+      rsSettle=30;rsMiss=0;rsGood=0;
+    }
+
+    function updateRenderScale(ft){
+      // Track the refresh period as the floor of observed frame times: approach a faster floor
+      // quickly, but let near-period frames pull it back up, so one stray 8ms frame can't
+      // convince us that every 16.7ms frame afterwards is a dropped one.
+      if(ft>3&&ft<vsyncMs)vsyncMs+=(ft-vsyncMs)*0.25;
+      else if(ft<vsyncMs*1.25)vsyncMs+=(ft-vsyncMs)*0.02;
+      vsyncMs=Math.max(5,Math.min(34,vsyncMs));
+
+      if(rsWarm>0){rsWarm--;return}
+      if(rsSettle>0){rsSettle--;return}
+
+      // Zooming changes how much of the screen lands in the high-curvature region, which is what
+      // the march cost actually tracks -- so a ceiling measured at another distance is stale.
+      // Re-measure on a real zoom (>25% change) only: at rest and while merely dragging, this
+      // never fires, which is what keeps the idle state completely still.
+      if(Math.abs(camDist-rsCamDist)>rsCamDist*0.25){
+        rsCamDist=camDist;rsCeiling=RS_MAX;rsRelaxEvery=1800;rsRelaxAge=0;rsProbing=0;rsMiss=0;rsGood=0;
+      }
+
+      // A "miss" is a frame that needed an extra refresh. The absolute 30ms arm is a safety net:
+      // if the period estimate ever latches onto a MULTIPLE of the true refresh (possible when
+      // the very first frames are already dropping, so we never see a clean one), the relative
+      // test goes blind, but we still refuse to sit below ~33fps.
+      // Leaky counter, so isolated hitches (GC, tab focus, a stray compile) decay away and only
+      // sustained misses trip a reduction.
+      // 1.75x, not 1.5: a genuinely dropped frame under vsync costs exactly 2x the period, so the
+      // margin is free, and it keeps rAF timestamp jitter (or a browser running unsynced, where
+      // frame times are continuous rather than quantized) from reading as a miss.
+      if(ft>vsyncMs*1.75||ft>30){rsMiss++;rsGood=0}else{rsGood++;rsMiss=Math.max(0,rsMiss-0.05)}
+      rsRelaxAge++;if(rsProbing>0)rsProbing--;
+
+      if(rsMiss>=3&&renderScale>RS_MIN){
+        rsCeiling=Math.min(rsCeiling,renderScale);   // this scale is too heavy -- remember it
+        // A miss just after a probe means only that the probe reached too far, and the scale
+        // below it was already proven good: retreat a hair. A miss with no recent probe is a
+        // real load change (zoom, another app on the GPU) and earns a decisive step.
+        if(rsProbing>0){
+          rsSet(renderScale*0.97);
+          // Failed probes are the one thing that could still pump the resolution, so each one
+          // makes the next probe rarer. A miss that was NOT a failed probe resets the interval,
+          // so recovering from a passing load stays quick.
+          rsRelaxEvery=Math.min(rsRelaxEvery*3,54000);
+        }else{
+          rsSet(renderScale*0.90);
+          rsRelaxEvery=1800;
+        }
+        rsProbing=0;rsRelaxAge=0;
+        return;
+      }
+      if(rsGood>=90){
+        const cap=Math.min(RS_MAX,rsCeiling*0.97);   // park just under the known-too-heavy scale
+        // Climb fast while far below the cap (recovering after a zoom-out, where the old ceiling
+        // no longer applies), then fine-step as we approach it so the last probe is a small one.
+        if(renderScale<cap-0.01){rsSet(Math.min(cap,renderScale*(renderScale<cap*0.8?1.12:1.04)));rsProbing=300}
+        else rsGood=0;                               // at the cap and healthy -> hold. Settled.
+      }
+      // Let the ceiling creep back rarely, so one heavy stretch (another app on the GPU, a
+      // window resize) does not cap quality for the rest of the session.
+      if(rsRelaxAge>=rsRelaxEvery&&rsCeiling<RS_MAX){rsRelaxAge=0;rsCeiling=Math.min(RS_MAX,rsCeiling*1.03)}
+    }
+
     function render(){
       const now=performance.now(),ft=now-lFrT;lFrT=now;
       simTime+=Math.min(ft*0.001,0.1);
@@ -324,8 +428,7 @@
       dv.setFloat32(0x010,simTime,true);
       wMem();
       wf();
-      const rs=dv.getFloat32(0x06C,true);
-      if(Math.abs(rs-renderScale)>0.005){renderScale=rs;resize()}
+      updateRenderScale(ft);   // raw ft, not ftSmooth: miss detection needs the per-frame value
       {
         // Throttle the 250-step hover trace: recompute on mouse move or every other frame;
         // otherwise reuse the previous hP. Clear hP when the mouse leaves the canvas.

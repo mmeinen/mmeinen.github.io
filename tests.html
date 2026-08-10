@@ -401,6 +401,31 @@
           'fxaaVS/fxaaFS must exist — they anti-alias the upscaled low-res scene');
       }
 
+      // 5d. ADAPTIVE-RESOLUTION PUMPING (Aug 2026). The WASM ships its own rule (js/scene.wat:
+      //     frame-time > 28ms -> scale x0.85, < 20ms -> x1.05, hold between). Under vsync a frame
+      //     costs either one refresh (16.7ms) or two (33.3ms), so the 20-28ms hold band sits in
+      //     the gap between the only two values it can observe: it can NEVER hold, and steps every
+      //     frame. That is a permanent limit cycle sweeping the range in about a second — the
+      //     scene going fuzzy and snapping back to sharp. It was masked while the shader was slow
+      //     enough to pin the scale at the 0.35 floor. The scale is controlled in index.html
+      //     instead; adopting the WASM's 0x06C output again reinstates the pump.
+      assert(!/getFloat32\(\s*0x06C/.test(js),
+        'Render scale: index.html does not adopt the WASM adaptive-resolution output (0x06C)',
+        'the WASM rule oscillates by construction (its 20-28ms hold band is unreachable under vsync) — the scale must be controlled in JS');
+
+      // The JS controller must ignore frames right after a scale change. Changing the scale
+      // reallocates the offscreen target, so that frame is itself slow; counting it as evidence
+      // is what drove the old loop all the way to the floor instead of dithering by one step.
+      assert(/rsSettle\s*>\s*0/.test(js) && /rsSettle\s*=\s*\d+/.test(js),
+        'Render scale: controller has a settle window after each change',
+        'without it the resize cost of a change is misread as a reason to change again');
+
+      // It must park under a remembered ceiling rather than re-probing every frame — that is what
+      // makes the steady state "change nothing" instead of "keep hunting".
+      assert(/rsCeiling/.test(js),
+        'Render scale: controller latches a measured ceiling and holds under it',
+        'a controller with no memory of what was too heavy has to keep re-probing, which pumps');
+
       // =============================================
       // 6. Ray-march hot-loop invariants (perf, Aug 2026)
       // =============================================

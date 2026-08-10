@@ -68,6 +68,25 @@ Rules for anything touching that loop:
   `index.html` mirrors it and must be changed together with it.
 - `tests.html` suites 2 and 6 enforce these; re-run it after any loop change.
 
+## Adaptive render scale (owned by JS, not the WASM)
+The heavy raymarch renders into a low-res offscreen target at `renderScale`; the FXAA pass
+resolves it up. **`index.html` controls that scale — do not re-adopt the WASM's `0x06C` output.**
+The WASM rule (`js/scene.wat`) steps ×1.05 below 20ms and ×0.85 above 28ms. Under vsync a frame
+costs either one refresh (16.7ms) or two (33.3ms), so its 20–28ms hold band is unreachable: it
+steps every frame and pumps the resolution across its whole range about once a second. It only
+looked stable while the shader was slow enough to pin the scale at the 0.35 floor.
+
+Rules for the JS controller (`updateRenderScale` in `index.html`, enforced by `tests.html` 5d):
+- **Count missed refreshes, not milliseconds.** Any absolute ms target is unreachable on the
+  vsync grid. `vsyncMs` tracks the observed period; a miss is `ft > vsyncMs*1.75`, with an
+  absolute `ft > 30` arm in case the estimate latches onto a multiple of the true refresh.
+- **Latch a ceiling and park under it** (`rsCeiling`) so the steady state is "change nothing".
+  A controller with no memory of what was too heavy must keep re-probing, which pumps.
+- **Ignore frames right after a change** (`rsSettle`). A change calls `resize()`, which reallocs
+  the offscreen target and makes that frame slow — counting it drove the old loop to the floor.
+- Re-measure only on window resize or a >25% `camDist` change; at idle nothing may move.
+- Don't lower the 0.35 floor — the user rejected sub-floor scaling (see memory).
+
 ## Testing
 No test framework. `tests.html` validates shader/JS invariants via regex extraction.
 ```bash
