@@ -57,6 +57,7 @@ function startAct(name){
   }
 }
 function nextAct(){
+  if (FILM.act === 'transition') return;                  // a fade is already under way
   const i = ACTS.indexOf(FILM.act), n = ACTS[(i + 1) % ACTS.length];
   if (n === 'galaxies') FILM.loop++;
   fade(1, 700);
@@ -96,7 +97,7 @@ function filmStep(fdt){
     for (const e of BATTLE.events.splice(0)) Score.event(e);
     if (BATTLE.done) beat('end', true, nextAct);
   } else if (FILM.act === 'descent') {
-    beat('land', !flight && t > 4, () => { filmCaption('ONE KILOMETRE UP', 'GARGANTUA ON THE HORIZON', 7); });
+    beat('land', !flight && t > 4, () => { filmCaption('THREE KILOMETRES UP', "GOLDEN HOUR UNDER GARGANTUA'S DISC", 7); });
     beat('go', (!flight && t > 13) || t > 34, nextAct);
   } else if (FILM.act === 'title') {
     beat('go', t > 9, () => { aspect(2.39); nextAct(); });
@@ -108,6 +109,8 @@ function shake(k){ FILM.shake = Math.max(FILM.shake || 0, k); }
 // ------------------------------------------------------------------------------ manual takeover
 function userInput(){
   FILM.lastUser = performance.now();
+  // the battle is a cinematic: its script owns the camera, so input there does not stop the film
+  if (FILM.act === 'battle' || FILM.act === 'transition') return;
   if (FILM.on && FILM.started) { FILM.on = false; document.body.classList.add('manual'); settings.speed = 1; }
 }
 function resumeFilm(){ document.body.classList.remove('manual'); FILM.on = true; fade(1, 500); setTimeout(() => { startAct(FILM.act && ACTS.includes(FILM.act) ? FILM.act : 'galaxies'); fade(0, 900); }, 520); }
@@ -198,7 +201,7 @@ function filmBegin(){
   startAct('galaxies');
 }
 function filmInit(){
-  $f('gateGo').onclick = filmBegin;
+  $f('gate').onclick = filmBegin;
   $f('iNext').onclick = e => { e.stopPropagation(); if (!FILM.on) { document.body.classList.remove('manual'); FILM.on = true; } nextAct(); };
   $f('iMute').onclick = e => { e.stopPropagation(); Score.mute(!Score.muted); $f('iMute').classList.toggle('off', Score.muted); };
   $f('iFull').onclick = e => { e.stopPropagation(); const d = document.documentElement; if (!document.fullscreenElement) d.requestFullscreen && d.requestFullscreen(); else document.exitFullscreen(); };

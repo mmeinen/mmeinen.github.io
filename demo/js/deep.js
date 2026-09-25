@@ -51,7 +51,8 @@ uniform vec4 u_bInfo[10];    // type, seed, c = |oc|^2 - R^2 (km^2), light
 uniform vec3 u_bSun[10];     // unit vector body -> star
 uniform vec3 u_bCol[10];     // colour as a point of light
 uniform mat3 u_bRot[10];     // world -> body-local (spinning)
-uniform vec3 u_starCol, u_lightCol;       // light colour: white for stars, warm for Gargantua's disc
+uniform vec3 u_starCol, u_lightCol;
+uniform float u_skyDim;                          // how hard daylight hides the background (1 stars, low for a hole)       // light colour: white for stars, warm for Gargantua's disc
 uniform float u_starPt, u_starRad, u_ringIn, u_ringOut;
 uniform vec3 u_aHi, u_aLo, u_camRel;
 uniform int u_dbg, u_body;
@@ -438,7 +439,7 @@ void main(){
   }
   if ((u_dbg & 1) == 0) {
     vec3 tr; vec3 ins = atmo(ro, rd, tSurf, L, tr)*u_bInfo[a].w*u_lightCol;
-    if (hit < 0) col *= exp(-30.0*dot(ins, vec3(0.3, 0.6, 0.1)));
+    if (hit < 0) col *= exp(-30.0*u_skyDim*dot(ins, vec3(0.3, 0.6, 0.1)));
     col = col*tr + ins;
   }
   o = vec4(min(col, vec3(6e4)), 1);
@@ -597,9 +598,15 @@ function findLanding(i, tArrive){
   const sunL = M3.vec(M3.T(bodyL2W(i, tArrive)), sunW);
   const r = mulberry(b.seed*31 + 7);
   let best = null, bs = 1e9;
+  // around a black hole, land where it straddles the horizon (1-7 deg up): the Miller's-planet shot
+  const elLo = deep.sys.bh ? 0.02 : 0.18, elHi = deep.sys.bh ? 0.12 : 0.55, elBest = deep.sys.bh ? 0.07 : 0.32;
+  // the surface camera looks toward local north (the body's +y), so prefer sites where the sun (or the
+  // black hole) stands roughly that way: it is then in the final shot. Second pass drops the preference.
+  for (let pass = 0; pass < 2 && !best; pass++)
   for (let k = 0; k < 1500; k++) {
     const ct = 2*r() - 1, ph = r()*6.283, st = Math.sqrt(1 - ct*ct), q = [st*Math.cos(ph), ct, st*Math.sin(ph)];
-    const el = V.dot(q, sunL); if (el < 0.18 || el > 0.55 || Math.abs(q[1]) > 0.6) continue;
+    const el = V.dot(q, sunL); if (el < elLo || el > elHi || Math.abs(q[1]) > 0.6) continue;
+    if (pass === 0 && V.dot(V.norm(V.sub([0, 1, 0], V.mul(q, q[1]))), V.norm(V.sub(sunL, V.mul(q, el)))) < 0.8) continue;
     const g = [0,0,0], h = terrainJ(q, 10, b.seed, g);
     if (h < 0.06 || h > 0.28) continue;
     const moist = vnoiseJ(q[0]*3.3 + 11, q[1]*3.3 + 11, q[2]*3.3 + 11)*0.6 + vnoiseJ(q[0]*7.1 + 2, q[1]*7.1 + 2, q[2]*7.1 + 2)*0.3;
@@ -607,7 +614,7 @@ function findLanding(i, tArrive){
     if (temp < 0.4) continue;                                   // no snowfields
     const rough = V.len(g);
     if (moist < -0.05) continue;                                // no deserts
-    const sc = -rough - 0.5*Math.min(moist, 0.3) + 0.8*Math.abs(el - 0.32);
+    const sc = -rough - 0.5*Math.min(moist, 0.3) + 0.8*Math.abs(el - elBest);
     if (sc < bs) { bs = sc; best = q; }
   }
   return best;
@@ -1005,7 +1012,7 @@ function sysUniforms(Q){
   gl.uniform1i(Q.u.u_ringBody, SYS.ring); gl.uniform1i(Q.u.u_atmBody, SYS.atm);
   gl.uniform1f(Q.u.u_ringIn, 1.35); gl.uniform1f(Q.u.u_ringOut, 2.35);
   gl.uniform3fv(Q.u.u_starCol, SYS.starCol); gl.uniform1f(Q.u.u_starRad, SYS.starRad); gl.uniform1f(Q.u.u_starPt, SYS.starPt);
-  gl.uniform3fv(Q.u.u_lightCol, SYS.lightCol);
+  gl.uniform3fv(Q.u.u_lightCol, SYS.lightCol); gl.uniform1f(Q.u.u_skyDim, SYS.skyDim);
   gl.uniform1f(Q.u.u_dotVis, SYS.dotVis); gl.uniform1f(Q.u.u_skyGain, SYS.skyGain);
   gl.uniform1i(Q.u.u_focus, SYS.focus);
   gl.uniform3fv(Q.u.u_aHi, SYS.aHi); gl.uniform3fv(Q.u.u_aLo, SYS.aLo); gl.uniform3fv(Q.u.u_camRel, SYS.camRel);
@@ -1036,7 +1043,7 @@ function systemPass(now){
   const s0 = sys.bodies[0], dStar = V.len(eye), ar = s0.R/dStar, dly = dStar/LY_M;
   SYS.starCol = s0.col;
   SYS.starPt = Math.min(LOCAL_GAIN*sys.L/(dly*dly), 400)*(1 - smooth01((ar/SYS.pixAng - 0.5)/1.5));
-  SYS.starRad = 30; SYS.lightCol = [1, 1, 1];
+  SYS.starRad = 30; SYS.lightCol = [1, 1, 1]; SYS.skyDim = sys.bh ? 0.1 : 1;
   if (sys.bh) { SYS.starPt = 0; SYS.starRad = 0; SYS.lightCol = sys.lightCol; }   // the hole is drawn by gargantua.js
   SYS.dotVis = 1 - smooth01((Math.log10(dStar) - Math.log10(3000*AU_M))/1.5);
   SYS.skyGain = deep.focus === 2 ? 0.4 + 0.6*smooth01((Math.log10(deep.D - focusRadius()) - 7)/1.5) : 1;
