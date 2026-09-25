@@ -36,7 +36,8 @@ function startAct(name){
     filmTitle(s.title, s.sub, 7);
   } else if (name === 'battle') {
     flash(1); Score.boom(1.2); Score.braam();
-    bhDevPlanet(); arenaSetup(4.5e5, 0.2); battleSetup(); BATTLE.on = true; paused = true;
+    bhDevPlanet(); arenaSetup(4.5e5, 0.2); battleSetup(); BATTLE.on = true;
+    paused = false;                  // the world keeps turning under the fleets (the galaxy sim is not stepped when deep)
     settings.speed = 1; battleCamera();
     Score.mood('tension');
     setTimeout(() => filmTitle('GARGANTUA', 'THE MERGED BLACK HOLE · 100 MILLION SUNS', 6), 900);
@@ -74,7 +75,8 @@ function filmStep(fdt){
     const near = x => Math.abs(simT - x) < 1.3;
     const tgt = near(P1) ? 0.3 : near(P2) ? 0.45 : simT > M ? 0.8 : 1.35;
     settings.speed += (tgt - settings.speed)*Math.min(1, fdt*2);
-    const want = simT < P1 - 4 ? 30 : simT < P1 + 3 ? 14 : simT < P2 - 3 ? 24 : 12;
+    // never closer than ~18 units: the gas sprites' RGBA32F blend is fill-bound (55 ms at 13 units on the iGPU)
+    const want = simT < P1 - 4 ? 32 : simT < P1 + 3 ? 19 : simT < P2 - 3 ? 26 : 18;
     cam.dist += (want - cam.dist)*Math.min(1, fdt*0.35);
     cam.yaw += fdt*0.035; cam.pitch += ((simT > P1 ? 0.55 : 0.32) - cam.pitch)*fdt*0.2;
     beat('p1', simT > P1 - 1.2, () => { filmCaption('FIRST PASSAGE', Math.round(P1*MYR_PER_T) + ' MILLION YEARS · TIDES TEAR THE DISCS OPEN'); Score.mood('tension'); });

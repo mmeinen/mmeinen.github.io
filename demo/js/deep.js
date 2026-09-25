@@ -9,11 +9,11 @@ layout(location=0) in vec3 a_pos;
 layout(location=1) in vec4 a_col;       // rgb, luminosity (Lsun)
 uniform mat4 u_view, u_proj;
 uniform float u_gain;
-out vec3 vCol; out float vDust; out float vGauss;
+out vec3 vCol; out float vDust; out float vGauss; out vec4 vSn;
 void main(){
   vec4 vp = u_view*vec4(a_pos,1);
   float d = -vp.z;
-  vDust = 0.0; vGauss = 1.0;
+  vDust = 0.0; vGauss = 1.0; vSn = vec4(0.0);
   if (d < 1e-3) { gl_Position = vec4(2,2,2,1); gl_PointSize = 0.0; vCol = vec3(0); return; }
   float f = u_gain*a_col.w/(d*d);
   // a star is a POINT: ~2 px sprite whose PEAK is capped, so a bright star saturates to a crisp white

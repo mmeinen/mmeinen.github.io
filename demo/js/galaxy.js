@@ -60,14 +60,15 @@ uniform vec3 u_tint[4];
 uniform float u_pxScale, u_flux, u_fluxDust, u_dustOn;
 uniform vec3 u_holeC;           // deep zoom: particles near the chosen star fade out and
 uniform float u_holeR, u_near, u_capStar, u_pointStars, u_weight;   // the local star field takes over
+uniform float u_sn, u_snClock, u_gasCap;   // supernova rate (0 = off: deep zoom, cube bake), clock, gas sprite cap
 ${SLOT_GLSL}
-out vec3 vCol; out float vDust; out float vGauss;
+out vec3 vCol; out float vDust; out float vGauss; out vec4 vSn;
 void main(){
   int id = gl_VertexID;
   int row = id / ${TEX_W}; int col = id - row*${TEX_W};
   int s = slotOf(float(row));
   vec4 p = texelFetch(u_pos, ivec2(col,row), 0), v = texelFetch(u_vel, ivec2(col,row), 0);
-  gl_Position = vec4(2,2,2,1); gl_PointSize = 0.0; vCol = vec3(0); vDust = 0.0; vGauss = 0.0;
+  gl_Position = vec4(2,2,2,1); gl_PointSize = 0.0; vCol = vec3(0); vDust = 0.0; vGauss = 0.0; vSn = vec4(0.0);
   if (u_slotActive[s] < 0.5 || v.w < -0.5) return;
   vec4 vp = u_view*vec4(p.xyz,1);
   float d = -vp.z; if (d < u_near) return;
@@ -85,7 +86,7 @@ void main(){
     ws = 0.018; lum = 1.25; cap = 10.0;
     c = mix(vec3(1.0,0.6,0.32), vec3(1.0,0.8,0.55), seed);
   } else if (u < ${T_GAS}) {              // gas + dust: absorbs; glows when tidally shocked
-    ws = 0.13 + 0.08*seed; cap = 20.0;
+    ws = 0.13 + 0.08*seed; cap = 20.0*u_gasCap;
     float h = max(v.w, 0.0);
     lum = 1.0;
     c = vec3(0.45,0.68,1.0)*h*2.2 + vec3(1.0,0.3,0.5)*(0.06 + 0.5*h*seed);
@@ -93,6 +94,17 @@ void main(){
   } else {                                // young clusters + HII regions
     ws = 0.035; lum = 4.0; cap = 14.0;
     c = seed < 0.3 ? vec3(1.0,0.3,0.55)*1.2 : vec3(0.42,0.62,1.0);
+  }
+  // Supernovae: shock-heated gas (and, rarely, young clusters) flashes. Each particle rolls once per epoch
+  // of the clock; a hit plays a fast-rise, exponential-decay light curve. Starbursts are where the heat is.
+  float flash = 0.0;
+  if (u_sn > 0.0) {
+    float pSN = (u >= ${T_BULGE} && u < ${T_GAS}) ? smoothstep(0.3, 2.2, max(v.w, 0.0))*6e-4 : (u >= ${T_GAS} ? 4e-6 : 0.0);
+    if (pSN > 0.0) {
+      float ep = u_snClock + float((hs >> 12u) & 1023u)*(9.0/1023.0), e = floor(ep), f = ep - e;
+      uint hh = (uint(id) ^ (uint(e)*2654435761u))*2246822519u; hh ^= hh >> 15u; hh *= 3266489917u; hh ^= hh >> 13u;
+      if (float(hh & 0xFFFFFFu)/16777215.0 < pSN*u_sn) flash = f < 0.04 ? f/0.04 : exp(-(f - 0.04)*5.0);
+    }
   }
   float ppu = u_pxScale/d;
   if (u < ${T_BULGE} || u >= ${T_GAS}) cap *= u_capStar;
@@ -115,17 +127,31 @@ void main(){
     vGauss = 0.0;
     gl_PointSize = 1.0;
   }
-  vCol *= u_weight; vDust *= u_weight;
+  if (flash > 0.003) {
+    vSn = vec4(vec3(0.82, 0.9, 1.0)*flash*min(ppu*ppu/1600.0, 3.0)*9.0, 1.0);
+    gl_PointSize = max(gl_PointSize, clamp(10.0 + 30.0*flash*sqrt(ppu/40.0), 8.0, 64.0));
+    vDust = 0.0;
+  }
+  vCol *= u_weight; vDust *= u_weight; vSn.rgb *= u_weight;
   gl_Position = u_proj*vp;
 }`;
 
 const FS_PART = `#version 300 es
 precision highp float;
-in vec3 vCol; in float vDust; in float vGauss;
+in vec3 vCol; in float vDust; in float vGauss; in vec4 vSn;
 layout(location=0) out vec4 oL;
 layout(location=1) out vec4 oD;
 void main(){
   vec2 q = gl_PointCoord*2.0-1.0; float r2 = dot(q,q);
+  if (vSn.a > 0.5) {                                // supernova: tight core + JWST-like 6+2 diffraction spikes
+    float core = exp(-r2*60.0)*2.0 + exp(-r2*8.0)*0.25, sp = 0.0;
+    for (int i = 0; i < 3; i++) { float a = 1.5708 + float(i)*1.0472; vec2 d = vec2(cos(a), sin(a));
+      float al = abs(dot(q, d)), pe = abs(dot(q, vec2(-d.y, d.x))); sp += exp(-pe*pe*900.0)*pow(max(1.0 - al, 0.0), 2.5); }
+    sp += 0.35*exp(-q.y*q.y*1500.0)*pow(max(1.0 - abs(q.x)*1.5, 0.0), 2.5);
+    float win = 1.0 - smoothstep(0.85, 1.0, max(abs(q.x), abs(q.y)));
+    oL = vec4(vCol*exp(-4.0*r2)*win, 0); oD = vec4(0.0, vSn.rgb*(core + sp*0.7)*win);
+    return;
+  }
   if (vGauss > 0.0 && r2 > 1.0) discard;
   float w = mix(1.0, exp(-4.0*r2), vGauss);
   oL = vec4(vCol*w, 0); oD = vec4(vDust*w, 0, 0, 0);
@@ -145,6 +171,7 @@ uniform vec2 u_res;
 uniform float u_aspect, u_dustK, u_pixAng, u_time;
 uniform vec4 u_bh;           // uv, theta_E (uv-y units), strength
 uniform vec4 u_cores[4];     // uv, radius (uv-y units), intensity
+uniform vec4 u_qso;          // uv, intensity, core size (px): the merged black hole switched on
 uniform vec3 u_coreCol[4];
 out vec4 o;
 float hash13(vec3 p3){ p3 = fract(p3*.1031); p3 += dot(p3, p3.zyx+31.32); return fract((p3.x+p3.y)*p3.z); }
@@ -196,11 +223,19 @@ void main(){
   vec4 w = u_invVP*vec4(uv*2.0-1.0, 1.0, 1.0);
   vec3 dir = normalize(w.xyz/w.w);
   vec3 col = (L + sky(dir)) * exp(-tau) + vec3(0.10,0.05,0.03)*(1.0-exp(-tau))*0.04;
+  col += texture(u_dust, uv).gba*exp(-tau*0.25);     // supernova flashes shine through most of the dust
   for (int k=0; k<4; k++) {
     if (u_cores[k].w <= 0.0) continue;
     vec2 q = (uv - u_cores[k].xy)*vec2(u_aspect,1.0);
     float rr = dot(q,q), s2 = u_cores[k].z*u_cores[k].z;
     col += u_coreCol[k]*u_cores[k].w*(exp(-rr/s2) + 0.06*s2/(rr+s2)) * exp(-tau*0.5);
+  }
+  if (u_qso.z > 0.0) {
+    vec2 d = (vUv - u_qso.xy)*u_res; float r2 = dot(d, d), w = u_qso.w, sp = 0.0;
+    for (int i = 0; i < 3; i++) { float a = 1.5708 + float(i)*1.0472; vec2 e = vec2(cos(a), sin(a));
+      float al = abs(dot(d, e)), pe = abs(dot(d, vec2(-e.y, e.x))); sp += exp(-pe*pe/1.3)*exp(-al/(w*30.0)); }
+    sp += 0.35*exp(-d.y*d.y/1.1)*exp(-abs(d.x)/(w*14.0));
+    col += vec3(0.78, 0.88, 1.0)*u_qso.z*(exp(-r2/(w*w)) + 0.06*exp(-sqrt(r2)/(w*7.0)) + 0.5*sp);
   }
   col = col*shadow + ring;
   o = vec4(min(col, vec3(6e4)), 1);
@@ -359,6 +394,8 @@ let simT = 0, paused = false, scenario = 0, spawnCounter = 0;
 let N = 1048576;
 const bh = {active:false, strength:0, pos:[0,0,0], target:[0,0,0], mass:1.2, hover:false};
 let events = {};         // pair tracking, keyed by slot pair + spawn ids
+let SN_CLOCK = 0;        // supernova epochs advance only while the galaxy view runs
+const QSO = {t0: -1, a: 0, b: 1};   // the merged black hole lights up as a quasar
 const settings = {speed:1, expo:1, bloom:1, dust:true, trails:false, auto:true, follow:true, labels:true};
 
 function layoutSlots(nGal, gals){
@@ -399,7 +436,7 @@ function reset(idx){
   layoutSlots(gals.length, gals);
   for (let i = 0; i < 4; i++) cores[i] = {g:null, x:[0,0,0], v:[0,0,0], active:false, spawn:-1};
   gals.forEach((g, i) => writeSlot(i, g));
-  simT = 0; events = {};
+  simT = 0; events = {}; QSO.t0 = -1;
   cam.yaw = sc.cam.yaw; cam.pitch = sc.cam.pitch; cam.dist = sc.cam.dist; cam.target = comCores();
   bh.strength = 0;
   if (tg) tg.fresh = true;
@@ -510,7 +547,7 @@ function trackEvents(){
     const e = events[key] || (events[key] = {prev:d, dec:false, merged:false, passes:0, apo:d});
     const talk = typeof FILM === 'undefined' || !FILM.on;
     if (!e.merged && !e.dec && d < e.prev && e.passes >= 1 && e.apo < 1.0) {     // apocentre inside 1 unit: one body
-      e.merged = true;
+      e.merged = true; if (QSO.t0 < 0) { QSO.t0 = simT; QSO.a = i; QSO.b = j; }
       if (talk) caption('MERGER · ' + A.g.name + ' + ' + B.g.name + ' COALESCE AT ' + Math.round(simT*MYR_PER_T) + ' Myr');
     }
     if (d > e.prev && e.dec && e.prev < 6) {
@@ -599,6 +636,9 @@ function drawParticles(fb, w, h, view, proj, opt){
   gl.uniform1f(Q.u.u_weight, weight != null ? weight : 1);
   gl.uniform1f(Q.u.u_near, holeC ? 0.002 : 0.03);
   gl.uniform1f(Q.u.u_capStar, capStar || (holeC ? 1.8 : 1));   // inside the galaxy: big, faint, overlapping
+  gl.uniform1f(Q.u.u_sn, holeC ? 0 : 1); gl.uniform1f(Q.u.u_snClock, SN_CLOCK);
+  // close shots: smaller gas sprites (surface brightness is kept by capK) -- the RGBA32F blend is fill-bound
+  gl.uniform1f(Q.u.u_gasCap, holeC ? 1 : clamp(cam.dist/30, 0.4, 1));
   gl.drawArrays(gl.POINTS, 0, sim.N);
 }
 
@@ -634,6 +674,13 @@ function composite(fb, w, h, light, dust, view, proj, now, extras){
     }
   }
   gl.uniform4fv(C.u.u_cores, cb); gl.uniform3fv(C.u.u_coreCol, cc);
+  gl.uniform4f(C.u.u_qso, 0, 0, 0, 1);
+  if (extras && QSO.t0 >= 0 && cores[QSO.a].active && cores[QSO.b].active) {
+    const A = cores[QSO.a], B = cores[QSO.b], m = A.g.m + B.g.m;
+    const p = project(V.mul(V.add(V.mul(A.x, A.g.m), V.mul(B.x, B.g.m)), 1/m));
+    const k = smooth01((simT - QSO.t0)/2.5);
+    if (p) gl.uniform4f(C.u.u_qso, p.u, p.v, k*(26 + 6*Math.sin(now*0.0031)), 1.6);
+  }
   fullscreen();
 }
 

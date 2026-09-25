@@ -371,6 +371,7 @@ function frame(now){
     const n = Math.min(6, Math.max(1, Math.ceil(adv/MAX_SUB_DT)));
     adv = Math.min(adv, n*MAX_SUB_DT);
     for (let s = 0; s < n; s++) simStep(adv/n);
+    SN_CLOCK += fdt*0.8;
     simT += adv;
     trackEvents();
   }

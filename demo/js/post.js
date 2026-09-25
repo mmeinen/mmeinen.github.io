@@ -30,7 +30,9 @@ uniform float u_bloomStr, u_expo, u_time, u_stretch; uniform vec2 u_res;
 out vec4 o;
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }
 void main(){
-  vec3 c = texture(u_scene, vUv).rgb + texture(u_bloom, vUv).rgb*u_bloomStr*0.12;
+  vec2 dq = vUv - 0.5; float ca = 0.006*dot(dq, dq);        // a lens's lateral colour, strongest at the edges
+  vec3 c = vec3(texture(u_scene, vUv - dq*ca).r, texture(u_scene, vUv).g, texture(u_scene, vUv + dq*ca).b)
+         + texture(u_bloom, vUv).rgb*u_bloomStr*0.12;
   // astronomer's asinh stretch: lifts faint tidal tails, compresses the cores, keeps hue
   c *= u_expo;
   float L = max(dot(c, vec3(0.2126,0.7152,0.0722)), 1e-5);
@@ -41,6 +43,7 @@ void main(){
   c *= 1.0 - dot(q,q)*0.55;
   float n = fract(sin(dot(gl_FragCoord.xy + fract(u_time)*97.0, vec2(12.9898,78.233)))*43758.5453);
   c += (n - 0.5)/255.0*1.5;
+  c *= 1.0 + (n - 0.5)*0.05*(1.0 - c.g);                     // film grain, mostly in the shadows and mids
   o = vec4(c, 1);
 }`;
 
