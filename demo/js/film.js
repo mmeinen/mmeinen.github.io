@@ -30,6 +30,7 @@ function startAct(name){
     BATTLE.on = false; cam.free = null;
     const sc = FILM.loop % 2 ? 1 : 0;                        // alternate MW x Andromeda / the Antennae
     reset(sc); paused = false; settings.follow = true; settings.auto = false; settings.speed = 1.2;
+    cam.fov = deg(50); aspect(2.39);
     cam.dist = 34; cam.pitch = 0.32;
     Score.mood('calm');
     const s = SCENARIOS[sc];
@@ -42,7 +43,8 @@ function startAct(name){
     Score.mood('tension');
     setTimeout(() => filmTitle('GARGANTUA', 'THE MERGED BLACK HOLE · 100 MILLION SUNS', 6), 900);
   } else if (name === 'descent') {
-    BATTLE.on = false; cam.free = null; paused = false;
+    BATTLE.on = false; cam.free = null; paused = false; cam.fov = deg(50);
+    if (!deep.sys || !deep.sys.bh) { bhDevPlanet(); arenaSetup(4.5e5, 0.2); cam.free = null; }
     // hand the camera to the deep zoom: above the arena point, then fly to the surface
     const up = ARENA.Y, W2L = M3.T(bodyL2W(1, deep.sysT)), loc = M3.vec(W2L, up);
     cam.yaw = Math.atan2(loc[0], loc[2]); cam.pitch = Math.asin(clamp(loc[1], -1, 1));
@@ -186,7 +188,8 @@ const Score = (() => {
     else if (e.type === 'destroyed') boom(1.6);
   }
   return {start, mood, boom, braam, whoosh, zap, event,
-    mute(m){ muted = m; if (out) out.gain.setTargetAtTime(m ? 0 : 0.8, ac.currentTime, 0.2); },
+    mute(m){ muted = m; if (out) { out.gain.setTargetAtTime(m ? 0 : 0.8, ac.currentTime, 0.2); if (!m) ac.resume(); } },
+    kick(){ if (ac && ac.state === 'suspended' && !muted) ac.resume(); },
     get muted(){ return muted; }, suspend(){ if (ac) ac.suspend(); }, resume(){ if (ac && !muted) ac.resume(); }};
 })();
 
@@ -206,9 +209,11 @@ function filmInit(){
   $f('iMute').onclick = e => { e.stopPropagation(); Score.mute(!Score.muted); $f('iMute').classList.toggle('off', Score.muted); };
   $f('iFull').onclick = e => { e.stopPropagation(); const d = document.documentElement; if (!document.fullscreenElement) d.requestFullscreen && d.requestFullscreen(); else document.exitFullscreen(); };
   $f('iResume').onclick = e => { e.stopPropagation(); resumeFilm(); };
-  const markUser = e => { if (e.target && e.target.closest && e.target.closest('.ficon, #gate')) return; if (FILM.started) userInput(); };
+  const markUser = e => { Score.kick(); if (e.target && e.target.closest && e.target.closest('.ficon, #gate')) return; if (FILM.started) userInput(); };
   cv.addEventListener('pointerdown', markUser); cv.addEventListener('wheel', markUser, {passive: true});
   addEventListener('keydown', e => {
+    if (e.repeat) return;
+    Score.kick();
     if (!FILM.started) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filmBegin(); } return; }
     if (e.key === 'n' || e.key === 'N' || e.key === 'ArrowRight') { $f('iNext').click(); return; }
     if (e.key === 'm' || e.key === 'M') { $f('iMute').click(); return; }

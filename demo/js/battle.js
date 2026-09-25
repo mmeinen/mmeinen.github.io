@@ -12,7 +12,7 @@ const VS_BEAM = `#version 300 es
 precision highp float;
 layout(location=0) in vec4 i0; layout(location=1) in vec4 i1; layout(location=2) in vec4 i2;
 uniform mat4 u_vp; uniform float u_pxK;                   // pixels per (km at 1 km)
-out vec2 vUV; out vec3 vCol; out float vW; flat out float vCore;
+out vec2 vUV; out vec3 vCol; out float vW; out float vDist; flat out float vCore;
 void main(){
   vec3 a = i0.xyz, b = i1.xyz; float w = i0.w;
   int k = gl_VertexID; float s = float(k >> 1), side = float(k & 1)*2.0 - 1.0;
@@ -22,16 +22,17 @@ void main(){
   float wd = max(w, 1.3*dist/u_pxK);                      // never thinner than ~1.3 px: keeps flux, kills flicker
   vec3 ext = normalize(d)*wd*(s*2.0 - 1.0);
   p += perp*side*wd*2.5 + ext;
-  vUV = vec2(side*2.5, s); vCol = i2.rgb*min(px/1.3, 1.0); vW = i2.a; vCore = i1.w;
+  vUV = vec2(side*2.5, s); vCol = i2.rgb*min(px/1.3, 1.0); vW = i2.a; vCore = i1.w; vDist = length(p);
   gl_Position = u_vp*vec4(p, 1.0);
 }`;
 const FS_BEAM = `#version 300 es
 precision highp float;
-in vec2 vUV; in vec3 vCol; in float vW; flat in float vCore;
+in vec2 vUV; in vec3 vCol; in float vW; in float vDist; flat in float vCore;
 ${LOGZ_GLSL}
 out vec4 o;
 void main(){
-  float v = vUV.x, core = exp(-v*v*6.0), glow = exp(-abs(v)*1.6)*0.35;
+  gl_FragDepth = logDepth(vDist);
+  float v = vUV.x, core = exp(-v*v*6.0), glow = exp(-abs(v)*1.6)*0.35*(1.0 - smoothstep(1.5, 2.5, abs(v)));   // zero at the quad edge
   vec3 c = vCol*(core*vCore + glow)*vW + vec3(1.0)*core*core*vCore*0.6*vW*length(vCol)/1.7;
   o = vec4(c, 0.0);
 }`;
@@ -62,6 +63,7 @@ float vn3(vec3 x){ vec3 fl = floor(x), w = x - fl, u = w*w*(3.0 - 2.0*w); uvec3 
 float fbm(vec3 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a*vn3(p); p = p*2.07 + 3.1; a *= 0.5; } return s; }
 vec3 fire(float T){ return vec3(1.0, 0.45, 0.12)*smoothstep(0.0, 0.35, T) + vec3(0.0, 0.5, 0.3)*smoothstep(0.35, 0.7, T) + vec3(0.0, 0.1, 0.55)*smoothstep(0.7, 1.0, T); }
 void main(){
+  gl_FragDepth = logDepth(vDist);                         // same depth law as hulls and the planet
   int type = int(vP.x + 0.5); float age = vP.y, seed = vP.z;
   vec2 q = vUV; float r = length(q);
   float win = 1.0 - smoothstep(0.7, 1.0, r);               // every sprite fades to zero inside its quad
@@ -232,7 +234,7 @@ function killShip(s){
 }
 function nearestEnemy(s, pred){
   let best = null, bd = 1e9;
-  for (const o of BATTLE.ships) if (o.alive && o.dying < 0 && o.team !== s.team && (!pred || pred(o))) {
+  for (const o of BATTLE.ships) if (o.alive && o.vis && !o.wreck && o.dying < 0 && o.team !== s.team && (!pred || pred(o))) {
     const d = V.len(V.sub(o.pos, s.pos)); if (d < bd) { bd = d; best = o; }
   }
   return best;
@@ -269,7 +271,7 @@ function stepShips(dt){
           w.wreck = true; w.damage = 1; w.size = 1.6 - k*0.3; w.hp = 1e9; w.sh = 0; w.dying = -1;
           w.vel = V.add(V.mul(s.vel, 0.5), V.mul(V.norm([R() - 0.5, (k === 0 ? -1.4 : R() - 0.5), R() - 0.5]), 0.05 + R()*0.04));
           w.spin = V.mul(V.norm([R() - 0.5, R() - 0.5, R() - 0.5]), 0.15 + R()*0.2);
-          BATTLE.ships.push(w); if (k === 0) BATTLE.faller = w;
+          BATTLE.ships.push(w); if (k === 0 && s === BATTLE.tyrant) BATTLE.faller = w;
         }
       }
       if (a > 9) s.alive = false;
@@ -282,6 +284,7 @@ function stepShips(dt){
       if (R() < dt*1.2) explosion(randomHullPoint(s), 0.05, s.vel, {sparks: 8, smoke: 1, flash: 1.2});
       continue;
     }
+    if (c.fighter && s.hold) { s.pos = V.add(s.pos, V.mul(BATTLE.argo.vel, dt)); continue; }
     if (c.fighter) {
       // pursuit with lead; break off when too close; avoid capital hulls
       if (!s.target || !s.target.alive || s.target.dying >= 0 || R() < dt*0.08) s.target = nearestEnemy(s, o => CLS[o.cls].fighter) || nearestEnemy(s);
@@ -409,6 +412,8 @@ function S_smooth(t){ return t*t*(3 - 2*t); }
 function battleSetup(){
   BATTLE.t = 0; BATTLE.ships = []; BATTLE.bolts = []; BATTLE.missiles = []; BATTLE.fx = []; BATTLE.lances = []; BATTLE.events = [];
   BATTLE.rnd = mulberry(77); BATTLE.weapons = false; BATTLE.faller = null; BATTLE.timeScale = 1; BATTLE.done = false;
+  for (const k in BATTLE) if (k[0] === '_') delete BATTLE[k];          // once() flags: re-arm the script
+  BATTLE.hero = BATTLE.tyrant = BATTLE.victim = null;
   const Z = [0, 0, 1], R = BATTLE.rnd;
   const argo = mkShip('argo', 0, [0, 0, 0], Z, 'ARGO'); argo.armor = 0.45;
   const blue = [argo, Object.assign(mkShip('cruiser', 0, [-3.0, -0.5, 1.5], Z, 'LANCER'), {armor: 0.25}), Object.assign(mkShip('cruiser', 0, [3.2, 0.4, 0.5], Z, 'VALIANT'), {armor: 0.25}),
@@ -426,7 +431,7 @@ function amberArrives(){
   add(mkShip('frigate', 1, [8.5, -1.5, 20.5], B), 1.1); add(mkShip('frigate', 1, [0.5, -1.2, 22], B), 1.3);
   for (let k = 0; k < 16; k++) add(mkShip('wasp', 1, [4 + (R() - 0.5)*8, 1 + (R() - 0.5)*2, 18 + R()*3], B), 1.4 + R()*1.2);
 }
-function battleScriptStep(){
+function battleScriptStep(dt){
   const T = BATTLE.t;
   const once = (k, t, fn) => { if (T >= t && !BATTLE['_' + k]) { BATTLE['_' + k] = true; fn(); } };
   once('arrive', 6, amberArrives);
@@ -437,7 +442,7 @@ function battleScriptStep(){
     BATTLE.events.push({type: 'warp', t: T, big: !CLS[s.cls].fighter});
   }
   once('launch', 10.5, () => { for (const s of BATTLE.ships) if (s.hold) { s.hold = false; s.boost = 1.3; } BATTLE.weapons = true; BATTLE.events.push({type: 'weapons', t: T}); });
-  if (BATTLE._launch) for (const s of BATTLE.ships) if (s.boost > 1) s.boost = Math.max(1, s.boost - 0.02);
+  if (BATTLE._launch) for (const s of BATTLE.ships) if (s.boost > 1) s.boost = Math.max(1, s.boost - 1.2*dt);
   once('focus', 12, () => { BATTLE.tyrant.focus = BATTLE.argo; BATTLE.argo.focus = BATTLE.tyrant; });
   once('killCruiser', 36, () => { const v = BATTLE.victim; v.sh = 0; v.hp = 1; killShip(v); v.spin = [0.05, 0.1, 0.2]; });
   // the lance: charge 58-64, fire 64-67, the Tyrant dies
@@ -450,7 +455,7 @@ function battleScriptStep(){
   if (T >= 64) BATTLE.argo.glow = Math.max(0, 1 - (T - 64)/3);
   once('tyrantDies', 65.2, () => { const ty = BATTLE.tyrant; ty.sh = 0; ty.hp = 1; killShip(ty); ty.spin = [0.02, 0.04, 0.03]; });
   // the falling wreck: once it exists, it is pulled toward the planet and starts to burn
-  if (BATTLE.faller) { const f = BATTLE.faller; f.vel = V.add(f.vel, V.mul([0, -1, 0.1], 0.012*(1/60))); f.reentry = Math.min(1, Math.max(0, (T - 80)/6)); }
+  if (BATTLE.faller) { const f = BATTLE.faller; f.vel = V.add(f.vel, V.mul([0, -1, 0.1], 0.012*dt)); f.reentry = Math.min(1, Math.max(0, (T - 80)/6)); }
   if (T > 92) BATTLE.done = true;
 }
 // camera shots (arena km). Tracking shots read live ship positions.
@@ -481,14 +486,16 @@ function battleCamera(){
   }
 }
 function battleStep(fdt){
-  if (!BATTLE.on) return;
+  if (!BATTLE.on || !deep.sys || !deep.sys.bh || deep.focus === 0) return;
+  if (BATTLE.events.length > 300) BATTLE.events.splice(0, BATTLE.events.length - 100);
+  if (paused) { battleCamera(); return; }
   // slow motion around the big moments
   const T = BATTLE.t;
   const target = (T > 64 && T < 66.5) ? 0.4 : (T > 69.5 && T < 72.5) ? 0.3 : 1;
   BATTLE.timeScale += (target - BATTLE.timeScale)*Math.min(1, fdt*4);
   const dt = Math.min(fdt, 0.05)*BATTLE.timeScale;
   BATTLE.t += dt;
-  battleScriptStep();
+  battleScriptStep(dt);
   stepShips(dt); stepProjectiles(dt); stepFx();
   battleCamera();
 }

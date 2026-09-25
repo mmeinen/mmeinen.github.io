@@ -436,7 +436,8 @@ let BT = null;               // battle targets: MSAA colour + depth, resolve tex
 function ensureBattleTargets(){
   if (BT && BT.w === tg.w && BT.h === tg.h) return;
   if (BT) { gl.deleteFramebuffer(BT.msFb); gl.deleteFramebuffer(BT.resFb); gl.deleteRenderbuffer(BT.col); gl.deleteRenderbuffer(BT.dep); gl.deleteTexture(BT.tex); }
-  const w = tg.w, h = tg.h, S = Math.min(4, gl.getParameter(gl.MAX_SAMPLES));
+  const fs = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES);
+  const w = tg.w, h = tg.h, S = Math.min(4, fs && fs.length ? fs[0] : 0);
   const b = {w, h};
   b.col = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.col); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.RGBA16F, w, h);
   b.dep = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.dep); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.DEPTH_COMPONENT24, w, h);

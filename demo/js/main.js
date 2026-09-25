@@ -338,7 +338,7 @@ function drawDeepOverlay(W, H){
     octx.fillStyle = `rgba(170,210,255,${0.9*a})`;
     octx.fillText(b.name, q[0] + off, q[1] - 2);
     octx.fillStyle = `rgba(170,210,255,${0.5*a})`;
-    octx.fillText(i === 0 ? specClass(sys.T) + '-TYPE STAR' : TYPE_NAME[b.type], q[0] + off, q[1] + 10);
+    octx.fillText(i === 0 ? (sys.bh ? 'BLACK HOLE' : specClass(sys.T) + '-TYPE STAR') : TYPE_NAME[b.type], q[0] + off, q[1] + 10);
     if (i === 0 && dStar > 0.05*LY_M) {
       octx.strokeStyle = `rgba(255,170,100,${0.7*a})`;
       octx.beginPath(); octx.arc(q[0], q[1], 7, 0, 6.283); octx.stroke();
@@ -445,7 +445,7 @@ function frame(now){
     get simT(){ return simT; },
     hdr(x, y){ gl.bindFramebuffer(gl.FRAMEBUFFER, tg.comp2Fb); const a = new Float32Array(4);
       gl.readPixels(Math.round(x*tg.w), Math.round(y*tg.h), 1, 1, gl.RGBA, gl.FLOAT, a); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return Array.from(a).map(v => +v.toFixed(4)); },
-    FILM, startAct, nextAct, filmBegin, BATTLE, battleRun(sec, dt = 1/30){ for (let t = 0; t < sec; t += dt) battleStep(dt); return BATTLE.t; },
+    FILM, startAct, nextAct, filmBegin, BATTLE, battleRun(sec, dt = 1/30){ const p = paused; paused = false; for (let t = 0; t < sec; t += dt) battleStep(dt); paused = p; return BATTLE.t; },
     deep, flyTo, zoomBy, terrainJ, findLanding, rangeM, setRange, acquireBody, pickStar, acquireStar,
     finishFlight(){ let n = 0; while (flight && n++ < 2000) { updateFlight(0.25); if (deep.glide) { deep.glide.t += 0.25; if (deep.glide.t >= deep.glide.dur) deep.glide = null; } } },
     heatStats(){

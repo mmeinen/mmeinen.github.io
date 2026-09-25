@@ -115,6 +115,7 @@
   :root{--bar:calc((100vh - 100vw/2.39)/2)}
   body.playing #cfg, body.playing #metrics, body.playing #ladder, body.playing #toggleUI, body.playing #card,
   body.playing #title .sub, body.playing #title h1, body.playing .glabel{display:none}
+  body.playing:not(.manual) #ov, body.playing:not(.manual) #caption{display:none}
   body.playing #title{background:none;border:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0;top:10px;left:14px}
   body.playing #title a{opacity:.45;font-size:10px;letter-spacing:.2em;margin:0} body.playing #title a:hover{opacity:1}
   .lb{position:fixed;left:0;right:0;height:0;background:#000;z-index:6;pointer-events:none;transition:height 1.6s cubic-bezier(.6,0,.2,1)}

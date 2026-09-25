@@ -437,6 +437,8 @@ function reset(idx){
   for (let i = 0; i < 4; i++) cores[i] = {g:null, x:[0,0,0], v:[0,0,0], active:false, spawn:-1};
   gals.forEach((g, i) => writeSlot(i, g));
   simT = 0; events = {}; QSO.t0 = -1;
+  if (typeof BATTLE !== 'undefined') BATTLE.on = false;
+  cam.free = null;
   cam.yaw = sc.cam.yaw; cam.pitch = sc.cam.pitch; cam.dist = sc.cam.dist; cam.target = comCores();
   bh.strength = 0;
   if (tg) tg.fresh = true;
