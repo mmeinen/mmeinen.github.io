@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>COLLIDE — Galaxy Collision Simulator</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;
+    font-family:'Segoe UI',system-ui,sans-serif;color:rgba(140,190,255,.9)}
+  #gl{position:fixed;inset:0;width:100%;height:100%;z-index:1;display:block;touch-action:none;cursor:grab}
+  #gl.tool-launch{cursor:crosshair}
+  #gl.tool-bh{cursor:none}
+  #ov{position:fixed;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
+  .hud{position:fixed;z-index:10;background:rgba(6,11,26,.72);border:1px solid rgba(60,140,255,.3);
+    border-radius:6px;padding:10px 13px;font-size:12px;letter-spacing:.05em;
+    backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);user-select:none;transition:opacity .4s}
+  body.noui .hud:not(#toggleUI),body.noui .glabel{opacity:0;pointer-events:none}
+  body.noui #toggleUI{opacity:.45}
+  .hud h2{margin:0 0 7px;font-size:10px;font-weight:600;letter-spacing:.2em;
+    color:rgba(60,140,255,.65);text-transform:uppercase}
+
+  #title{top:12px;left:12px;max-width:260px}
+  #title h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.42em;color:rgba(150,200,255,.98);
+    text-shadow:0 0 18px rgba(60,140,255,.55)}
+  #title .sub{font-size:9.5px;opacity:.7;margin-top:3px;letter-spacing:.14em}
+  #title a{color:rgba(60,140,255,.85);text-decoration:none;font-size:11px;display:inline-block;margin-top:8px}
+  #title a:hover{color:#9cf}
+
+  #metrics{top:12px;right:12px;min-width:200px}
+  .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:4px}
+  .mrow .k{font-size:10px;opacity:.6;letter-spacing:.1em}
+  .mrow .v{font-size:12px;color:rgba(175,215,255,.95);font-variant-numeric:tabular-nums}
+  #tBig{font-size:26px;font-weight:600;color:rgba(255,160,80,.96);letter-spacing:.03em;line-height:1;
+    font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(255,160,80,.38)}
+  #tLbl{font-size:9px;letter-spacing:.22em;opacity:.6;margin-bottom:3px}
+
+  #cfg{bottom:12px;left:12px;width:292px;max-height:calc(100vh - 150px);overflow-y:auto;
+    scrollbar-width:thin;scrollbar-color:rgba(60,140,255,.4) transparent}
+  #cfg::-webkit-scrollbar{width:6px}
+  #cfg::-webkit-scrollbar-thumb{background:rgba(60,140,255,.35);border-radius:3px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+  .sec{border-top:1px solid rgba(60,140,255,.16);margin-top:9px;padding-top:8px}
+  .sl{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:7px;margin-top:6px}
+  .sl label{font-size:9.5px;opacity:.72;letter-spacing:.06em}
+  .sl output{font-size:10px;text-align:right;color:rgba(175,215,255,.9);font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;
+    background:rgba(60,140,255,.26);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+    background:rgba(120,185,255,.95);cursor:pointer;box-shadow:0 0 6px rgba(60,140,255,.6)}
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;
+    background:rgba(120,185,255,.95);cursor:pointer}
+  .chk{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;opacity:.82;cursor:pointer}
+  .chk input{accent-color:rgba(80,160,255,.9);cursor:pointer;margin:0}
+  .chks{display:grid;grid-template-columns:1fr 1fr;column-gap:6px}
+  select{background:rgba(20,40,80,.6);border:1px solid rgba(60,140,255,.36);color:rgba(170,210,255,.95);
+    font:inherit;font-size:10.5px;padding:3px 5px;border-radius:4px;outline:none;width:100%}
+  button{background:rgba(20,40,80,.6);border:1px solid rgba(60,140,255,.36);color:rgba(150,195,255,.92);
+    font-size:10.5px;padding:5px 6px;border-radius:4px;cursor:pointer;font-family:inherit;
+    letter-spacing:.07em;transition:background .15s,border-color .15s,color .15s;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  button:hover{background:rgba(40,80,150,.7);border-color:rgba(100,170,255,.7);color:#dff}
+  button.on{background:rgba(60,140,255,.38);border-color:rgba(140,200,255,.9);color:#fff;
+    box-shadow:0 0 10px rgba(60,140,255,.45) inset}
+  button.warn.on{background:rgba(255,160,80,.28);border-color:rgba(255,180,110,.9);
+    box-shadow:0 0 10px rgba(255,160,80,.4) inset}
+  kbd{font-family:inherit;font-size:9px;border:1px solid rgba(60,140,255,.4);border-radius:3px;
+    padding:0 4px;opacity:.8}
+  .hint{font-size:9.5px;opacity:.6;line-height:1.5;margin-top:7px;letter-spacing:.04em}
+
+  #card{position:fixed;top:14%;left:50%;transform:translateX(-50%);z-index:8;text-align:center;
+    pointer-events:none;opacity:0;transition:opacity 1.2s;width:min(92vw,720px)}
+  #card.show{opacity:1}
+  #card .t{font-size:clamp(20px,3.4vw,38px);font-weight:300;letter-spacing:.38em;color:rgba(200,225,255,.97);
+    text-shadow:0 0 24px rgba(60,140,255,.7)}
+  #card .s{font-size:clamp(10px,1.2vw,13px);letter-spacing:.2em;margin-top:10px;color:rgba(150,195,255,.8)}
+  #card .d{font-size:clamp(10px,1.05vw,12px);letter-spacing:.06em;margin-top:8px;color:rgba(150,195,255,.6);
+    line-height:1.6}
+
+  #caption{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:9;pointer-events:none;
+    font-size:12px;letter-spacing:.24em;color:rgba(255,190,130,.95);text-shadow:0 0 12px rgba(255,160,80,.6);
+    opacity:0;transition:opacity .6s;text-align:center;white-space:nowrap}
+  #caption.show{opacity:1}
+
+  .glabel{position:fixed;z-index:7;pointer-events:none;font-size:9.5px;letter-spacing:.2em;
+    color:rgba(160,205,255,.85);text-shadow:0 0 6px #000,0 0 10px rgba(60,140,255,.5);
+    white-space:nowrap;transform:translate(26px,-34px);transition:opacity .4s;border-left:1px solid rgba(60,140,255,.6);
+    padding-left:6px}
+  .glabel small{display:block;font-size:8px;opacity:.6;letter-spacing:.12em;margin-top:1px}
+
+  #err{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    background:#02040a;color:rgba(160,200,255,.9);text-align:center;font-size:14px;letter-spacing:.08em;line-height:1.8}
+  #err a{color:rgba(60,140,255,.9)}
+  #toggleUI{position:fixed;z-index:11;bottom:12px;right:12px}
+  #ladder{top:50%;right:12px;transform:translateY(-38%);width:150px;display:flex;flex-direction:column;gap:9px;padding:10px}
+  #ladTrack{position:relative;height:210px;margin:4px 0}
+  #ladTrack::before{content:'';position:absolute;right:6px;top:0;bottom:0;width:1px;background:linear-gradient(rgba(60,140,255,.15),rgba(60,140,255,.6),rgba(255,160,80,.5))}
+  .lt{position:absolute;right:0;transform:translateY(-50%);font-size:9px;letter-spacing:.16em;cursor:pointer;display:flex;
+    align-items:center;gap:6px;opacity:.72;white-space:nowrap;transition:opacity .15s,color .15s}
+  .lt::after{content:'';width:13px;height:1px;background:rgba(120,185,255,.85)}
+  .lt:hover{opacity:1;color:#dff}
+  #ladMark{position:absolute;right:2px;width:9px;height:9px;border-radius:50%;background:rgba(255,160,80,.95);
+    box-shadow:0 0 10px rgba(255,160,80,.8);transform:translateY(-50%);transition:top .12s linear;pointer-events:none}
+  @media (max-height:620px){ #ladTrack{height:120px} }
+  @media (max-width:640px){
+    #cfg{width:auto;right:12px;max-height:42vh}
+    #metrics{min-width:0;font-size:11px}
+    #title{max-width:150px}
+    #ladder{top:auto;bottom:calc(42vh + 24px);transform:none;width:130px}
+    #ladTrack{display:none}
+  }
+
+  /* ---------------------------------------------------------------- the film */
+  :root{--bar:calc((100vh - 100vw/2.39)/2)}
+  body.playing #cfg, body.playing #metrics, body.playing #ladder, body.playing #toggleUI, body.playing #card,
+  body.playing #title .sub, body.playing #title h1, body.playing .glabel{display:none}
+  body.playing #title{background:none;border:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0;top:10px;left:14px}
+  body.playing #title a{opacity:.45;font-size:10px;letter-spacing:.2em;margin:0} body.playing #title a:hover{opacity:1}
+  .lb{position:fixed;left:0;right:0;height:0;background:#000;z-index:6;pointer-events:none;transition:height 1.6s cubic-bezier(.6,0,.2,1)}
+  .lb.top{top:0} .lb.bot{bottom:0}
+  body.playing:not(.manual) .lb{height:max(0px, var(--bar))}
+  #gate{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,.25) 0%, rgba(0,0,0,.82) 75%);transition:opacity 1.6s, transform 2s;cursor:pointer}
+  #gate.gone{opacity:0;pointer-events:none;transform:scale(1.25)}
+  #gate h1{margin:0;font-weight:200;font-size:clamp(46px,11vw,150px);letter-spacing:.42em;margin-right:-.42em;color:#eaf3ff;
+    text-shadow:0 0 40px rgba(60,140,255,.65),0 0 90px rgba(60,140,255,.35);animation:breathe 5s ease-in-out infinite}
+  #gate .tag{margin-top:14px;font-size:clamp(11px,1.3vw,15px);letter-spacing:.42em;color:rgba(170,205,255,.85);text-align:center}
+  #gate button{margin-top:44px;font-size:13px;letter-spacing:.5em;padding:14px 30px 14px 38px;border-radius:40px;background:rgba(10,20,40,.35);
+    border:1px solid rgba(140,200,255,.6);color:#e6f2ff;box-shadow:0 0 30px rgba(60,140,255,.35)}
+  #gate button:hover{background:rgba(60,140,255,.3)}
+  #gate .note{margin-top:16px;font-size:10px;letter-spacing:.3em;color:rgba(160,200,255,.5)}
+  @keyframes breathe{50%{text-shadow:0 0 60px rgba(60,140,255,.9),0 0 130px rgba(60,140,255,.45)}}
+  #ftitle{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;text-align:center;pointer-events:none;opacity:0;width:92vw}
+  #ftitle .t{font-weight:200;font-size:clamp(26px,5.6vw,78px);letter-spacing:.5em;margin-right:-.5em;color:#f2f7ff;text-shadow:0 0 30px rgba(60,140,255,.6)}
+  #ftitle .s{margin-top:14px;font-size:clamp(10px,1.2vw,14px);letter-spacing:.34em;color:rgba(180,210,255,.8)}
+  #ftitle.show{animation:titleIn 6s ease forwards}
+  @keyframes titleIn{0%{opacity:0;letter-spacing:.9em;filter:blur(10px)}18%{opacity:1;filter:blur(0)}80%{opacity:1}100%{opacity:0}}
+  #fcap{position:fixed;left:50%;bottom:calc(max(0px, var(--bar)) + 5vh);transform:translateX(-50%);z-index:9;text-align:center;pointer-events:none;opacity:0;width:92vw}
+  #fcap .b{font-weight:300;font-size:clamp(14px,2vw,26px);letter-spacing:.42em;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.9)}
+  #fcap .s{margin-top:8px;font-size:clamp(9px,1vw,12px);letter-spacing:.3em;color:rgba(255,190,130,.95);text-shadow:0 0 12px #000}
+  #fcap.show{animation:capIn 5s ease forwards}
+  @keyframes capIn{0%{opacity:0;transform:translate(-50%,8px)}12%{opacity:1;transform:translate(-50%,0)}85%{opacity:1}100%{opacity:0}}
+  #fflash,#ffade{position:fixed;inset:0;pointer-events:none;opacity:0} #fflash{z-index:12;background:#fff} #ffade{z-index:13;background:#000}
+  .ficons{position:fixed;right:14px;bottom:12px;z-index:14;display:flex;gap:8px;opacity:.35;transition:opacity .3s}
+  .ficons:hover{opacity:1} body:not(.playing) .ficons{display:none}
+  .ficon{width:34px;height:34px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;font-size:14px;
+    background:rgba(8,14,28,.5);border:1px solid rgba(120,180,255,.45);color:#dbe9ff}
+  .ficon.off{opacity:.45;text-decoration:line-through}
+  #iResume{display:none;width:auto;padding:0 16px;border-radius:17px;font-size:10px;letter-spacing:.3em;border-color:rgba(255,170,90,.7);color:#ffd9b8}
+  body.manual #iResume{display:flex} body.manual .ficons{opacity:.9}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="ov"></canvas>
+
+<div class="hud" id="title">
+  <h1>COLLIDE</h1>
+  <div class="sub">GALAXY COLLISION SIMULATOR</div>
+  <div class="sub" id="subCount">— STARS · RESTRICTED N-BODY · WEBGL2</div>
+  <a href="../index.html">&larr; Back to Menu</a>
+</div>
+
+<div class="hud" id="metrics">
+  <div id="tLbl">ELAPSED</div>
+  <div id="tBig">0 Myr</div>
+  <div class="mrow"><span class="k">RANGE</span><span class="v" id="mRange">—</span></div>
+  <div class="mrow"><span class="k">SEPARATION</span><span class="v" id="mSep">—</span></div>
+  <div class="mrow"><span class="k">CLOSING SPEED</span><span class="v" id="mVel">—</span></div>
+  <div class="mrow"><span class="k">GALAXIES</span><span class="v" id="mGal">—</span></div>
+  <div class="mrow"><span class="k">STARS</span><span class="v" id="mStars">—</span></div>
+  <div class="mrow"><span class="k">FRAME</span><span class="v" id="mFps">—</span></div>
+</div>
+
+<div class="hud" id="cfg">
+  <h2>Scenario</h2>
+  <div class="grid2" id="scen"></div>
+
+  <div class="sec">
+    <h2>Tool</h2>
+    <div class="grid3">
+      <button id="tOrbit" class="on" title="Drag to orbit the camera">1 · Camera</button>
+      <button id="tLaunch" title="Drag a slingshot to throw a new galaxy">2 · Launch</button>
+      <button id="tBH" class="warn" title="Hold the mouse to summon a black hole (or hold Shift anywhere)">3 · Black hole</button>
+    </div>
+    <div class="sl"><label>Launch size</label>
+      <select id="launchSize" autocomplete="off"><option value="0.25">Dwarf · 2.5×10¹⁰ M☉</option><option value="0.7" selected>Spiral · 7×10¹⁰ M☉</option><option value="1.4">Giant · 1.4×10¹¹ M☉</option></select><span></span></div>
+    <div class="sl"><label>Black hole</label><input type="range" autocomplete="off" id="bhMass" min="0.2" max="4" step="0.05" value="1.2"><output id="bhMassO"></output></div>
+  </div>
+
+  <div class="sec">
+    <h2>Simulation</h2>
+    <div class="grid3">
+      <button id="bPause">Pause <kbd>␣</kbd></button>
+      <button id="bReset">Reset <kbd>R</kbd></button>
+      <button id="bHide">Hide UI <kbd>H</kbd></button>
+    </div>
+    <div class="sl"><label>Time rate</label><input type="range" autocomplete="off" id="speed" min="0.1" max="4" step="0.05" value="1"><output id="speedO"></output></div>
+    <div class="sl"><label>Stars</label>
+      <select id="count" autocomplete="off"><option value="262144">262,144</option><option value="524288">524,288</option><option value="1048576">1,048,576</option><option value="2097152">2,097,152</option></select><span></span></div>
+  </div>
+
+  <div class="sec">
+    <h2>View</h2>
+    <div class="chks">
+      <label class="chk"><input type="checkbox" autocomplete="off" id="cAuto" checked>Drifting camera</label>
+      <label class="chk"><input type="checkbox" autocomplete="off" id="cFollow" checked>Follow action</label>
+      <label class="chk"><input type="checkbox" autocomplete="off" id="cLabels" checked>Labels</label>
+      <label class="chk"><input type="checkbox" autocomplete="off" id="cSound">Sound</label>
+    </div>
+    <div class="hint">Drag to orbit · wheel to zoom · right-drag to pan.<br>
+      <b>Keep scrolling in</b> past a galaxy to enter one of its stars, then its planets, down to 1 km.<br>
+      <b>Hold Shift</b> for a black hole that swallows stars and drags whole galaxies.<br>
+      1 unit of time ≈ 10 Myr · gas glows blue where tides trigger starbursts.</div>
+  </div>
+</div>
+<div class="hud" id="ladder">
+  <button id="bUp" title="Fly back out to the colliding galaxies">&#10514; GALAXIES</button>
+  <div id="ladTrack"><div id="ladMark"></div></div>
+  <button id="bDive" class="warn on" title="Fly all the way down to a planet's surface">&#10515; DIVE TO A PLANET</button>
+</div>
+<button class="hud" id="toggleUI" style="padding:6px 10px" title="Hide / show UI (H)">◐</button>
+
+<div id="card"><div class="t" id="cardT"></div><div class="s" id="cardS"></div><div class="d" id="cardD"></div></div>
+<div id="caption"></div>
+<div id="labels"></div>
+<div id="err"></div>
+<div class="lb top"></div><div class="lb bot"></div>
+<div id="ftitle"></div><div id="fcap"></div><div id="fflash"></div><div id="ffade"></div>
+<div id="gate"><h1>COLLIDE</h1>
+  <div class="tag">GALAXIES · BLACK HOLES · FLEETS · WORLDS</div>
+  <button id="gateGo">&#9654;&nbsp; BEGIN</button>
+  <div class="note">SOUND ON &nbsp;·&nbsp; DRAG TO LOOK &nbsp;·&nbsp; SCROLL TO DIVE</div></div>
+<div class="ficons"><button class="ficon" id="iResume" title="Resume the film">&#9654; RESUME</button>
+  <button class="ficon" id="iNext" title="Next (N)">&#9197;</button><button class="ficon" id="iMute" title="Sound (M)">&#9835;</button>
+  <button class="ficon" id="iFull" title="Fullscreen (F)">&#9974;</button></div>
+
+<script src="js/core.js"></script>
+<script src="js/post.js"></script>
+<script src="js/galaxy.js"></script>
+<script src="js/deep.js"></script>
+<script src="js/gargantua.js"></script>
+<script src="js/ships.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/film.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
