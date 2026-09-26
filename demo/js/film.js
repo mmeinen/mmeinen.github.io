@@ -4,7 +4,7 @@
 // Any real input hands the camera to the viewer; the film resumes after a quiet spell.
 
 const FILM = {on: false, started: false, act: null, t: 0, loop: 0, lastUser: -1e9, muted: false, beats: {}, aspect: 2.39};
-const ACTS = ['galaxies', 'battle', 'descent', 'title'];
+const ACTS = ['galaxies', 'approach', 'battle', 'descent', 'title'];
 const $f = id => document.getElementById(id);
 
 // ------------------------------------------------------------------------------ captions & titles
@@ -30,18 +30,26 @@ function startAct(name){
     BATTLE.on = false; cam.free = null;
     const sc = FILM.loop % 2 ? 1 : 0;                        // alternate MW x Andromeda / the Antennae
     reset(sc); paused = false; settings.follow = true; settings.auto = false; settings.speed = 1.2;
-    cam.fov = deg(50); aspect(2.39);
+    cam.fov = deg(50); aspect(2.39); FILM.plunge = null;
     cam.dist = 34; cam.pitch = 0.32;
     Score.mood('calm');
     const s = SCENARIOS[sc];
     filmTitle(s.title, s.sub, 7);
+  } else if (name === 'approach') {
+    // the fleet is already there, frozen, while we fall in from ~2500 M: the lensing is traced live each frame
+    paused = false; settings.speed = 1; aspect(2.39);
+    bhDevPlanet(); arenaSetup(4.5e5, 0.2); battleSetup(); BATTLE.on = true; BATTLE.hold = true;
+    FILM.appr = approachPath(); approachCamera(0);
+    Score.mood('wonder'); Score.whoosh();
+    setTimeout(() => filmTitle('GARGANTUA', 'THE MERGED BLACK HOLE · A HUNDRED MILLION SUNS', 7), 1400);
   } else if (name === 'battle') {
-    flash(1); Score.boom(1.2); Score.braam();
-    bhDevPlanet(); arenaSetup(4.5e5, 0.2); battleSetup(); BATTLE.on = true;
+    if (!FILM.arrived) { flash(1); Score.boom(1.2); bhDevPlanet(); arenaSetup(4.5e5, 0.2); battleSetup(); }
+    else Score.boom(0.9);
+    FILM.arrived = false; Score.braam();
+    BATTLE.on = true; BATTLE.hold = false; BATTLE.manual = null;
     paused = false;                  // the world keeps turning under the fleets (the galaxy sim is not stepped when deep)
     settings.speed = 1; battleCamera();
     Score.mood('tension');
-    setTimeout(() => filmTitle('GARGANTUA', 'THE MERGED BLACK HOLE · 100 MILLION SUNS', 6), 900);
   } else if (name === 'descent') {
     BATTLE.on = false; cam.free = null; paused = false; cam.fov = deg(50);
     if (!deep.sys || !deep.sys.bh) { bhDevPlanet(); arenaSetup(4.5e5, 0.2); cam.free = null; }
@@ -72,6 +80,17 @@ function filmStep(fdt){
   if (!FILM.on || FILM.act === 'transition' || !FILM.act) return;
   FILM.t += fdt;
   const t = FILM.t;
+  if (FILM.act === 'galaxies' && FILM.plunge != null) {
+    const s = Math.min(1, (t - FILM.plunge)/3.6), e = s*s*(3 - 2*s);
+    settings.follow = false; settings.speed += (0.3 - settings.speed)*Math.min(1, fdt*3);
+    const A = cores[QSO.a], B = cores[QSO.b];
+    const c = QSO.t0 >= 0 && A.active && B.active ? V.mul(V.add(V.mul(A.x, A.g.m), V.mul(B.x, B.g.m)), 1/(A.g.m + B.g.m)) : comCores();
+    cam.target = lerp3(cam.target, c, Math.min(1, fdt*3));
+    cam.dist = Math.exp(Math.log(FILM.pd0) + (Math.log(GAL_MIN*1.05) - Math.log(FILM.pd0))*e);
+    const w = $f('fflash'); w.style.transition = 'none'; w.style.opacity = smooth01((s - 0.55)/0.45);
+    if (s >= 1) { FILM.plunge = null; FILM.act = 'transition'; startAct('approach'); flash(1); }
+    return;
+  }
   if (FILM.act === 'galaxies') {
     // cinematic time: brisk approach, slow motion through each passage, then the merger
     const P1 = FILM.loop % 2 ? 12.7 : 19.9, P2 = FILM.loop % 2 ? 25.2 : 34.5, M = FILM.loop % 2 ? 33.4 : 39.8;
@@ -87,7 +106,11 @@ function filmStep(fdt){
     beat('sb', simT > P1 + 4, () => filmCaption('STARBURST', 'SHOCKED GAS IGNITES — A MILLION NEW SUNS'));
     beat('p2', simT > P2 - 0.8, () => { filmCaption('SECOND PASSAGE', 'THEY FALL BACK TOGETHER'); Score.boom(0.8); });
     beat('m', simT > M, () => { filmCaption('THE CORES MERGE', 'TWO SUPERMASSIVE BLACK HOLES BECOME ONE'); Score.braam(); flash(0.35); });
-    beat('go', simT > M + 6, nextAct);
+    beat('go', simT > M + 5, () => { FILM.plunge = t; FILM.pd0 = cam.dist; Score.whoosh(); filmCaption('INTO THE HEART', 'WHERE TWO BLACK HOLES BECAME ONE', 4); });
+  } else if (FILM.act === 'approach') {
+    const s = Math.min(1, t/12);
+    approachCamera(s);
+    if (s >= 1) { FILM.arrived = true; startAct('battle'); }
   } else if (FILM.act === 'battle') {
     const T = BATTLE.t;
     beat('warp', T > 6.2, () => { filmCaption('HOSTILE FLEET', 'DROPPING OUT OF WARP'); Score.whoosh(); });
@@ -105,14 +128,40 @@ function filmStep(fdt){
     beat('go', t > 9, () => { aspect(2.39); nextAct(); });
   }
 }
+// The approach: from ~2500 M out, behind the planet and a little to its side (so the world hangs beside the
+// hole, as in the Interstellar still), distance falling logarithmically; in the last stretch the camera swings
+// up over the night side onto the battle's first shot, so the hand-over is seamless.
+function approachPath(){
+  const P = bodyPos(1, deep.sysT), toBH = V.norm(V.mul(P, -1)), Mm = BH.M_KM*1e3, D0 = 2500*Mm;
+  const side = V.norm(V.cross(toBH, [0, 1, 0]));
+  const E0 = V.add(P, V.add(V.add(V.mul(toBH, -D0), V.mul(side, 0.13*D0)), V.mul([0, 1, 0], 0.05*D0)));
+  const s0 = BATTLE_SHOTS[0][2](0), E1 = arenaToS(s0.pos), f1 = V.norm(arenaDir(V.sub(s0.look, s0.pos)));
+  return {P, E1, f1, fov1: s0.fov, d0: V.len(V.sub(E0, P)), d1: V.len(V.sub(E1, P)), dir0: V.norm(V.sub(E0, P)), dir1: V.norm(V.sub(E1, P))};
+}
+function approachCamera(s){
+  // two falls with a held breath between: Gargantua swells (2500 M -> 15 M), then the dive to the world
+  const A = FILM.appr, Mm = BH.M_KM*1e3, L0 = Math.log10(A.d0/Mm), Lm = Math.log10(15), L1 = Math.log10(A.d1/Mm);
+  const Ls = s < 0.45 ? L0 + (Lm - L0)*smooth01(s/0.45) : Lm + (L1 - Lm)*smooth01((s - 0.45)/0.55);
+  const d = Math.pow(10, Ls)*Mm;
+  const k = smooth01((s - 0.78)/0.22);
+  const dir = V.norm(V.add(V.mul(A.dir0, 1 - k), V.mul(A.dir1, k)));
+  const eye = V.add(A.P, V.mul(dir, d));
+  const f = V.norm(V.add(V.mul(V.norm(V.mul(eye, -1)), 1 - k), V.mul(A.f1, k)));
+  const up = V.norm(V.add(V.mul([0, 1, 0], 1 - k), V.mul(ARENA.Y, k)));
+  const r = V.norm(V.cross(f, up)), u = V.cross(r, f);
+  const rel = V.mul(V.sub(eye, ARENA.A), 1e-3);
+  cam.free = {eye, r, u, f, arena: [V.dot(rel, ARENA.X), V.dot(rel, ARENA.Y), V.dot(rel, ARENA.Z)]};
+  cam.fov = (40 + (A.fov1 - 40)*k)*Math.PI/180;
+}
 // small camera shake for impacts (galaxy view and battle both read cam.shake)
 function shake(k){ FILM.shake = Math.max(FILM.shake || 0, k); }
 
 // ------------------------------------------------------------------------------ manual takeover
 function userInput(){
   FILM.lastUser = performance.now();
-  // the battle is a cinematic: its script owns the camera, so input there does not stop the film
-  if (FILM.act === 'battle' || FILM.act === 'transition') return;
+  // the battle keeps playing; input there grabs an orbit camera around the flagship (see battleCamera)
+  if (FILM.act === 'battle') { if (!BATTLE.manual) battleGrab(); return; }
+  if (FILM.act === 'transition' || FILM.act === 'approach') return;
   if (FILM.on && FILM.started) { FILM.on = false; document.body.classList.add('manual'); settings.speed = 1; }
 }
 function resumeFilm(){ document.body.classList.remove('manual'); FILM.on = true; fade(1, 500); setTimeout(() => { startAct(FILM.act && ACTS.includes(FILM.act) ? FILM.act : 'galaxies'); fade(0, 900); }, 520); }
@@ -211,6 +260,13 @@ function filmInit(){
   $f('iResume').onclick = e => { e.stopPropagation(); resumeFilm(); };
   const markUser = e => { Score.kick(); if (e.target && e.target.closest && e.target.closest('.ficon, #gate')) return; if (FILM.started) userInput(); };
   cv.addEventListener('pointerdown', markUser); cv.addEventListener('wheel', markUser, {passive: true});
+  let px = null;
+  cv.addEventListener('pointermove', e => {
+    const M = BATTLE.manual;
+    if (M && e.buttons && px) { M.yaw -= (e.clientX - px[0])*0.005; M.pitch = clamp(M.pitch + (e.clientY - px[1])*0.005, -1.45, 1.45); FILM.lastUser = performance.now(); }
+    px = [e.clientX, e.clientY];
+  });
+  cv.addEventListener('wheel', e => { const M = BATTLE.manual; if (M) { M.dist = clamp(M.dist*Math.exp(clamp(e.deltaY, -300, 300)*0.002), 0.08, 45); FILM.lastUser = performance.now(); } }, {passive: true});
   addEventListener('keydown', e => {
     if (e.repeat) return;
     Score.kick();

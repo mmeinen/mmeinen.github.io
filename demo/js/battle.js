@@ -413,7 +413,7 @@ function battleSetup(){
   BATTLE.t = 0; BATTLE.ships = []; BATTLE.bolts = []; BATTLE.missiles = []; BATTLE.fx = []; BATTLE.lances = []; BATTLE.events = [];
   BATTLE.rnd = mulberry(77); BATTLE.weapons = false; BATTLE.faller = null; BATTLE.timeScale = 1; BATTLE.done = false;
   for (const k in BATTLE) if (k[0] === '_') delete BATTLE[k];          // once() flags: re-arm the script
-  BATTLE.hero = BATTLE.tyrant = BATTLE.victim = null;
+  BATTLE.hero = BATTLE.tyrant = BATTLE.victim = null; BATTLE.manual = null; BATTLE.hold = false;
   const Z = [0, 0, 1], R = BATTLE.rnd;
   const argo = mkShip('argo', 0, [0, 0, 0], Z, 'ARGO'); argo.armor = 0.45;
   const blue = [argo, Object.assign(mkShip('cruiser', 0, [-3.0, -0.5, 1.5], Z, 'LANCER'), {armor: 0.25}), Object.assign(mkShip('cruiser', 0, [3.2, 0.4, 0.5], Z, 'VALIANT'), {armor: 0.25}),
@@ -475,7 +475,22 @@ const BATTLE_SHOTS = [
   [66, 80, (u) => { const ty = BATTLE.tyrant.pos; return {pos: lerpV([-3.5, 0.6, 10], [-3.2, 0.7, 11], u), look: ty, roll: -0.03, fov: 50}; }],
   [80, 93, (u) => { const f = BATTLE.faller; if (!f) return null; return {pos: V.add(f.pos, [-0.6, 0.35, -0.9]), look: f.pos, roll: 0.05, fov: 52}; }],
 ];
+// The viewer's orbit camera (grabbed by input during the battle); scripted shots resume after 8 s idle.
+function battleGrab(){
+  const a = BATTLE.argo && BATTLE.argo.alive ? BATTLE.argo : BATTLE.ships.find(s => s.alive && s.vis);
+  if (!a || !cam.free) return;
+  const d = V.sub(cam.free.arena, a.pos), L = Math.max(0.3, Math.min(20, V.len(d)));
+  BATTLE.manual = {ship: a, yaw: Math.atan2(d[0], d[2]), pitch: Math.asin(clamp(d[1]/Math.max(V.len(d), 1e-6), -1, 1)), dist: L};
+}
 function battleCamera(){
+  const M = BATTLE.manual;
+  if (M && (typeof FILM === 'undefined' || performance.now() - FILM.lastUser < 8000)) {
+    const tp = M.ship.pos, cp = Math.cos(M.pitch);
+    cam.fov = 50*Math.PI/180;
+    arenaCamera(V.add(tp, [M.dist*cp*Math.sin(M.yaw), M.dist*Math.sin(M.pitch), M.dist*cp*Math.cos(M.yaw)]), tp);
+    return;
+  }
+  BATTLE.manual = null;
   const T = BATTLE.t;
   for (const [a, b, fn] of BATTLE_SHOTS) if (T >= a && T < b) {
     const s = fn((T - a)/(b - a), T); if (!s) break;
@@ -486,7 +501,7 @@ function battleCamera(){
   }
 }
 function battleStep(fdt){
-  if (!BATTLE.on || !deep.sys || !deep.sys.bh || deep.focus === 0) return;
+  if (!BATTLE.on || BATTLE.hold || !deep.sys || !deep.sys.bh || deep.focus === 0) return;
   if (BATTLE.events.length > 300) BATTLE.events.splice(0, BATTLE.events.length - 100);
   if (paused) { battleCamera(); return; }
   // slow motion around the big moments

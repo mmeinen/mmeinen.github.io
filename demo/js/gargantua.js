@@ -371,7 +371,10 @@ function bhCamM(eyeM){ const s = 1/(BH.M_KM*1e3); return [eyeM[0]*s, eyeM[1]*s, 
 function bhSky(now){
   if (!BH.bake) bhStartBake(bhCamM(bodyPos(deep.sys.terran, deep.sysT)));
   if (!BH.bake.done) bhBakeStep(24);
-  bhShade(tg.compFb, tg.w, tg.h, cam.b, Math.tan(cam.fov/2), now, null);
+  const camM = bhCamM(deep.eye), bc = BH.bake.cam, az = BH.bake.az;
+  const off = V.len(V.sub(camM, [bc[0]*Math.cos(az), bc[1], bc[0]*Math.sin(az)]));
+  if (BH.bake.done && off < 0.05) bhShade(tg.compFb, tg.w, tg.h, cam.b, Math.tan(cam.fov/2), now, null);
+  else bhShadeFree(tg.compFb, tg.w, tg.h, cam.b, Math.tan(cam.fov/2), now, camM);
 }
 // A camera `alt` metres above the point of the world where the hole sits on the horizon, looking at it.
 // "Up" there is the hole's spin axis made perpendicular to the line of sight, so the disc lies along the
@@ -418,24 +421,52 @@ function renderBHView(now){
   bloomFinal(tg.comp, now);
 }
 
-// Shade the hole into fb. basis = {r,u,f} in the BH frame; az = camera azimuth used for the bake.
-function bhShade(fb, w, h, basis, tanHalf, now, skyCube){
-  const Q = P.bhShadeCube, g = BH.gain;
+// ------------------------------------------------------------------------------ shading
+// Shared shading-pass setup. camWorld = the camera in the BH frame (M) for the exact shadow; az = bake azimuth
+// (0 for per-frame geometry, which is already in world orientation); bindGeom binds the 4 geometry textures.
+function bhShadeWith(Q, fb, w, h, basis, tanHalf, now, camWorld, az, bindGeom, skyCube){
+  const g = BH.gain;
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, w, h);
-  gl.disable(gl.BLEND);
+  gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
   gl.useProgram(Q.p);
-  for (let k = 0; k < 4; k++) { gl.activeTexture(gl.TEXTURE0 + k); gl.bindTexture(gl.TEXTURE_CUBE_MAP, BH.cube.tex[k]); }
+  bindGeom();
   gl.uniform1i(Q.u.u_g0, 0); gl.uniform1i(Q.u.u_g1, 1); gl.uniform1i(Q.u.u_g2, 2); gl.uniform1i(Q.u.u_g3, 3);
   gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP, skyCube || BH.emptySky); gl.uniform1i(Q.u.u_sky, 4);
   gl.activeTexture(gl.TEXTURE0);
   gl.uniform3fv(Q.u.u_R, basis.r); gl.uniform3fv(Q.u.u_U, basis.u); gl.uniform3fv(Q.u.u_F, basis.f);
   gl.uniform1f(Q.u.u_tanX, tanHalf*w/h); gl.uniform1f(Q.u.u_tanY, tanHalf);
-  const bc = BH.bake.cam, az = BH.bake.az;           // true camera = bake camera turned to its azimuth
-  gl.uniform3f(Q.u.u_cam, bc[0]*Math.cos(az), bc[1], bc[0]*Math.sin(az));
-  gl.uniform1f(Q.u.u_time, now*0.001); gl.uniform1f(Q.u.u_az, BH.bake ? BH.bake.az : 0);
+  gl.uniform3fv(Q.u.u_cam, camWorld); gl.uniform1f(Q.u.u_az, az);
+  gl.uniform1f(Q.u.u_time, now*0.001);
   gl.uniform1f(Q.u.u_spin, BH.spin); gl.uniform1f(Q.u.u_rIn, BH.rIn); gl.uniform1f(Q.u.u_rOut, BH.rOut);
   gl.uniform1i(Q.u.u_dbg, BH.dbg | 0);
   gl.uniform1f(Q.u.u_discGain, g.disc); gl.uniform1f(Q.u.u_starGain, g.star); gl.uniform1f(Q.u.u_hazeGain, g.haze);
-  gl.uniform1f(Q.u.u_ringGain, g.ring); gl.uniform1f(Q.u.u_Tpeak, g.Tpeak); gl.uniform1f(Q.u.u_falloff, g.falloff); gl.uniform1f(Q.u.u_contrast, g.contrast); gl.uniform1f(Q.u.u_skyGain, skyCube ? g.sky : 0);
+  gl.uniform1f(Q.u.u_ringGain, g.ring); gl.uniform1f(Q.u.u_Tpeak, g.Tpeak); gl.uniform1f(Q.u.u_falloff, g.falloff); gl.uniform1f(Q.u.u_contrast, g.contrast);
+  gl.uniform1f(Q.u.u_skyGain, skyCube ? g.sky : 0);
   fullscreen();
+}
+// From the baked cubes (the camera sits at the bake point: the battle, the descent).
+function bhShade(fb, w, h, basis, tanHalf, now, skyCube){
+  const bc = BH.bake.cam, az = BH.bake.az;
+  bhShadeWith(P.bhShadeCube, fb, w, h, basis, tanHalf, now, [bc[0]*Math.cos(az), bc[1], bc[0]*Math.sin(az)], az,
+    () => { for (let k = 0; k < 4; k++) { gl.activeTexture(gl.TEXTURE0 + k); gl.bindTexture(gl.TEXTURE_CUBE_MAP, BH.cube.tex[k]); } }, skyCube);
+}
+// Anywhere else (the approach): trace this camera's rays every frame at half resolution, shade at full. The
+// geometry is smooth except at image switches, which the shading pass already fades by their derivatives.
+let BHF = null;
+function bhEnsureFree(){
+  const w = Math.max(2, tg.w >> 1), h = Math.max(2, tg.h >> 1);
+  if (BHF && BHF.w === w && BHF.h === h) return;
+  if (BHF) { BHF.tx.forEach(t => gl.deleteTexture(t)); gl.deleteFramebuffer(BHF.fb); }
+  const tx = [0, 1, 2, 3].map(() => tex(w, h, gl.RGBA16F, gl.LINEAR));
+  BHF = {w, h, tx, fb: fbo(tx)};
+  if (!BHF.fb) fail('Black-hole geometry targets are unsupported on this GPU.');
+}
+function bhShadeFree(fb, w, h, basis, tanHalf, now, camM){
+  bhEnsureFree();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, BHF.fb); gl.viewport(0, 0, BHF.w, BHF.h);
+  gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST);
+  bhGeomUniforms(P.bhGeom, camM, basis.r, basis.u, basis.f, tanHalf*w/h, tanHalf, 0.08, 500);
+  fullscreen();
+  bhShadeWith(P.bhShade2D, fb, w, h, basis, tanHalf, now, camM, 0,
+    () => { for (let k = 0; k < 4; k++) { gl.activeTexture(gl.TEXTURE0 + k); gl.bindTexture(gl.TEXTURE_2D, BHF.tx[k]); } }, null);
 }
