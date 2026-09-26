@@ -1,0 +1,2594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>HYDRODYNE — Pool Splash Lab</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#04070f;
+    font-family:'Segoe UI',system-ui,sans-serif;color:rgba(140,190,255,.9)}
+  canvas{position:fixed;inset:0;width:100vw;height:100vh;z-index:1;display:block;touch-action:none}
+  .hud{position:fixed;z-index:10;background:rgba(8,14,30,.78);border:1px solid rgba(60,140,255,.32);
+    border-radius:6px;padding:10px 13px;font-size:12px;letter-spacing:.05em;
+    backdrop-filter:blur(4px);user-select:none}
+  .hud h2{margin:0 0 7px;font-size:10px;font-weight:600;letter-spacing:.2em;
+    color:rgba(60,140,255,.65);text-transform:uppercase}
+
+  /* --- title --- */
+  #title{top:12px;left:12px;max-width:250px}
+  #title h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.18em;color:rgba(130,185,255,.97)}
+  #title .sub{font-size:9.5px;opacity:.7;margin-top:3px;letter-spacing:.12em}
+  #title a{color:rgba(60,140,255,.85);text-decoration:none;font-size:11px;display:inline-block;margin-top:7px}
+  #title a:hover{color:#9cf}
+
+  /* --- live metrics --- */
+  #metrics{top:12px;right:12px;min-width:212px}
+  .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px}
+  .mrow .k{font-size:10px;opacity:.62;letter-spacing:.1em}
+  .mrow .v{font-size:12px;color:rgba(175,215,255,.95);font-variant-numeric:tabular-nums}
+  #scoreBig{font-size:30px;font-weight:600;color:rgba(255,160,80,.96);letter-spacing:.04em;
+    line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 18px rgba(255,160,80,.4)}
+  #scoreLbl{font-size:9px;letter-spacing:.22em;opacity:.6;margin-bottom:3px}
+  #scoreSub{font-size:9.5px;opacity:.6;margin-top:3px;letter-spacing:.08em}
+  #trace{display:block;margin-top:8px;border:1px solid rgba(60,140,255,.2);border-radius:3px;
+    background:rgba(0,6,18,.6)}
+
+  /* --- configurator --- */
+  #cfg{bottom:12px;left:12px;width:296px;max-height:calc(100vh - 190px);overflow-y:auto;
+    scrollbar-width:thin;scrollbar-color:rgba(60,140,255,.4) transparent}
+  #cfg::-webkit-scrollbar{width:6px}
+  #cfg::-webkit-scrollbar-thumb{background:rgba(60,140,255,.35);border-radius:3px}
+  .presets{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:9px}
+  .sec{border-top:1px solid rgba(60,140,255,.16);margin-top:9px;padding-top:7px}
+  .sec:first-of-type{border-top:none;margin-top:0;padding-top:0}
+  .sl{display:grid;grid-template-columns:74px 1fr 40px;align-items:center;gap:7px;margin-top:5px}
+  .sl label{font-size:9.5px;opacity:.72;letter-spacing:.06em}
+  .sl output{font-size:10px;text-align:right;color:rgba(175,215,255,.9);font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;
+    background:rgba(60,140,255,.26);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+    background:rgba(120,185,255,.95);cursor:pointer;box-shadow:0 0 6px rgba(60,140,255,.6)}
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border:none;border-radius:50%;
+    background:rgba(120,185,255,.95);cursor:pointer}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .chk{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;opacity:.8;cursor:pointer}
+  .chk input{accent-color:rgba(80,160,255,.9);cursor:pointer}
+
+  button{background:rgba(20,40,80,.6);border:1px solid rgba(60,140,255,.36);color:rgba(150,195,255,.92);
+    font-size:10.5px;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:inherit;
+    letter-spacing:.07em;transition:background .15s,border-color .15s,color .15s}
+  button:hover:not(:disabled){background:rgba(45,88,160,.7);border-color:rgba(100,175,255,.7);color:#cfe6ff}
+  button.on{background:rgba(60,140,255,.45);color:#fff;border-color:rgba(120,190,255,.9)}
+  button:disabled{opacity:.4;cursor:default}
+  button.warn{border-color:rgba(255,160,80,.5);color:rgba(255,185,120,.95)}
+  button.warn:hover:not(:disabled){background:rgba(120,70,20,.6);border-color:rgba(255,180,110,.85)}
+
+  /* --- jump button --- */
+  #jump{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:12;
+    font-size:14px;letter-spacing:.26em;padding:11px 34px;font-weight:600;
+    background:rgba(255,160,80,.16);border:1px solid rgba(255,160,80,.6);color:rgba(255,195,135,.98);
+    box-shadow:0 0 22px rgba(255,150,60,.16)}
+  #jump:hover:not(:disabled){background:rgba(255,160,80,.32);color:#fff;
+    box-shadow:0 0 30px rgba(255,150,60,.35)}
+  #hint{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:11;font-size:9.5px;
+    color:rgba(60,140,255,.5);letter-spacing:.14em;text-align:center;pointer-events:none;white-space:nowrap}
+
+  /* --- results / optimiser --- */
+  #lab{bottom:12px;right:12px;width:274px;max-height:calc(100vh - 250px);display:flex;flex-direction:column}
+  #board{overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(60,140,255,.4) transparent;
+    margin-top:5px;flex:1;min-height:52px}
+  #board::-webkit-scrollbar{width:6px}
+  #board::-webkit-scrollbar-thumb{background:rgba(60,140,255,.35);border-radius:3px}
+  .brow{display:grid;grid-template-columns:15px 1fr 50px;gap:6px;align-items:baseline;
+    padding:3px 4px;border-radius:3px;cursor:pointer;font-size:10.5px}
+  .brow:hover{background:rgba(60,140,255,.14)}
+  .brow.best{background:rgba(255,160,80,.12)}
+  .brow .r{opacity:.5;font-size:9px;text-align:right}
+  .brow .n{color:rgba(170,210,255,.9);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.04em}
+  .brow .s{text-align:right;color:rgba(255,175,105,.95);font-variant-numeric:tabular-nums}
+  .brow.best .s{font-weight:600}
+  #optbar{height:4px;border-radius:2px;background:rgba(60,140,255,.16);overflow:hidden;margin-top:6px;display:none}
+  #optfill{height:100%;width:0%;background:linear-gradient(90deg,rgba(60,140,255,.6),rgba(255,170,90,.95));
+    transition:width .12s linear}
+  #optmsg{font-size:9.5px;opacity:.72;margin-top:5px;letter-spacing:.06em;min-height:12px}
+
+  #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;display:none;
+    max-width:400px;text-align:center;font-size:12.5px;line-height:1.6;padding:16px 22px}
+
+  @media (max-width:1180px){
+    #cfg{width:250px}#lab{width:230px}
+  }
+  @media (max-width:900px){
+    #cfg,#lab{max-height:38vh}#hint{display:none}
+    #cfg{width:210px;font-size:11px}#lab{width:186px}
+    #metrics{min-width:150px}
+  }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="hud" id="title">
+  <h1>HYDRODYNE</h1>
+  <div class="sub">POOL SPLASH LAB &middot; FLIP FLUID SOLVER</div>
+  <a href="../index.html">&larr; Back to Menu</a>
+</div>
+
+<div class="hud" id="metrics">
+  <div id="scoreLbl">SPLASH SCORE</div>
+  <div id="scoreBig">0</div>
+  <div id="scoreSub">&mdash;</div>
+  <div class="mrow"><span class="k">LIFTED WATER</span><span class="v" id="mVol">0 L/m</span></div>
+  <div class="mrow"><span class="k">CROWN HEIGHT</span><span class="v" id="mHgt">0.00 m</span></div>
+  <div class="mrow"><span class="k">SPRAY REACH</span><span class="v" id="mRch">0.00 m</span></div>
+  <div class="mrow"><span class="k">DECK SOAKED</span><span class="v" id="mDeck">0 L/m</span></div>
+  <div class="mrow"><span class="k">ENTRY SPEED</span><span class="v" id="mSpd">&mdash;</span></div>
+  <div class="mrow"><span class="k">ENTRY ATTITUDE</span><span class="v" id="mAtt">&mdash;</span></div>
+  <canvas id="trace" width="212" height="42"></canvas>
+</div>
+
+<div class="hud" id="cfg">
+  <h2>Body Configuration</h2>
+  <div class="presets" id="presets"></div>
+
+  <div class="sec">
+    <h2>Launch &middot; speed locked 6.5 m/s</h2>
+    <div class="sl"><label>LAUNCH DIR</label><input type="range" id="s_launch" min="25" max="90" step="1"><output id="o_launch"></output></div>
+    <div class="sl"><label>ATTITUDE</label><input type="range" id="s_body" min="-180" max="180" step="1"><output id="o_body"></output></div>
+    <div class="sl"><label>SPIN RATE</label><input type="range" id="s_spin" min="-540" max="540" step="10"><output id="o_spin"></output></div>
+    <div class="sl"><label>BODY SIZE</label><input type="range" id="s_size" min="70" max="130" step="1"><output id="o_size"></output></div>
+    <div class="mrow" style="margin-top:6px"><span class="k">JUMPER</span><span class="v" id="mBody">&mdash;</span></div>
+  </div>
+
+  <div class="sec">
+    <h2>Trunk &amp; Arms</h2>
+    <div class="sl"><label>SPINE CURL</label><input type="range" id="s_spine" min="-40" max="70" step="1"><output id="o_spine"></output></div>
+    <div class="sl"><label>SHOULDER A</label><input type="range" id="s_shA" min="0" max="180" step="1"><output id="o_shA"></output></div>
+    <div class="sl"><label>ELBOW A</label><input type="range" id="s_elA" min="0" max="150" step="1"><output id="o_elA"></output></div>
+    <div class="sl"><label>SHOULDER B</label><input type="range" id="s_shB" min="0" max="180" step="1"><output id="o_shB"></output></div>
+    <div class="sl"><label>ELBOW B</label><input type="range" id="s_elB" min="0" max="150" step="1"><output id="o_elB"></output></div>
+  </div>
+
+  <div class="sec">
+    <h2>Legs</h2>
+    <div class="sl"><label>HIP A</label><input type="range" id="s_hipA" min="-30" max="150" step="1"><output id="o_hipA"></output></div>
+    <div class="sl"><label>KNEE A</label><input type="range" id="s_knA" min="0" max="155" step="1"><output id="o_knA"></output></div>
+    <div class="sl"><label>HIP B</label><input type="range" id="s_hipB" min="-30" max="150" step="1"><output id="o_hipB"></output></div>
+    <div class="sl"><label>KNEE B</label><input type="range" id="s_knB" min="0" max="155" step="1"><output id="o_knB"></output></div>
+  </div>
+
+  <div class="sec">
+    <h2>Late Tuck &mdash; the d&oslash;dsing trick</h2>
+    <div class="sl"><label>TUCK AMOUNT</label><input type="range" id="s_tuck" min="0" max="100" step="1"><output id="o_tuck"></output></div>
+    <div class="sl"><label>TUCK TIMING</label><input type="range" id="s_tuckT" min="-250" max="250" step="10"><output id="o_tuckT"></output></div>
+  </div>
+
+  <div class="sec">
+    <h2>Pool Conditions</h2>
+    <div class="sl"><label>PUMP JETS</label><input type="range" id="s_pump" min="0" max="100" step="5" value="45"><output id="o_pump"></output></div>
+    <div class="sl"><label>SWIMMERS</label><input type="range" id="s_swim" min="0" max="3" step="1" value="2"><output id="o_swim"></output></div>
+    <label class="chk"><input type="checkbox" id="c_calm"> CALM POOL FOR SCORED RUNS</label>
+    <div class="pair" style="margin-top:7px">
+      <button id="bQual">QUALITY: MED</button>
+      <button id="bSlow">SLOW-MO</button>
+    </div>
+  </div>
+</div>
+
+<div class="hud" id="lab">
+  <h2>Splash Leaderboard</h2>
+  <div class="pair">
+    <button id="bOpt" class="warn">&#9673; FIND BIGGEST</button>
+    <button id="bClear">CLEAR</button>
+  </div>
+  <div id="optbar"><div id="optfill"></div></div>
+  <div id="optmsg">Run jumps, or let the solver search.</div>
+  <div id="board"></div>
+</div>
+
+<button id="jump">JUMP</button>
+<div id="hint">SPACE jump &middot; R reset pool &middot; drag to pan &middot; wheel zoom &middot; click a leaderboard row to reload that pose</div>
+<div class="hud" id="toast"></div>
+
+<script>
+'use strict';
+// ============================================================================
+// HYDRODYNE — Pool Splash Lab
+//
+// A 2D FLIP/PIC free-surface fluid solver (sagittal cross-section of a swimming
+// pool) coupled to an articulated rigid human body, built to answer one
+// question: WHAT BODY SHAPE MAKES THE BIGGEST SPLASH?
+//
+// Why a sagittal 2D slice: cannonball / can-opener / pencil / belly-flop differ
+// almost entirely in their SIDE silhouette, and a free-surface solver in that
+// plane reproduces the mechanism that actually makes a splash — the body punches
+// an air cavity, the cavity walls collapse inward, and the collision throws a
+// vertical Worthington jet. Air is simply the absence of fluid here, so the
+// cavity and its collapse are free.
+//
+// EXPERIMENT DESIGN. Takeoff speed is LOCKED at 6.5 m/s from a board 1.4 m over
+// the water. By conservation of energy the *speed* at the surface is therefore
+// identical (~8.4 m/s) for every launch direction — only the direction and the
+// body's attitude change. So the leaderboard measures shape, not energy.
+//
+// SCORE = peak gravitational potential energy of water lifted above the still
+// waterline (J per metre of pool width). That is the standard splash metric: it
+// combines "how much water" and "how high" into the one number a splash is.
+//
+// Self-contained, no build step, runs from file://.
+// ============================================================================
+
+const G = 9.81;                 // m/s^2
+const RHO_W = 1000;             // kg/m^3 (per unit pool width in 2D)
+const RHO_BODY = 985;           // slightly buoyant, lungs part-full
+// Effective out-of-plane thickness of the jumper, i.e. real body volume divided
+// by sagittal silhouette area (0.075 m^3 / 0.365 m^2). It is NOT a free
+// parameter — it is what makes the 2D "mass per metre of pool width" the model
+// integrates correspond to a real person, and it is only used to report that
+// person's mass in the HUD. Segment lengths follow Dempster/Winter
+// anthropometry, giving a 1.78 m, 74 kg adult at BODY SIZE 100%.
+const BODY_DEPTH = 0.206;
+
+// --- world geometry (metres; +x right, +y up, origin at pool floor / left wall)
+// H is generous on purpose: the best entries throw water 4 m up, and when the
+// domain ceiling clipped them every top result saturated at the same crown
+// height and the ranking among them became meaningless. Most of the extra rows
+// are air, and the pressure sweep only visits fluid cells, so the cost is ~4%.
+const WORLD = { W: 12.0, H: 7.9 };
+const POOL = {
+  x0: 1.20, x1: 10.80,          // inner wall faces
+  floor: 0.0,                   // pool floor
+  deck: 3.10,                   // deck / coping height
+  // ~2.55 m of water once settled. A pool with a board is not 2.1 m deep, and
+  // at that depth a pencil dive drove its feet into the floor and the rebound
+  // contaminated the splash score. Costs ~20% more particles; worth it.
+  rest: 2.70
+};
+const BOARD = { x: 2.40, y: 4.10 };   // board tip — launch point (1.4 m over water)
+const TAKEOFF_SPEED = 6.5;            // m/s — LOCKED. The whole point of the study.
+
+// ---------------------------------------------------------------- utilities
+// mulberry32 — deterministic PRNG so scored runs are reproducible and the
+// optimiser compares poses, not luck.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const DEG = Math.PI / 180;
+
+// rotate (x,y) counter-clockwise by `deg`
+function rot(x, y, deg) {
+  const a = deg * DEG, c = Math.cos(a), s = Math.sin(a);
+  return [c * x - s * y, s * x + c * y];
+}
+
+// ============================================================================
+// BODY MODEL — a chain of capsules driven by joint angles.
+//
+// Local frame: pelvis at the origin, +y along the spine when uncurled, +x is
+// the direction the swimmer faces. `attitude` then rotates the whole body into
+// the world, so attitude 0 = upright feet-first, -90 = face-down (belly flop),
+// +90 = face-up (back flop), 180 = head-first.
+//
+// Joint sign convention (all degrees):
+//   spine   + curls the chest forward over the hips
+//   hip     + swings the thigh forward/up toward the chest (90 = sitting)
+//   knee    + folds the heel back toward the buttock (150 = full tuck)
+//   shoulder  0 = arms at the sides, 90 = forward, 180 = overhead
+//   elbow   + brings the forearm up in front of the upper arm
+// A and B are the near and far limb — independent, which is exactly what a
+// can opener needs (one leg tucked hard, the other speared straight down).
+// ============================================================================
+
+function defaultPose() {
+  return {
+    launch: 78, attitude: 0, spin: 0, size: 100, spine: 0,
+    shA: 12, elA: 8, shB: 12, elB: 8,
+    hipA: 0, knA: 10, hipB: 0, knB: 10,
+    tuck: 0, tuckT: 0
+  };
+}
+
+// The shape a "late tuck" morphs toward — a hard cannonball ball-up. Attitude,
+// launch and size are never touched by the tuck.
+const TUCK_TARGET = { spine: 48, shA: 62, elA: 108, shB: 62, elB: 108,
+                      hipA: 132, knA: 148, hipB: 132, knB: 148 };
+const TUCK_KEYS = Object.keys(TUCK_TARGET);
+
+const PRESETS = [
+  { n: 'STANDARD',    p: {} },
+  { n: 'CANNONBALL',  p: { spine: 45, shA: 65, elA: 105, shB: 65, elB: 105,
+                           hipA: 130, knA: 145, hipB: 130, knB: 145,
+                           attitude: -25, launch: 74 } },
+  { n: 'CAN OPENER',  p: { spine: 30, shA: 78, elA: 118, shB: 22, elB: 12,
+                           hipA: 138, knA: 150, hipB: 2, knB: 4,
+                           attitude: -12, launch: 72 } },
+  { n: 'PENCIL',      p: { spine: 0, shA: 180, elA: 0, shB: 180, elB: 0,
+                           hipA: 0, knA: 0, hipB: 0, knB: 0,
+                           attitude: 0, launch: 88 } },
+  { n: 'BELLY FLOP',  p: { spine: -12, shA: 155, elA: 5, shB: 155, elB: 5,
+                           hipA: -12, knA: 5, hipB: -12, knB: 5,
+                           attitude: -90, launch: 60 } },
+  { n: 'BACK FLOP',   p: { spine: -16, shA: 150, elA: 5, shB: 150, elB: 5,
+                           hipA: -10, knA: 5, hipB: -10, knB: 5,
+                           attitude: 90, launch: 60 } },
+  { n: 'JACKKNIFE',   p: { spine: 15, shA: 150, elA: 0, shB: 150, elB: 0,
+                           hipA: 105, knA: 0, hipB: 105, knB: 0,
+                           attitude: -55, launch: 70 } },
+  { n: 'SPREAD EAGLE',p: { spine: -8, shA: 140, elA: 0, shB: 100, elB: 0,
+                           hipA: 28, knA: 0, hipB: -22, knB: 0,
+                           attitude: -85, launch: 62 } },
+  { n: 'SEAT DROP',   p: { spine: 5, shA: 100, elA: 0, shB: 100, elB: 0,
+                           hipA: 88, knA: 88, hipB: 88, knB: 88,
+                           attitude: -8, launch: 76 } },
+  { n: 'SWAN DIVE',   p: { spine: -6, shA: 174, elA: 0, shB: 170, elB: 0,
+                           hipA: -6, knA: 0, hipB: -6, knB: 0,
+                           attitude: -158, launch: 74 } },
+  { n: 'DØDS',   p: { spine: -8, shA: 145, elA: 0, shB: 105, elB: 0,
+                           hipA: 30, knA: 0, hipB: -24, knB: 0,
+                           attitude: -86, launch: 62, tuck: 100, tuckT: -40 } }
+];
+
+// Build the capsule chain for a pose, in the LOCAL frame (pelvis at origin).
+function buildLocal(p) {
+  const S = p.size / 100;
+  const L = { t0: .25 * S, t1: .25 * S, hd: .22 * S, ua: .30 * S, fa: .30 * S,
+              th: .44 * S, sh: .46 * S };
+  const R = { t0: .125 * S, t1: .135 * S, hd: .105 * S, ua: .052 * S,
+              fa: .045 * S, th: .082 * S, sh: .062 * S };
+
+  const su = rot(0, 1, -p.spine);            // spine axis, + curls forward (+x)
+  const sd = [-su[0], -su[1]];               // "down the body" — limb zero ref
+  const mid  = [su[0] * L.t0, su[1] * L.t0];
+  const neck = [mid[0] + su[0] * L.t1, mid[1] + su[1] * L.t1];
+  const spL  = L.t0 + L.t1;
+  const sho  = [su[0] * spL * .92, su[1] * spL * .92];
+
+  const caps = [];
+  caps.push({ ax: 0, ay: 0, bx: mid[0], by: mid[1], r: R.t0, k: 0 });          // lower trunk
+  caps.push({ ax: mid[0], ay: mid[1], bx: neck[0], by: neck[1], r: R.t1, k: 0 }); // chest
+  caps.push({ ax: neck[0], ay: neck[1], bx: neck[0] + su[0] * L.hd,
+              by: neck[1] + su[1] * L.hd, r: R.hd, k: 1 });                    // head
+
+  const arms = [[p.shA, p.elA], [p.shB, p.elB]];
+  for (let i = 0; i < 2; i++) {
+    const d1 = rot(sd[0], sd[1], arms[i][0]);
+    const ex = sho[0] + d1[0] * L.ua, ey = sho[1] + d1[1] * L.ua;
+    const d2 = rot(d1[0], d1[1], arms[i][1]);
+    caps.push({ ax: sho[0], ay: sho[1], bx: ex, by: ey, r: R.ua, k: 2 });
+    caps.push({ ax: ex, ay: ey, bx: ex + d2[0] * L.fa, by: ey + d2[1] * L.fa,
+                r: R.fa, k: 2 });
+  }
+  const legs = [[p.hipA, p.knA], [p.hipB, p.knB]];
+  for (let i = 0; i < 2; i++) {
+    const d1 = rot(sd[0], sd[1], legs[i][0]);
+    const kx = d1[0] * L.th, ky = d1[1] * L.th;
+    const d2 = rot(d1[0], d1[1], -legs[i][1]);
+    caps.push({ ax: 0, ay: 0, bx: kx, by: ky, r: R.th, k: 3 });
+    caps.push({ ax: kx, ay: ky, bx: kx + d2[0] * L.sh, by: ky + d2[1] * L.sh,
+                r: R.sh, k: 3 });
+  }
+  return caps;
+}
+
+// squared distance from point to capsule segment, plus the closest-point param
+function segDist2(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const dd = dx * dx + dy * dy;
+  let t = dd > 1e-12 ? ((px - ax) * dx + (py - ay) * dy) / dd : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const qx = ax + dx * t - px, qy = ay + dy * t - py;
+  return qx * qx + qy * qy;
+}
+function insideCaps(caps, px, py) {
+  for (let i = 0; i < caps.length; i++) {
+    const c = caps[i];
+    if (segDist2(px, py, c.ax, c.ay, c.bx, c.by) <= c.r * c.r) return true;
+  }
+  return false;
+}
+
+// Mass properties by rasterising the silhouette — exact about limb overlap,
+// which analytic capsule sums are not (a tucked cannonball overlaps a lot).
+function massProps(caps) {
+  let lo = 1e9, hi = -1e9, lo2 = 1e9, hi2 = -1e9;
+  for (const c of caps) {
+    lo = Math.min(lo, c.ax - c.r, c.bx - c.r); hi = Math.max(hi, c.ax + c.r, c.bx + c.r);
+    lo2 = Math.min(lo2, c.ay - c.r, c.by - c.r); hi2 = Math.max(hi2, c.ay + c.r, c.by + c.r);
+  }
+  const d = 0.028, da = d * d;
+  let area = 0, cx = 0, cy = 0, n = 0;
+  const xs = [], ys = [];
+  for (let x = lo + d * .5; x < hi; x += d) {
+    for (let y = lo2 + d * .5; y < hi2; y += d) {
+      if (insideCaps(caps, x, y)) { area += da; cx += x; cy += y; n++; xs.push(x); ys.push(y); }
+    }
+  }
+  if (n === 0) return { area: .5, cx: 0, cy: 0, I: .5 };
+  cx /= n; cy /= n;
+  let I = 0;
+  for (let i = 0; i < n; i++) {
+    const rx = xs[i] - cx, ry = ys[i] - cy;
+    I += (rx * rx + ry * ry) * da;
+  }
+  return { area, cx, cy, I: I * RHO_BODY };   // I in kg*m^2 per unit width
+}
+// ============================================================================
+// FLIP / PIC SOLVER on a staggered MAC grid.
+//
+// idx = i*ny + j.  u[idx] lives on the LEFT face of cell (i,j), v[idx] on the
+// BOTTOM face. Air is simply "no particles here", which is what lets the body
+// punch a real cavity and lets the cavity collapse throw a jet.
+//
+// Perf note: the pressure relaxation only visits cells in `fluidList` (~35% of
+// the grid — the pool is water only below the waterline). Sweeping the whole
+// grid instead cost 3x for no benefit.
+// ============================================================================
+
+const AIR = 0, FLUID = 1, SOLID = 2;
+
+class Fluid {
+  constructor(h) {
+    this.h = h; this.inv = 1 / h;
+    this.nx = Math.floor(WORLD.W / h) + 2;
+    this.ny = Math.floor(WORLD.H / h) + 2;
+    const n = this.nx * this.ny;
+    this.n = n;
+    this.u = new Float32Array(n); this.v = new Float32Array(n);
+    this.uPrev = new Float32Array(n); this.vPrev = new Float32Array(n);
+    this.du = new Float32Array(n); this.dv = new Float32Array(n);
+    this.s = new Float32Array(n);           // 0 = solid, 1 = free
+    this.sWall = new Float32Array(n);       // static walls, restored each step
+    this.type = new Uint8Array(n);
+    this.dens = new Float32Array(n);
+    this.solU = new Float32Array(n);        // prescribed solid face velocity
+    this.solV = new Float32Array(n);
+    this.moving = new Uint8Array(n);        // cell belongs to a moving solid
+    this.fluidList = new Int32Array(n);
+    this.nFluid = 0;
+    this.surf = new Float32Array(this.nx);  // free-surface height per column
+    this.restDens = 0;
+    this.buildWalls();
+  }
+
+  // Static geometry: domain border, pool floor, and the two pool walls up to
+  // deck height. Everything above the deck outside the pool is open air, so
+  // spray can fly off the sides and land on the deck.
+  buildWalls() {
+    const { nx, ny, h, sWall } = this;
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < ny; j++) {
+        const cx = (i + .5) * h, cy = (j + .5) * h;
+        let free = 1;
+        if (i === 0 || i >= nx - 1 || j === 0 || j >= ny - 1) free = 0;
+        // pool basin: solid below the floor, and the two side walls
+        if (cy < POOL.floor) free = 0;
+        if (cy < POOL.deck && (cx < POOL.x0 || cx > POOL.x1)) free = 0;
+        sWall[i * ny + j] = free;
+      }
+    }
+    this.s.set(sWall);
+  }
+
+  // ------------------------------------------------------------- particles
+  seed(rand) {
+    const { h } = this;
+    const r = 0.3 * h;
+    this.pr = r;
+    const dx = 2 * r, dy = Math.sqrt(3) / 2 * dx;
+    this.pArea = dx * dy;                    // m^2 of water each particle carries
+    this.pMass = this.pArea * RHO_W;         // kg per metre of pool width
+    const px = [], py = [];
+    let row = 0;
+    for (let y = POOL.floor + r + h; y < POOL.rest - r; y += dy, row++) {
+      const off = (row & 1) ? r : 0;
+      for (let x = POOL.x0 + r + h * .5 + off; x < POOL.x1 - r; x += dx) {
+        px.push(x + (rand() - .5) * r * .25);
+        py.push(y + (rand() - .5) * r * .25);
+      }
+    }
+    const N = px.length;
+    this.np = N;
+    this.cap = N + 8;
+    this.px = new Float32Array(this.cap); this.py = new Float32Array(this.cap);
+    this.pvx = new Float32Array(this.cap); this.pvy = new Float32Array(this.cap);
+    this.px.set(px); this.py.set(py);
+    // Spatial hash for particle separation. Sized to the separation distance
+    // (2r = 0.6h), NOT to the grid cell: a 3x3 neighbourhood of h-sized cells
+    // holds ~29 candidates when only the ~3 within 2r can possibly overlap,
+    // and pushApart was 47% of the frame because of it. Cell = 2.2r still
+    // covers every pair within 2r in the 3x3 sweep.
+    this.sh = 2.2 * r;
+    this.shx = Math.floor(WORLD.W / this.sh) + 2;
+    this.shy = Math.floor(WORLD.H / this.sh) + 2;
+    this.cellCount = new Int32Array(this.shx * this.shy + 1);
+    this.cellPart = new Int32Array(this.cap);
+    this.restDens = 0;
+  }
+
+  // ------------------------------------------------- moving-solid rasteriser
+  resetSolids() { this.s.set(this.sWall); this.moving.fill(0); }
+
+  // Mark a capsule solid. (vx,vy,omega,px,py) give the rigid velocity field so
+  // the pressure solve sees a *moving* wall, not a static one.
+  stampCapsule(c, ox, oy, vx, vy, om, cx, cy) {
+    const { nx, ny, h, inv, s, solU, solV, moving } = this;
+    const ax = c.ax + ox, ay = c.ay + oy, bx = c.bx + ox, by = c.by + oy;
+    // A forearm is 0.045 m thick against a 0.07 m cell, so stamping its true
+    // radius marks a broken dotted line of cells rather than a barrier — water
+    // leaks straight through it and the flickering cells pump in energy. The
+    // grid cannot represent anything thinner than a cell, so widen the STAMP
+    // (not the collision radius, which stays exact) to just over half a cell.
+    const rr = Math.max(c.r, 0.62 * h);
+    const i0 = clamp(Math.floor((Math.min(ax, bx) - rr) * inv), 0, nx - 1);
+    const i1 = clamp(Math.floor((Math.max(ax, bx) + rr) * inv), 0, nx - 1);
+    const j0 = clamp(Math.floor((Math.min(ay, by) - rr) * inv), 0, ny - 1);
+    const j1 = clamp(Math.floor((Math.max(ay, by) + rr) * inv), 0, ny - 1);
+    const r2 = rr * rr;
+    for (let i = i0; i <= i1; i++) {
+      const wx = (i + .5) * h;
+      for (let j = j0; j <= j1; j++) {
+        const wy = (j + .5) * h;
+        if (segDist2(wx, wy, ax, ay, bx, by) > r2) continue;
+        const k = i * ny + j;
+        s[k] = 0; moving[k] = 1;
+        solU[k] = vx - om * (wy - cy);
+        solV[k] = vy + om * (wx - cx);
+      }
+    }
+  }
+
+  // Faces that touch a solid carry the solid's velocity. The relaxation never
+  // modifies them (its correction is gated on s of the neighbour), so writing
+  // them here is what enforces the no-through-flow boundary on a moving body.
+  applySolidFaces() {
+    const { nx, ny, n, s, u, v, solU, solV, moving } = this;
+    for (let i = 0; i < nx; i++) {
+      for (let j = 0; j < ny; j++) {
+        const k = i * ny + j;
+        if (s[k] !== 0) continue;
+        const su = moving[k] ? solU[k] : 0, sv = moving[k] ? solV[k] : 0;
+        u[k] = su; v[k] = sv;
+        if (k + ny < n) u[k + ny] = su;
+        if (j + 1 < ny) v[k + 1] = sv;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------- integration
+  integrate(dt, gy) {
+    const { px, py, pvx, pvy, np } = this;
+    for (let i = 0; i < np; i++) {
+      pvy[i] += gy * dt;
+      px[i] += pvx[i] * dt;
+      py[i] += pvy[i] * dt;
+    }
+  }
+
+  // Relax particle overlap. Without this FLIP clumps and the free surface goes
+  // lumpy — and clumping is what a splash renderer shows off worst.
+  pushApart(iters) {
+    const { px, py, np, shx, shy, sh, cellCount, cellPart } = this;
+    cellCount.fill(0);
+    const invS = 1 / sh;
+    for (let i = 0; i < np; i++) {
+      const xi = clamp(Math.floor(px[i] * invS), 0, shx - 1);
+      const yi = clamp(Math.floor(py[i] * invS), 0, shy - 1);
+      cellCount[xi * shy + yi]++;
+    }
+    let acc = 0;
+    for (let i = 0; i < shx * shy; i++) { acc += cellCount[i]; cellCount[i] = acc; }
+    cellCount[shx * shy] = acc;
+    for (let i = 0; i < np; i++) {
+      const xi = clamp(Math.floor(px[i] * invS), 0, shx - 1);
+      const yi = clamp(Math.floor(py[i] * invS), 0, shy - 1);
+      cellPart[--cellCount[xi * shy + yi]] = i;
+    }
+    const minD = 2 * this.pr, minD2 = minD * minD;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < np; i++) {
+        const x = px[i], y = py[i];
+        const xi = clamp(Math.floor(x * invS), 0, shx - 1);
+        const yi = clamp(Math.floor(y * invS), 0, shy - 1);
+        const x0 = Math.max(xi - 1, 0), x1 = Math.min(xi + 1, shx - 1);
+        const y0 = Math.max(yi - 1, 0), y1 = Math.min(yi + 1, shy - 1);
+        for (let gx = x0; gx <= x1; gx++) {
+          for (let gy = y0; gy <= y1; gy++) {
+            const c = gx * shy + gy;
+            const e = cellCount[c + 1];
+            for (let m = cellCount[c]; m < e; m++) {
+              const q = cellPart[m];
+              if (q === i) continue;
+              let dx = px[q] - x, dy = py[q] - y;
+              const d2 = dx * dx + dy * dy;
+              if (d2 > minD2 || d2 < 1e-12) continue;
+              const d = Math.sqrt(d2);
+              const s2 = .5 * (minD - d) / d;
+              dx *= s2; dy *= s2;
+              px[i] -= dx; py[i] -= dy;
+              px[q] += dx; py[q] += dy;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+// --------------------------------------------------------------- collisions
+// Solid geometry is resolved by shortest-axis pushout, which gets the coping
+// corner right for free: spray that clears the wall lands ON the deck instead
+// of being teleported back into the pool.
+// Body contact is resolved as a SEQUENTIAL two-body impulse against the live
+// body state, not by snapping each particle to the body's velocity.
+//
+// Snapping assumes an infinitely massive body. That is roughly true for a
+// cannonball, which contacts little water, but a flat entry contacts water
+// weighing several times the jumper — so it re-accelerated hundreds of
+// particles to 7.6 m/s every substep while the body sailed on unchanged,
+// manufacturing seven times its own kinetic energy. Applying each impulse to
+// the body as we go makes the exchange momentum-conserving AND self-limiting:
+// the body slows as it pushes, so later particles in the same sweep are pushed
+// less, exactly as an inelastic collision should behave.
+Fluid.prototype.collide = function (caps, B, dtRef) {
+  const { px, py, pvx, pvy, np, h, inv, nx, ny, moving } = this;
+  const dtG = dtRef > 0 ? dtRef : 1 / 120;   // gutter damping needs a real dt
+  const r = this.pr;
+  const xMin = h + r, xMax = WORLD.W - h - r;
+  const yMin = h + r, yMax = WORLD.H - h - r;
+  const nc = caps.length;
+  for (let i = 0; i < np; i++) {
+    let x = px[i], y = py[i], vx = pvx[i], vy = pvy[i];
+
+    // --- moving solids (body + swimmers). Cell flag rejects ~99% instantly.
+    if (nc) {
+      const ci = clamp(Math.floor(x * inv), 1, nx - 2);
+      const cj = clamp(Math.floor(y * inv), 1, ny - 2);
+      const k = ci * ny + cj;
+      if (moving[k] | moving[k - 1] | moving[k + 1] | moving[k - ny] | moving[k + ny]) {
+        for (let c = 0; c < nc; c++) {
+          const q = caps[c];
+          const dx = q.bx - q.ax, dy = q.by - q.ay;
+          const dd = dx * dx + dy * dy;
+          let t = dd > 1e-12 ? ((x - q.ax) * dx + (y - q.ay) * dy) / dd : 0;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const cxp = q.ax + dx * t, cyp = q.ay + dy * t;
+          let nxv = x - cxp, nyv = y - cyp;
+          const d2 = nxv * nxv + nyv * nyv;
+          const rr = q.r + r;
+          if (d2 >= rr * rr) continue;
+          let d = Math.sqrt(d2);
+          if (d < 1e-6) { nxv = 0; nyv = 1; d = 1; } else { nxv /= d; nyv /= d; }
+          x = cxp + nxv * rr; y = cyp + nyv * rr;
+          // rigid-body surface velocity at the contact point — read LIVE for
+          // the jumper so impulses within this sweep accumulate correctly
+          const live = q.body && B;
+          const bvx = live ? B.vx : q.vx, bvy = live ? B.vy : q.vy;
+          const bom = live ? B.om : q.om;
+          const bcx = live ? B.cx : q.cx, bcy = live ? B.cy : q.cy;
+          const sx = bvx - bom * (y - bcy), sy = bvy + bom * (x - bcx);
+          const vx0 = vx, vy0 = vy;
+          const vn = vx * nxv + vy * nyv, sn = sx * nxv + sy * nyv;
+          if (vn < sn) { const j = sn - vn; vx += j * nxv; vy += j * nyv; }
+          // a little tangential entrainment so the body drags a wake with it
+          const tx = -nyv, ty = nxv;
+          const vt = vx * tx + vy * ty, st = sx * tx + sy * ty;
+          // Entrainment is momentum from nowhere for a KINEMATIC body: the
+          // swimmers are on scripted paths and cannot take a reaction, so any
+          // wake they drag is pure energy injection. Three of them ran a calm
+          // pool up to 6 m/s in six seconds. The jumper is dynamic and does
+          // take the reaction, so it keeps the full value.
+          const f = (st - vt) * (live ? 0.18 : 0.04);
+          vx += f * tx; vy += f * ty;
+          if (live) {
+            const mr = this.pMass / B.m, ir = this.pMass / B.mp.I;
+            const dvx = vx - vx0, dvy = vy - vy0;
+            B.vx -= dvx * mr; B.vy -= dvy * mr;
+            B.om -= ((x - bcx) * dvy - (y - bcy) * dvx) * ir;
+          }
+        }
+      }
+    }
+
+    // --- pool basin: floor, and the two wall blocks up to deck height
+    if (y < POOL.floor + r) { y = POOL.floor + r; if (vy < 0) vy = 0; }
+    if (y < POOL.deck + r) {
+      if (x < POOL.x0 + r) {
+        const pushX = (POOL.x0 + r) - x, pushY = (POOL.deck + r) - y;
+        if (pushX < pushY) { x += pushX; if (vx < 0) vx = 0; }
+        else { y += pushY; if (vy < 0) vy = 0; vx *= .82; }
+      } else if (x > POOL.x1 - r) {
+        const pushX = x - (POOL.x1 - r), pushY = (POOL.deck + r) - y;
+        if (pushX < pushY) { x -= pushX; if (vx > 0) vx = 0; }
+        else { y += pushY; if (vy < 0) vy = 0; vx *= .82; }
+      }
+    }
+    // deck drains back toward the pool over a few seconds
+    if (y < POOL.deck + r * 3 && y > POOL.deck) {
+      if (x < POOL.x0) vx += 0.9 * (1 / 120);
+      else if (x > POOL.x1) vx -= 0.9 * (1 / 120);
+    }
+
+    // --- gutter / skimmer damping in a band along each wall.
+    // FLIP is very nearly inviscid, so without a sink the swimmers' wake energy
+    // accumulates forever and the pool eventually tears itself apart. Real pools
+    // absorb exactly this at the gutters. The band is well clear of mid-pool, so
+    // it never touches the splash being measured.
+    const gL = (POOL.x0 + GUTTER) - x, gR = x - (POOL.x1 - GUTTER);
+    const g = Math.max(gL, gR);
+    if (g > 0) {
+      const k = 1 - GUTTER_K * (g / GUTTER) * dtG;
+      vx *= k; vy *= k;
+    }
+
+    // --- domain box
+    if (x < xMin) { x = xMin; if (vx < 0) vx = 0; }
+    if (x > xMax) { x = xMax; if (vx > 0) vx = 0; }
+    if (y < yMin) { y = yMin; if (vy < 0) vy = 0; }
+    if (y > yMax) { y = yMax; if (vy > 0) vy = 0; }
+
+    px[i] = x; py[i] = y; pvx[i] = vx; pvy[i] = vy;
+  }
+};
+
+// ------------------------------------------------------------- P2G transfer
+Fluid.prototype.toGrid = function () {
+  const { nx, ny, h, inv, u, v, du, dv, s, type, px, py, pvx, pvy, np } = this;
+  du.fill(0); dv.fill(0); u.fill(0); v.fill(0);
+
+  this.markTypes();
+
+  const h2 = .5 * h;
+  for (let comp = 0; comp < 2; comp++) {
+    const dxo = comp === 0 ? 0 : h2, dyo = comp === 0 ? h2 : 0;
+    const f = comp === 0 ? u : v, d = comp === 0 ? du : dv;
+    const pv = comp === 0 ? pvx : pvy;
+    for (let i = 0; i < np; i++) {
+      const x = clamp(px[i], h, (nx - 1) * h), y = clamp(py[i], h, (ny - 1) * h);
+      let x0 = Math.min(Math.floor((x - dxo) * inv), nx - 2);
+      const tx = ((x - dxo) - x0 * h) * inv;
+      const x1 = Math.min(x0 + 1, nx - 2);
+      let y0 = Math.min(Math.floor((y - dyo) * inv), ny - 2);
+      const ty = ((y - dyo) - y0 * h) * inv;
+      const y1 = Math.min(y0 + 1, ny - 2);
+      const sx = 1 - tx, sy = 1 - ty;
+      const w0 = sx * sy, w1 = tx * sy, w2 = tx * ty, w3 = sx * ty;
+      const n0 = x0 * ny + y0, n1 = x1 * ny + y0, n2 = x1 * ny + y1, n3 = x0 * ny + y1;
+      const val = pv[i];
+      f[n0] += val * w0; d[n0] += w0;
+      f[n1] += val * w1; d[n1] += w1;
+      f[n2] += val * w2; d[n2] += w2;
+      f[n3] += val * w3; d[n3] += w3;
+    }
+    for (let i = 0; i < this.n; i++) if (d[i] > 0) f[i] /= d[i];
+  }
+
+  // No wall restore here: applySolidFaces() pins every face that touches a
+  // solid, static or moving, immediately after this.
+};
+
+// ------------------------------------------------- particle density on cells
+Fluid.prototype.computeDensity = function () {
+  const { nx, ny, h, inv, dens, px, py, np, type } = this;
+  dens.fill(0);
+  const h2 = .5 * h;
+  for (let i = 0; i < np; i++) {
+    const x = clamp(px[i], h, (nx - 1) * h), y = clamp(py[i], h, (ny - 1) * h);
+    const x0 = Math.min(Math.floor((x - h2) * inv), nx - 2);
+    const tx = ((x - h2) - x0 * h) * inv; const x1 = Math.min(x0 + 1, nx - 2);
+    const y0 = Math.min(Math.floor((y - h2) * inv), ny - 2);
+    const ty = ((y - h2) - y0 * h) * inv; const y1 = Math.min(y0 + 1, ny - 2);
+    const sx = 1 - tx, sy = 1 - ty;
+    dens[x0 * ny + y0] += sx * sy; dens[x1 * ny + y0] += tx * sy;
+    dens[x1 * ny + y1] += tx * ty; dens[x0 * ny + y1] += sx * ty;
+  }
+  // Calibrate the rest density ONCE, from fully-interior cells only.
+  // Averaging over every fluid cell drags the value ~2% low, because the
+  // surface row is only part-filled — and a rest density that is too low makes
+  // the stiffness term below inject outward divergence on every single step.
+  // The pool then inflates a couple of percent a second and eventually blows
+  // up against a wall. Interior-only is the whole fix.
+  if (this.restDens === 0) {
+    let sum = 0, cnt = 0;
+    const ny = this.ny;
+    for (let i = 1; i < this.nx - 1; i++) {
+      for (let j = 1; j < ny - 1; j++) {
+        const k = i * ny + j;
+        if (type[k] !== FLUID) continue;
+        if (type[k - 1] !== FLUID || type[k + 1] !== FLUID ||
+            type[k - ny] !== FLUID || type[k + ny] !== FLUID) continue;
+        sum += dens[k]; cnt++;
+      }
+    }
+    if (cnt > 0) this.restDens = sum / cnt;
+  }
+};
+
+// ----------------------------------------------------- pressure projection
+// Gauss-Seidel over the fluid cells only. The `s` gates mean a face touching a
+// solid is never corrected, so the solid velocity written by applySolidFaces()
+// survives the solve — that is the moving-boundary condition.
+Fluid.prototype.solve = function (iters, overRelax, stiffness) {
+  const { nx, ny, u, v, uPrev, vPrev, s, type, dens, fluidList } = this;
+  // FLIP's correction is the change the PROJECTION makes, so the reference
+  // field must be snapshotted here — after the particle-to-grid transfer and
+  // the solid-face pinning, immediately before the relaxation.
+  //
+  // Snapshotting it at the top of toGrid() instead (i.e. the previous step's
+  // field) makes the correction include everything the particles themselves
+  // brought in this step, so gravity, the pump jets and every body collision
+  // impulse all get added to the particles a SECOND time, every step. That
+  // compounds geometrically: a 1.9 m/s jet reached the 30 m/s clamp in under a
+  // second, and no amount of solver iterations helped, because the solver was
+  // never the problem.
+  uPrev.set(u); vPrev.set(v);
+  let m = 0;
+  for (let i = 1; i < nx - 1; i++)
+    for (let j = 1; j < ny - 1; j++) {
+      const k = i * ny + j;
+      if (type[k] === FLUID) fluidList[m++] = k;
+    }
+  this.nFluid = m;
+  const rd = this.restDens;
+  for (let it = 0; it < iters; it++) {
+    for (let q = 0; q < m; q++) {
+      const k = fluidList[q];
+      const sx0 = s[k - ny], sx1 = s[k + ny], sy0 = s[k - 1], sy1 = s[k + 1];
+      const sm = sx0 + sx1 + sy0 + sy1;
+      if (sm === 0) continue;
+      let div = u[k + ny] - u[k] + v[k + 1] - v[k];
+      if (rd > 0) {
+        const comp = dens[k] - rd;
+        if (comp > 0) div -= stiffness * comp;
+      }
+      const p = -div / sm * overRelax;
+      u[k] -= sx0 * p; u[k + ny] += sx1 * p;
+      v[k] -= sy0 * p; v[k + 1] += sy1 * p;
+    }
+  }
+};
+
+// ------------------------------------------------------------- G2P transfer
+Fluid.prototype.fromGrid = function (flipRatio) {
+  const { nx, ny, h, inv, u, v, du, dv, uPrev, vPrev, s, px, py, pvx, pvy, np } = this;
+  const h2 = .5 * h;
+  for (let comp = 0; comp < 2; comp++) {
+    const dxo = comp === 0 ? 0 : h2, dyo = comp === 0 ? h2 : 0;
+    const f = comp === 0 ? u : v, fp = comp === 0 ? uPrev : vPrev;
+    const d = comp === 0 ? du : dv;       // P2G weight per face
+    const pv = comp === 0 ? pvx : pvy;
+    const off = comp === 0 ? ny : 1;      // index step to the "previous" cell
+    for (let i = 0; i < np; i++) {
+      const x = clamp(px[i], h, (nx - 1) * h), y = clamp(py[i], h, (ny - 1) * h);
+      const x0 = Math.min(Math.floor((x - dxo) * inv), nx - 2);
+      const tx = ((x - dxo) - x0 * h) * inv; const x1 = Math.min(x0 + 1, nx - 2);
+      const y0 = Math.min(Math.floor((y - dyo) * inv), ny - 2);
+      const ty = ((y - dyo) - y0 * h) * inv; const y1 = Math.min(y0 + 1, ny - 2);
+      const sx = 1 - tx, sy = 1 - ty;
+      const w0 = sx * sy, w1 = tx * sy, w2 = tx * ty, w3 = sx * ty;
+      const n0 = x0 * ny + y0, n1 = x1 * ny + y0, n2 = x1 * ny + y1, n3 = x0 * ny + y1;
+      // A face counts only if it actually carried particle weight this step, or
+      // if it was pinned by a solid (so the body's velocity still propagates).
+      //
+      // Testing solidity ALONE is an energy pump at the free surface: a face
+      // that received no particles has uPrev = 0, but the pressure solve still
+      // assigns it a value, so corr = u* - 0 is added straight on top of the
+      // particle's existing velocity. The gain scales with how much free
+      // surface is churned up, which is why it was invisible on a pencil dive
+      // and manufactured 10x the jumper's energy on a belly flop.
+      const v0 = (d[n0] > 0 || s[n0] === 0 || s[n0 - off] === 0) ? 1 : 0;
+      const v1 = (d[n1] > 0 || s[n1] === 0 || s[n1 - off] === 0) ? 1 : 0;
+      const v2 = (d[n2] > 0 || s[n2] === 0 || s[n2 - off] === 0) ? 1 : 0;
+      const v3 = (d[n3] > 0 || s[n3] === 0 || s[n3 - off] === 0) ? 1 : 0;
+      const wsum = v0 * w0 + v1 * w1 + v2 * w2 + v3 * w3;
+      if (wsum <= 0) continue;
+      const pic = (v0 * w0 * f[n0] + v1 * w1 * f[n1] + v2 * w2 * f[n2] + v3 * w3 * f[n3]) / wsum;
+      const corr = (v0 * w0 * (f[n0] - fp[n0]) + v1 * w1 * (f[n1] - fp[n1]) +
+                    v2 * w2 * (f[n2] - fp[n2]) + v3 * w3 * (f[n3] - fp[n3])) / wsum;
+      pv[i] = (1 - flipRatio) * pic + flipRatio * (pv[i] + corr);
+    }
+  }
+  for (let i = 0; i < np; i++) {
+    const sp = Math.hypot(pvx[i], pvy[i]);
+    if (sp > VMAX) { const k = VMAX / sp; pvx[i] *= k; pvy[i] *= k; }
+  }
+};
+
+// Free-surface height per column — used for buoyancy sampling and for drawing
+// the clean waterline the metaball pass alone cannot give.
+// Classify cells from particle positions alone. computeSurface() reads `type`,
+// so anything that repositions particles without running a full step has to
+// call this first — otherwise the surface reflects the PREVIOUS state. That bit
+// the optimiser: a trial run straight after a belly flop saw that flop's
+// airborne water as the free surface, registered contact while still 1.5 m up,
+// and scored a back flop at 19 J/m instead of 5551.
+Fluid.prototype.markTypes = function () {
+  const { nx, ny, inv, s, type, px, py, np } = this;
+  for (let i = 0; i < this.n; i++) type[i] = s[i] === 0 ? SOLID : AIR;
+  for (let i = 0; i < np; i++) {
+    const xi = clamp(Math.floor(px[i] * inv), 0, nx - 1);
+    const yi = clamp(Math.floor(py[i] * inv), 0, ny - 1);
+    const k = xi * ny + yi;
+    if (type[k] === AIR) type[k] = FLUID;
+  }
+};
+
+Fluid.prototype.computeSurface = function () {
+  const { nx, ny, h, type, surf } = this;
+  for (let i = 0; i < nx; i++) {
+    let top = POOL.floor;
+    const base = i * ny;
+    for (let j = ny - 2; j >= 1; j--) {
+      if (type[base + j] === FLUID) { top = (j + 1) * h; break; }
+    }
+    surf[i] = top;
+  }
+};
+
+Fluid.prototype.sampleVel = function (x, y) {
+  const { nx, ny, h, inv, u, v } = this;
+  const h2 = .5 * h;
+  const cx = clamp(x, h, (nx - 1) * h), cy = clamp(y, h, (ny - 1) * h);
+  // u at (i*h, (j+.5)*h)
+  let x0 = Math.min(Math.floor(cx * inv), nx - 2), tx = (cx - x0 * h) * inv;
+  let y0 = Math.min(Math.floor((cy - h2) * inv), ny - 2), ty = ((cy - h2) - y0 * h) * inv;
+  const ux = (1 - tx) * (1 - ty) * u[x0 * ny + y0] + tx * (1 - ty) * u[(x0 + 1) * ny + y0] +
+             tx * ty * u[(x0 + 1) * ny + y0 + 1] + (1 - tx) * ty * u[x0 * ny + y0 + 1];
+  x0 = Math.min(Math.floor((cx - h2) * inv), nx - 2); tx = ((cx - h2) - x0 * h) * inv;
+  y0 = Math.min(Math.floor(cy * inv), ny - 2); ty = (cy - y0 * h) * inv;
+  const vy = (1 - tx) * (1 - ty) * v[x0 * ny + y0] + tx * (1 - ty) * v[(x0 + 1) * ny + y0] +
+             tx * ty * v[(x0 + 1) * ny + y0 + 1] + (1 - tx) * ty * v[x0 * ny + y0 + 1];
+  return [ux, vy];
+};
+
+// Velocity of the WATER near a point, ignoring solid cells.
+//
+// sampleVel() interpolates the raw grid, and the cells inside the body have
+// been pinned to the BODY's own velocity by applySolidFaces(). Sampling that
+// for drag gives vrel = 0 and therefore no drag at all: the jumper sailed
+// through 1.9 m of water losing 1 m/s and slammed the floor. Averaging only
+// over neighbouring cells that actually hold water is what the drag law wants
+// anyway — the relative velocity against the fluid being shoved aside.
+Fluid.prototype.fluidVelAt = function (x, y) {
+  const { nx, ny, inv, u, v, s, type } = this;
+  const ci = clamp(Math.floor(x * inv), 1, nx - 2);
+  const cj = clamp(Math.floor(y * inv), 1, ny - 2);
+  for (let rad = 1; rad <= 3; rad++) {
+    let su = 0, sv = 0, w = 0;
+    const i0 = Math.max(1, ci - rad), i1 = Math.min(nx - 2, ci + rad);
+    const j0 = Math.max(1, cj - rad), j1 = Math.min(ny - 2, cj + rad);
+    for (let i = i0; i <= i1; i++) {
+      for (let j = j0; j <= j1; j++) {
+        const k = i * ny + j;
+        if (s[k] === 0 || type[k] !== FLUID) continue;
+        su += 0.5 * (u[k] + u[k + ny]);
+        sv += 0.5 * (v[k] + v[k + 1]);
+        w++;
+      }
+    }
+    if (w > 0) return [su / w, sv / w];
+  }
+  return [0, 0];
+};
+
+// Mean water velocity on a ring of radius R about a point — the FAR-FIELD flow.
+//
+// Form drag is defined against the far field, and here that distinction is the
+// whole ball game: the solid boundary condition accelerates the water touching
+// the body to the body's own speed, so drag measured against adjacent cells saw
+// |vrel| = 2 m/s instead of 7.5 and came out ten times too weak. The jumper
+// then coasted through 1.4 m of water while its boundary kept doing work on the
+// fluid, which is where the surplus splash energy was coming from.
+const RING_N = 12, RING_C = [], RING_S = [];
+for (let a = 0; a < RING_N; a++) {
+  RING_C.push(Math.cos(a * 2 * Math.PI / RING_N));
+  RING_S.push(Math.sin(a * 2 * Math.PI / RING_N));
+}
+Fluid.prototype.ambientVel = function (x, y, R) {
+  const { nx, ny, inv, u, v, s, type } = this;
+  let su = 0, sv = 0, w = 0;
+  for (let a = 0; a < RING_N; a++) {
+    const px = x + RING_C[a] * R, py = y + RING_S[a] * R;
+    const i = clamp(Math.floor(px * inv), 1, nx - 2);
+    const j = clamp(Math.floor(py * inv), 1, ny - 2);
+    const k = i * ny + j;
+    if (s[k] === 0 || type[k] !== FLUID) continue;
+    su += 0.5 * (u[k] + u[k + ny]);
+    sv += 0.5 * (v[k] + v[k + 1]);
+    w++;
+  }
+  return w > 0 ? [su / w, sv / w] : [0, 0];
+};
+
+Fluid.prototype.surfaceAt = function (x) {
+  const i = clamp(Math.floor(x * this.inv), 0, this.nx - 1);
+  return this.surf[i];
+};
+// ============================================================================
+// THE BODY — articulated rigid silhouette, two-way coupled to the fluid.
+//
+// Fluid -> body: buoyancy + quadratic drag sampled along every capsule. The
+//   drag impulse is soft-clamped by the point's effective mass, c' = c*me/(c+me),
+//   which is the implicit-Euler solution for linear drag. Explicit drag on a
+//   belly flop is ~40 kN/m and blows up instantly; this form cannot overshoot,
+//   so a flat slam decelerates hard without ever going unstable.
+// Body -> fluid: capsules are stamped SOLID into the grid with their rigid
+//   velocity field, and particles are pushed out of them. That is what digs the
+//   cavity whose collapse throws the jet.
+//
+// CD is deliberately ~1.9: a 2D silhouette carries more "mass" relative to its
+// frontal width than a real 3D body, so the plain 1.2 of a bluff cylinder
+// under-decelerates. 1.9 reproduces a belly flop stopping in ~0.3 m.
+// ============================================================================
+// Form-drag coefficient, measured against the FAR-FIELD flow (see ambientVel).
+// Calibrated by entry depth rather than picked from a table: at 1.0 a belly
+// flop stops in 0.74 m and a pencil dive runs 1.65 m into a 2.13 m pool, which
+// is the right ordering and the right magnitude. It also keeps every shape's
+// peak splash energy below the jumper's kinetic energy at entry, which is the
+// invariant the whole coupling has to satisfy.
+const CD = 1.6;
+// Added-mass coefficient. Water entry is dominated by the REACTIVE inertia of
+// the water a body drags into motion, not by steady drag: for a plate of width
+// W the 2D added mass is rho*pi*W^2/4, which for a belly flop (W=1.8 m) is
+// ~2600 kg/m against a body mass of 360 — seven times its own inertia — while
+// for a pencil dive (W=0.28 m) it is only 62. That W-squared scaling is exactly
+// why no single drag coefficient could ever fit both: with drag alone, a belly
+// flop sank 1.9 m into a 2.1 m pool. Below 1 because a body entering at speed
+// travels inside an air cavity and never fully wets its own width.
+const ADDED_MASS_K = 1.0;
+const TUCK_DUR = 0.28;          // s to complete a late tuck
+
+class Body {
+  constructor() { this.caps = []; this.prev = []; this.active = false; }
+
+  // Build from a pose at the launch point and fire it off the board.
+  launch(pose, level) {
+    this.pose = Object.assign({}, pose);
+    this.base = Object.assign({}, pose);
+    this.applyPose(this.pose, true);
+    const a = pose.launch * DEG;
+    this.vx = TAKEOFF_SPEED * Math.cos(a);
+    this.vy = TAKEOFF_SPEED * Math.sin(a);
+    this.ang = pose.attitude;
+    this.om = pose.spin * DEG;
+    // put the PELVIS at the board tip, then derive the centre of mass
+    const c = rot(this.mp.cx, this.mp.cy, this.ang);
+    this.cx = BOARD.x + c[0];
+    this.cy = BOARD.y + c[1];
+    this.airborne = true;
+    this.active = true;
+    this.t = 0;
+    this.stillLevel = level;
+    this.contactT = this.predictContact();
+    this.tuckStart = this.contactT + this.pose.tuckT / 1000;
+    this.tuckPhase = 0;
+    this.wet = 0;
+    this.maPrev = 0;
+    this.dpx = 0; this.dpy = 0; this.lastShadow = 0.5;
+    this.entrySpeed = 0; this.entryAtt = 0; this.entryLogged = false;
+    this.prev.length = 0;
+    this.rebuildWorld(0);
+  }
+
+  // Ballistic estimate of when the lowest point of the body reaches the water.
+  // Only used to schedule the late tuck, so an approximation is fine.
+  predictContact() {
+    let lowest = 1e9;
+    for (const c of this.local) {
+      const a = rot(c.ax - this.mp.cx, c.ay - this.mp.cy, this.ang);
+      const b = rot(c.bx - this.mp.cx, c.by - this.mp.cy, this.ang);
+      lowest = Math.min(lowest, a[1] - c.r, b[1] - c.r);
+    }
+    const y0 = this.cy + lowest, vy = this.vy;
+    const disc = vy * vy + 2 * G * (y0 - this.stillLevel);
+    if (disc <= 0) return 1e9;
+    return (vy + Math.sqrt(disc)) / G;
+  }
+
+  // Rebuild geometry + mass properties. Angular momentum is conserved across a
+  // pose change, so balling up genuinely spins you faster — the reason a tuck
+  // works in the air at all.
+  applyPose(p, init) {
+    const Iold = this.mp ? this.mp.I : 0;
+    this.local = buildLocal(p);
+    this.mp = massProps(this.local);
+    this.m = RHO_BODY * this.mp.area;
+    // Summing per-capsule slabs double-counts wherever limbs overlap — a hard
+    // cannonball tuck measured 151% of its own silhouette area, which inflated
+    // buoyancy past body weight and made the jumper bob back out. massProps()
+    // rasterises the true union, so rescale the slab sums to match it.
+    let capSum = 0, reach = 0;
+    for (const c of this.local) {
+      capSum += 2 * c.r * Math.hypot(c.bx - c.ax, c.by - c.ay);
+      reach = Math.max(reach, Math.hypot(c.ax - this.mp.cx, c.ay - this.mp.cy) + c.r,
+                              Math.hypot(c.bx - this.mp.cx, c.by - this.mp.cy) + c.r);
+    }
+    this.areaScale = capSum > 1e-6 ? this.mp.area / capSum : 1;
+    this.ringR = reach + 0.32;
+    if (!init && Iold > 0 && this.mp.I > 0) this.om *= Iold / this.mp.I;
+  }
+
+  rebuildWorld(dt) {
+    const a = this.ang * DEG, c = Math.cos(a), s = Math.sin(a);
+    const ox = this.mp.cx, oy = this.mp.cy;
+    const out = this.caps;
+    out.length = 0;
+    for (let i = 0; i < this.local.length; i++) {
+      const q = this.local[i];
+      const ax = q.ax - ox, ay = q.ay - oy, bx = q.bx - ox, by = q.by - oy;
+      out.push({
+        ax: this.cx + c * ax - s * ay, ay: this.cy + s * ax + c * ay,
+        bx: this.cx + c * bx - s * by, by: this.cy + s * bx + c * by,
+        r: q.r, k: q.k, body: 1,
+        vx: this.vx, vy: this.vy, om: this.om, cx: this.cx, cy: this.cy
+      });
+    }
+    // During a late tuck the limbs swing relative to the trunk at several m/s.
+    // Stamping them with the trunk's rigid velocity understates that badly, so
+    // finite-difference each capsule instead once we have a previous frame.
+    if (dt) capVelocities(out, this.prev, dt);
+  }
+
+  // ---------------------------------------------------------------- dynamics
+  step(dt, fl) {
+    if (!this.active) return;
+    this.t += dt;
+
+    // --- late tuck: morph the joint angles toward a hard ball-up
+    if (this.base.tuck > 0 && this.tuckPhase < 1 && this.t >= this.tuckStart) {
+      this.tuckPhase = clamp((this.t - this.tuckStart) / TUCK_DUR, 0, 1);
+      const e = this.tuckPhase * this.tuckPhase * (3 - 2 * this.tuckPhase); // smoothstep
+      const amt = (this.base.tuck / 100) * e;
+      for (const k of TUCK_KEYS) this.pose[k] = lerp(this.base[k], TUCK_TARGET[k], amt);
+      this.applyPose(this.pose, false);
+    }
+
+    let Fx = 0, Fy = -this.m * G, T = 0;
+    let submerged = 0;
+    // Momentum that drag and added mass remove from the body. Both are
+    // reactions against WATER, so the water has to receive it — otherwise the
+    // momentum simply vanishes and the splash is under-driven. Gravity and
+    // buoyancy are excluded: buoyancy's reaction is already carried by the
+    // pressure solve, and gravity's is on the Earth.
+    this.dpx = 0; this.dpy = 0;
+
+    if (!this.airborne) {
+      // One far-field probe per step, on a ring wider than the entrained layer.
+      const amb = fl.ambientVel(this.cx, this.cy, this.ringR);
+      // ---- buoyancy (per slab) and drag (per body, shared out per capsule)
+      //
+      // Buoyancy is a VOLUME integral, so summing slab by slab along a capsule
+      // is correct. Drag is an AREA projection, and it is not: slabs behind one
+      // another in the flow shadow each other. Summing a per-slab projected
+      // width charged every slab the full 2r whenever the flow ran along the
+      // capsule axis, which over-damped a pencil dive 6.3x and an ordinary
+      // feet-first jump 5.0x. Only a belly flop came out right (0.94x), which
+      // is why calibrating CD against it baked the error in.
+      //
+      // The body is connected, so the exact projected width of the whole
+      // silhouette is just the extent of its capsule endpoints (plus radii)
+      // along the axis perpendicular to the flow. That is O(capsules), exact,
+      // and cannot double-count. It is then shared out among the capsules in
+      // proportion to their individual shadows so the torque distribution — an
+      // extended can-opener leg, say — still comes out right.
+      const dvx = this.vx - amb[0], dvy = this.vy - amb[1];
+      const dsp = Math.hypot(dvx, dvy);
+      const fnx = dsp > 1e-4 ? dvx / dsp : 0, fny = dsp > 1e-4 ? dvy / dsp : -1;
+      const tgx = -fny, tgy = fnx;                 // axis across the flow
+      let sLo = 1e9, sHi = -1e9, shareSum = 0;
+      const share = this._share || (this._share = []);
+      share.length = this.caps.length;
+      for (let ci = 0; ci < this.caps.length; ci++) {
+        const q = this.caps[ci];
+        const pa = q.ax * tgx + q.ay * tgy, pb = q.bx * tgx + q.by * tgy;
+        sLo = Math.min(sLo, pa - q.r, pb - q.r);
+        sHi = Math.max(sHi, pa + q.r, pb + q.r);
+        const ex = q.bx - q.ax, ey = q.by - q.ay;
+        const el = Math.hypot(ex, ey);
+        const cr = el > 1e-9 ? Math.abs((ex / el) * fny - (ey / el) * fnx) : 0;
+        const w = el * cr + 2 * q.r;
+        share[ci] = w; shareSum += w;
+      }
+      const shadow = Math.max(sHi - sLo, 0.05);    // true silhouette width
+      this.lastShadow = shadow;
+      this.lastShadow = shadow;
+      const shareK = shareSum > 1e-6 ? shadow / shareSum : 0;
+
+      for (let ci = 0; ci < this.caps.length; ci++) {
+        const q = this.caps[ci];
+        const dx = q.bx - q.ax, dy = q.by - q.ay;
+        const len = Math.hypot(dx, dy);
+        const ns = Math.max(2, Math.min(9, Math.ceil(len / 0.07) + 1));
+        const ds = len / ns;
+        let subLen = 0, wcx = 0, wcy = 0;
+        for (let k = 0; k < ns; k++) {
+          const t = (k + .5) / ns;
+          const pxs = q.ax + dx * t, pys = q.ay + dy * t;
+          // Submersion is measured against the UNDISTURBED far-field level, not
+          // the local free surface. The body carves its own cavity, so the
+          // local surface right under it collapses to the pool floor within two
+          // frames of contact — sampling that made the body read "in air", drop
+          // its drag to zero, and free-fall through the water at 9 m/s while
+          // still stamping a solid boundary. That pumped energy in every step
+          // until the grid exploded.
+          const phi = clamp(.5 + (this.stillLevel - pys) / (2 * q.r), 0, 1);
+          if (phi <= 0) continue;
+          const area = ds * 2 * q.r * phi * this.areaScale;
+          submerged += area;
+          const rx = pxs - this.cx;
+          const Fb = RHO_W * G * area;
+          Fy += Fb; T += rx * Fb;
+          subLen += ds * phi; wcx += pxs * ds * phi; wcy += pys * ds * phi;
+        }
+        if (subLen <= 1e-6 || dsp < 1e-4) continue;
+
+        // one drag impulse per capsule, at its submerged centroid
+        const px = wcx / subLen, py = wcy / subLen;
+        const frac = clamp(subLen / Math.max(len, 1e-6), 0, 1);
+        const rx = px - this.cx, ry = py - this.cy;
+        const bvx = this.vx - this.om * ry, bvy = this.vy + this.om * rx;
+        const rvx = bvx - amb[0], rvy = bvy - amb[1];
+        const sp = Math.hypot(rvx, rvy);
+        if (sp < 1e-4) continue;
+        const nxh = rvx / sp, nyh = rvy / sp;
+        const w = share[ci] * shareK * frac;
+        let c = 0.5 * RHO_W * CD * w * sp * dt;            // kg
+        const rp = rx * nyh - ry * nxh;
+        const me = 1 / (1 / this.m + rp * rp / this.mp.I);
+        c = c * me / (c + me);                              // implicit soft-clamp
+        const Jx = -c * rvx, Jy = -c * rvy;
+        this.vx += Jx / this.m; this.vy += Jy / this.m;
+        this.om += (rx * Jy - ry * Jx) / this.mp.I;
+        this.dpx -= Jx; this.dpy -= Jy;
+      }
+      this.vx += Fx / this.m * dt;
+      this.vy += Fy / this.m * dt;
+      this.om += T / this.mp.I * dt;
+      this.om *= (1 - 0.9 * dt);         // rotational water resistance
+
+      // ---- added mass (the slam).
+      // As the body wets, it must drag water into motion with it. Conserving
+      // momentum over body + entrained water,
+      //     (m + ma_old) v_old + dMa * v_ambient = (m + ma_new) v_new
+      // which is a weighted average and therefore unconditionally stable. It
+      // only bites while ma is GROWING — water is shed freely on the way out,
+      // so no momentum is handed back.
+      const wetFrac = clamp(submerged / this.mp.area, 0, 1);
+      const ma = ADDED_MASS_K * RHO_W * Math.PI * shadow * shadow * 0.25 * wetFrac;
+      if (ma > this.maPrev) {
+        const dMa = ma - this.maPrev;
+        const tot = this.m + ma;
+        const vx0 = this.vx, vy0 = this.vy;
+        this.vx = ((this.m + this.maPrev) * this.vx + dMa * amb[0]) / tot;
+        this.vy = ((this.m + this.maPrev) * this.vy + dMa * amb[1]) / tot;
+        this.om *= (this.m + this.maPrev) / tot;
+        this.dpx += this.m * (vx0 - this.vx);
+        this.dpy += this.m * (vy0 - this.vy);
+      }
+      this.maPrev = ma;
+    } else {
+      this.vy -= G * dt;
+    }
+    this.wet = submerged / this.mp.area;
+
+    this.cx += this.vx * dt;
+    this.cy += this.vy * dt;
+    this.ang += this.om * dt / DEG;
+    this.rebuildWorld(dt);
+
+    // ---- water contact test
+    if (this.airborne) {
+      for (const q of this.caps) {
+        if (Math.min(q.ay, q.by) - q.r <= fl.surfaceAt((q.ax + q.bx) * .5)) {
+          this.airborne = false;
+          this.entrySpeed = Math.hypot(this.vx, this.vy);
+          this.entryAtt = this.ang;
+          this.entryLogged = true;
+          break;
+        }
+      }
+    }
+    this.collideStatic();
+  }
+
+  // Keep the swimmer inside the pool: floor, side walls, and a soft landing so
+  // a fast pencil dive does not tunnel through the bottom.
+  collideStatic() {
+    let corrX = 0, corrY = 0, hits = 0;
+    for (const q of this.caps) {
+      for (const p of [[q.ax, q.ay], [q.bx, q.by]]) {
+        const x = p[0], y = p[1], r = q.r;
+        if (y - r < POOL.floor) { corrY += POOL.floor - (y - r); hits++; }
+        if (y - r < POOL.deck) {
+          if (x - r < POOL.x0) { corrX += POOL.x0 - (x - r); hits++; }
+          else if (x + r > POOL.x1) { corrX += POOL.x1 - (x + r); hits++; }
+        }
+      }
+    }
+    if (!hits) return;
+    corrX /= hits; corrY /= hits;
+    this.cx += corrX; this.cy += corrY;
+    if (corrY > 0 && this.vy < 0) this.vy *= -0.12;
+    if (corrX !== 0) this.vx *= -0.2;
+    this.om *= 0.8;
+    this.rebuildWorld(0);
+  }
+}
+
+// ============================================================================
+// AMBIENT TURBULENCE — the pool is never glassy.
+//   * two wall return jets pushing water back in
+//   * up to three other swimmers milling about, stamped as moving solids so
+//     they shed real wakes and surface chop
+// ============================================================================
+
+// A capsule's true rigid velocity, by finite-differencing its endpoints against
+// the previous frame.
+//
+// Every capsule used to be stamped with its PARENT body's velocity, which is
+// wrong for anything that moves relative to that parent: a swimmer's arm stroke
+// (~3 m/s) and the limbs during a late tuck (~3 m/s) both swept the solid
+// boundary through the fluid while telling the solver they were nearly still.
+// The pressure solve then had no idea it needed to get water out of the way, so
+// each stroke injected energy that nothing dissipated. Measured: three swimmers
+// alone drove a calm pool to the 30 m/s clamp within two seconds.
+function capVelocities(caps, prev, dt) {
+  const inv = dt > 1e-9 ? 1 / dt : 0;
+  for (let i = 0; i < caps.length; i++) {
+    const c = caps[i];
+    const mx = (c.ax + c.bx) * .5, my = (c.ay + c.by) * .5;
+    const an = Math.atan2(c.by - c.ay, c.bx - c.ax);
+    const p = prev[i];
+    if (!p || p.n !== caps.length) { c.vx = 0; c.vy = 0; c.om = 0; }
+    else {
+      c.vx = (mx - p.x) * inv;
+      c.vy = (my - p.y) * inv;
+      let da = an - p.a;
+      while (da > Math.PI) da -= 2 * Math.PI;
+      while (da < -Math.PI) da += 2 * Math.PI;
+      c.om = da * inv;
+    }
+    // Safety net: a scripted capsule has no business exceeding these, and a
+    // geometry discontinuity anywhere would otherwise stamp a solid moving at
+    // hundreds of m/s straight into the pressure solve.
+    c.vx = clamp(c.vx, -8, 8); c.vy = clamp(c.vy, -8, 8);
+    c.om = clamp(c.om, -14, 14);
+    c.cx = mx; c.cy = my;
+    prev[i] = { x: mx, y: my, a: an, n: caps.length };
+  }
+  prev.length = caps.length;
+}
+
+class Swimmer {
+  constructor(i, rand) {
+    // Swimmers stay at the far end, clear of the diving zone. Real pools keep
+    // the area under a board clear, and without this a jumper could land ON a
+    // swimmer — which absorbed the impact and silently scored a belly flop at
+    // zero. The steepest launch enters at x=2.4 and the shallowest at x=7.6.
+    this.x0 = lerp(7.85, 9.85, (i + .5) / 3);
+    this.amp = 0.38 + rand() * 0.42;
+    this.sp = 0.16 + rand() * 0.16;
+    this.ph = rand() * 6.283;
+    this.depth = 0.46 + rand() * 0.26;
+    this.sz = 0.72 + rand() * 0.24;
+    this.caps = [];
+    this.prev = [];
+    this.ang = 0;
+    this.px = this.x0; this.py = POOL.rest - this.depth;
+  }
+  // `ramp` fades the motion in. A swimmer that appears mid-pool already moving
+  // at full stroke is a solid materialising inside still water, and that shock
+  // took ~40 s to drain out through the gutters.
+  // `ramp` fades the motion in. A swimmer that appears mid-pool already moving
+  // at full stroke is a solid materialising inside still water, and that shock
+  // took ~40 s to drain out through the gutters.
+  //
+  // Heading is an ANGLE that turns at a limited rate, not a +/-1 facing flag.
+  // With a flag, reversing direction swapped the torso capsule's two endpoints,
+  // so its angle jumped 180 degrees in a single step and the finite-difference
+  // in capVelocities reported omega = pi/dt ~ 380 rad/s. That stamped a solid
+  // spinning at hundreds of m/s into the grid twice per lap, which is what was
+  // detonating the pool every ~15 s. Turning through vertical is continuous,
+  // and reads as a turn at the wall.
+  update(t, dt, ramp) {
+    const A = this.amp * ramp, B = 0.055 * ramp;
+    const nx = this.x0 + A * Math.sin(t * this.sp + this.ph);
+    const ny = POOL.rest - this.depth + B * Math.sin(t * 1.15 + this.ph * 2);
+    const vx = A * this.sp * Math.cos(t * this.sp + this.ph);
+    const vy = B * 1.15 * Math.cos(t * 1.15 + this.ph * 2);
+    this.px = nx; this.py = ny; this.vx = vx; this.vy = vy;
+
+    const target = vx >= 0 ? 0 : Math.PI;
+    let da = target - this.ang;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    const lim = 2.0 * dt;
+    this.ang += clamp(da, -lim, lim);
+    const ca = Math.cos(this.ang), sa = Math.sin(this.ang);
+
+    const L = 0.30 * this.sz, R1 = 0.150 * this.sz, R2 = 0.070 * this.sz;
+    const hx = nx + ca * L, hy = ny + sa * L;      // head end
+    const tx = nx - ca * L, ty = ny - sa * L;      // hip end
+    this.caps.length = 0;
+    this.caps.push({ ax: tx, ay: ty, bx: hx, by: hy, r: R1, k: 4 });
+    // head, so they read as people rather than floating pills
+    this.caps.push({ ax: hx + ca * 0.10 * this.sz, ay: hy + sa * 0.10 * this.sz,
+                     bx: hx + ca * 0.15 * this.sz, by: hy + sa * 0.15 * this.sz,
+                     r: 0.085 * this.sz, k: 4 });
+    // trailing legs with a slow flutter
+    const kick = 0.24 * ramp * Math.sin(t * 3.1 + this.ph);
+    const lg = rot(-ca, -sa, kick * 22);
+    this.caps.push({ ax: tx, ay: ty, bx: tx + lg[0] * L * 1.35, by: ty + lg[1] * L * 1.35,
+                     r: R2, k: 4 });
+    // one arm, always present and always sweeping
+    const arm = ramp * Math.sin(t * 1.5 + this.ph * 1.7);
+    const am = rot(ca, sa, 40 + arm * 34);
+    this.caps.push({ ax: hx, ay: hy, bx: hx + am[0] * 0.26 * this.sz,
+                     by: hy + am[1] * 0.26 * this.sz, r: R2 * 0.85, k: 4 });
+    capVelocities(this.caps, this.prev, dt);
+  }
+}
+
+// Give the water the momentum the body's drag and added mass took off it.
+// Spread over the submerged particles within reach of the body, which is where
+// the entrained water physically is. Without this the coupling leaks momentum:
+// the body stopped correctly but nothing pushed back on the pool, and splash
+// scores collapsed to a quarter of their proper size.
+function depositWake(fl, B, level) {
+  const px2 = B.dpx, py2 = B.dpy;
+  if (!px2 && !py2) return;
+  const R = 0.5 * B.lastShadow + 0.34, R2 = R * R;
+  const { px, py, pvx, pvy, np } = fl;
+  let n = 0;
+  const lim = level + 0.05;
+  for (let i = 0; i < np; i++) {
+    if (py[i] > lim) continue;
+    const dx = px[i] - B.cx, dy = py[i] - B.cy;
+    if (dx * dx + dy * dy > R2) continue;
+    n++;
+  }
+  if (n === 0) return;
+  const dvx = px2 / (n * fl.pMass), dvy = py2 / (n * fl.pMass);
+  for (let i = 0; i < np; i++) {
+    if (py[i] > lim) continue;
+    const dx = px[i] - B.cx, dy = py[i] - B.cy;
+    if (dx * dx + dy * dy > R2) continue;
+    pvx[i] += dvx; pvy[i] += dvy;
+  }
+}
+
+// Wall return jets — applied as a velocity blend on nearby particles, which in
+// FLIP produces a proper entraining plume rather than a divergence source.
+function applyPumps(fl, level, t, dt) {
+  if (level <= 0) return;
+  const jets = [
+    { x: POOL.x0 + 0.10, y: 1.55, dx: 1, dy: 0.10, ph: 0 },
+    { x: POOL.x1 - 0.10, y: 0.95, dx: -1, dy: 0.20, ph: 2.1 }
+  ];
+  const { px, py, pvx, pvy, np } = fl;
+  const R = 0.55, R2 = R * R;
+  for (const j of jets) {
+    const mag = level * 2.4 * (0.72 + 0.28 * Math.sin(t * 0.55 + j.ph));
+    const n = Math.hypot(j.dx, j.dy);
+    const tx = j.dx / n * mag, ty = j.dy / n * mag;
+    for (let i = 0; i < np; i++) {
+      const ddx = px[i] - j.x, ddy = py[i] - j.y;
+      const d2 = ddx * ddx + ddy * ddy;
+      if (d2 > R2) continue;
+      const w = (1 - Math.sqrt(d2) / R);
+      const k = clamp(w * w * 9 * dt, 0, 1);
+      pvx[i] += (tx - pvx[i]) * k;
+      pvy[i] += (ty - pvy[i]) * k;
+    }
+  }
+}
+// ============================================================================
+// SIM — one pool. Owns the fluid, the jumper, the other swimmers, the metrics.
+// ============================================================================
+const QUAL = {
+  low:  { h: 0.086, iters: 22, sep: 2, name: 'LOW'  },
+  med:  { h: 0.072, iters: 24, sep: 2, name: 'MED'  },
+  high: { h: 0.058, iters: 26, sep: 2, name: 'HIGH' }
+};
+const FLIP_RATIO = 0.92;        // splashy; lower is gluey, higher is noisy
+const SUBSTEPS = 2;
+// Over-relaxation for the pressure sweep. The textbook 1.9 DIVERGES on this
+// domain — measured: the pool inflates a few percent a second and detonates
+// against a wall inside a second, with or without the drift-compensation term.
+// 1.5 holds a flat pool indefinitely (peak particle speed 0.7 m/s after 10 s).
+// Below ~1.45 it under-converges and drifts again, so this is a real floor,
+// not a safety margin. Re-measure before touching it.
+const SOR_OMEGA = 1.5;
+// Hard ceiling on particle speed. Entry is ~8.4 m/s and the pump jets ~2.5,
+// so nothing physical here comes close; this only exists so a numerical spike
+// degrades into a local artefact instead of destroying the whole pool.
+const VMAX = 30.0;
+// Wave-absorbing band along each pool wall, and its damping rate (per second).
+const GUTTER = 1.05, GUTTER_K = 2.6;
+const LIFT_EPS = 0.06;          // m above still level before water counts as "lifted"
+const WINDOW = 2.2;             // s of measurement after contact
+// The optimiser runs hundreds of trials, so it uses a coarser grid and a
+// shorter window. Both were checked against the full-quality ranking — see the
+// note on EVAL_QUALITY below — because a search that optimises a different
+// physics than the one on screen is worse than no search at all.
+const EVAL_QUALITY = 'low';
+const EVAL_WINDOW = 1.35;
+
+class Sim {
+  constructor(qual, seed) {
+    this.q = QUAL[qual];
+    this.seed = seed;
+    this.rand = mulberry32(seed);
+    this.fl = new Fluid(this.q.h);
+    this.fl.seed(this.rand);
+    this.body = new Body();
+    this.swimmers = [];
+    for (let i = 0; i < 3; i++) this.swimmers.push(new Swimmer(i, this.rand));
+    this.nSwim = 0;
+    this._nSwim = 0;
+    this.swimT0 = 0;
+    this.pump = 0;
+    this.t = 0;
+    this.solidCaps = [];
+    this.react = { jx: 0, jy: 0, tq: 0 };
+    this.restLevel = POOL.rest;
+    this.calmRun = false;
+    this.entryX = 0.5 * (POOL.x0 + POOL.x1);
+    this.window = WINDOW;
+    this.earlyOut = false;
+    this.resetMetrics();
+    this.fl.computeSurface();
+  }
+
+  // The settled water sits a little below the nominal fill line — FLIP packs
+  // slightly tighter than the seed lattice, and by a different amount at each
+  // grid resolution. Every metric is measured from the level the water ACTUALLY
+  // settles at, so "lifted above the still surface" means what it says and the
+  // three quality settings stay comparable.
+  calibrate() {
+    const fl = this.fl;
+    const i0 = Math.ceil(POOL.x0 * fl.inv) + 1, i1 = Math.floor(POOL.x1 * fl.inv) - 1;
+    let s = 0, n = 0;
+    for (let i = i0; i <= i1; i++) { s += fl.surf[i]; n++; }
+    if (n > 0) this.restLevel = s / n - 0.5 * fl.h;   // cell top -> mid-cell surface
+  }
+
+  resetMetrics() {
+    this.m = { pe: 0, peak: 0, vol: 0, peakVol: 0, hgt: 0, peakHgt: 0,
+               reach: 0, deck: 0, peakDeck: 0, base: 0, bestT: 0 };
+    this.trace = [];
+    this.phase = 'idle';
+    this.runT = 0;
+  }
+
+  // Drop everything back to a flat pool. Used for scored runs so the pose is
+  // what is being compared, not which wave it happened to land on.
+  resetWater() {
+    this.rand = mulberry32(this.seed);
+    this.fl.seed(this.rand);
+    this.fl.restDens = 0;
+    this.t = 0;
+    this.body.active = false;
+    this.solidCaps.length = 0;
+    this.settle(28);
+    this.resetMetrics();
+  }
+
+  settle(n) {
+    for (let i = 0; i < n; i++) this.substep(1 / 120, true);
+    this.fl.computeSurface();
+    this.calibrate();
+  }
+
+  substep(dt, quiet) {
+    const fl = this.fl;
+    this.t += dt;
+
+    const ramp = clamp((this.t - this.swimT0) / 3.0, 0, 1);
+    const nSw = this.calmRun ? 0 : this.nSwim;
+    for (let i = 0; i < nSw; i++) this.swimmers[i].update(this.t, dt, ramp);
+    if (this.body.active) {
+      this.body.step(dt, fl);
+      if (!this.body.airborne) depositWake(fl, this.body, this.restLevel);
+    }
+
+    fl.resetSolids();
+    this.solidCaps.length = 0;
+    if (this.body.active) {
+      for (const c of this.body.caps) {
+        fl.stampCapsule(c, 0, 0, c.vx, c.vy, c.om, c.cx, c.cy);
+        this.solidCaps.push(c);
+      }
+    }
+    for (let i = 0; i < nSw; i++) {
+      for (const c of this.swimmers[i].caps) {
+        fl.stampCapsule(c, 0, 0, c.vx, c.vy, c.om, c.cx, c.cy);
+        this.solidCaps.push(c);
+      }
+    }
+
+    fl.integrate(dt, -G);
+    if (!quiet && !this.calmRun) applyPumps(fl, this.pump, this.t, dt);
+    fl.pushApart(this.q.sep);
+    fl.collide(this.solidCaps, (this.body.active && !this.body.airborne) ? this.body : null, dt);
+    if (this.body.active && !this.body.airborne) this.body.rebuildWorld(0);
+    fl.toGrid();
+    fl.applySolidFaces();
+    fl.computeDensity();
+    fl.solve(this.q.iters, SOR_OMEGA, 1.0);
+    fl.fromGrid(FLIP_RATIO);
+    fl.computeSurface();
+  }
+
+  step(dt) {
+    if (this.nSwim !== this._nSwim) { this._nSwim = this.nSwim; this.swimT0 = this.t; }
+    // Keep the moving boundary under half a cell per substep. At entry the body
+    // travels 8.4 m/s, which at the default two substeps sweeps a full cell
+    // every step: cells flip solid->air->solid and the stale pinned velocity
+    // left in a freed cell is handed straight to the particles. That injected
+    // ~7x the jumper's own kinetic energy on a flat entry. Cost only rises for
+    // the ~0.4 s an impact actually lasts.
+    let n = SUBSTEPS;
+    const B = this.body;
+    if (B.active) {
+      // Only refine while the body is actually near the water. During the 1.4 s
+      // of flight there is no moving boundary in the fluid to resolve, and
+      // refining there was most of the cost of an impact frame.
+      let lo = 1e9;
+      for (let i = 0; i < B.caps.length; i++) {
+        const q = B.caps[i];
+        const y = Math.min(q.ay, q.by) - q.r;
+        if (y < lo) lo = y;
+      }
+      if (lo < this.restLevel + 0.45) {
+        const sp = Math.hypot(B.vx, B.vy);
+        n = clamp(Math.ceil(sp * dt / (0.5 * this.fl.h)), SUBSTEPS, 4);
+      }
+    }
+    const sdt = dt / n;
+    for (let s = 0; s < n; s++) this.substep(sdt, false);
+    this.measure(dt);
+  }
+
+  jump(pose, calm, skipFlight) {
+    // A scored "calm" run holds the jets and the other swimmers still for the
+    // whole run, not just at the reset — otherwise the ambient chop drifts back
+    // in during the 2.2 s measurement window and the comparison it exists to
+    // provide is not a comparison at all.
+    this.calmRun = !!calm;
+    if (calm) this.resetWater(); else this.resetMetrics();
+    this.body.launch(pose, this.restLevel);
+    this.phase = 'flight';
+    this.runT = 0;
+    if (skipFlight) {
+      // Advance the body alone to just above the water. While airborne its step
+      // only integrates gravity and the tuck morph — nothing touches the fluid —
+      // so fast-forwarding here is exact, not an approximation.
+      const B = this.body, fl = this.fl, target = this.restLevel + 0.35;
+      let guard = 0;
+      while (B.airborne && guard++ < 2000) {
+        let lo = 1e9;
+        for (const q of B.caps) lo = Math.min(lo, q.ay - q.r, q.by - q.r);
+        if (lo <= target) break;
+        B.step(1 / 240, fl);
+      }
+    }
+    this.measure(0);
+    this.m.base = this.m.pe;          // subtract the ambient chop already present
+  }
+
+  // ------------------------------------------------------------- metrics
+  // Score = gravitational potential energy of water standing above the still
+  // waterline, in joules per metre of pool width. It is the one number that
+  // fuses "how much" with "how high", which is what a splash actually is.
+  measure(dt) {
+    const fl = this.fl, { px, py, np } = fl;
+    const y0 = this.restLevel, thr = y0 + LIFT_EPS;
+    const pa = fl.pArea;
+    let pe = 0, vol = 0, deck = 0, reach = 0;
+    const ex = this.entryX;
+    // top-4 heights, so one stray droplet cannot define the crown
+    let t0 = -1e9, t1 = -1e9, t2 = -1e9, t3 = -1e9;
+    for (let i = 0; i < np; i++) {
+      const y = py[i];
+      if (y <= thr) continue;
+      const x = px[i];
+      pe += (y - y0); vol += 1;
+      const dx = Math.abs(x - ex);
+      if (dx > reach) reach = dx;
+      if (y > t3) {
+        if (y > t0) { t3 = t2; t2 = t1; t1 = t0; t0 = y; }
+        else if (y > t1) { t3 = t2; t2 = t1; t1 = y; }
+        else if (y > t2) { t3 = t2; t2 = y; }
+        else t3 = y;
+      }
+      if (y > POOL.deck - 0.04 && (x < POOL.x0 || x > POOL.x1)) deck += 1;
+    }
+    const M = this.m;
+    M.pe = pe * pa * RHO_W * G;
+    M.vol = vol * pa * 1000;                       // litres per metre of width
+    M.hgt = vol >= 4 ? Math.max(0, t3 - y0) : 0;
+    M.reach = reach;
+    M.deck = deck * pa * 1000;
+
+    if (this.phase === 'flight' && !this.body.airborne) {
+      this.phase = 'impact'; this.runT = 0;
+      this.entryX = this.body.cx;
+    }
+    if (this.phase === 'impact') {
+      this.runT += dt;
+      const net = Math.max(0, M.pe - M.base);
+      if (net > M.peak) { M.peak = net; M.bestT = this.runT; }
+      if (M.vol > M.peakVol) M.peakVol = M.vol;
+      if (M.hgt > M.peakHgt) M.peakHgt = M.hgt;
+      if (M.deck > M.peakDeck) M.peakDeck = M.deck;
+      this.trace.push(net);
+      if (this.trace.length > 260) this.trace.shift();
+      // Headless trials stop once the splash is clearly past its peak — the
+      // remaining second is just the pool sloshing back down, and the score is
+      // already fixed. Roughly halves the cost of a search.
+      // A back flop peaks late — the body rotates and slaps a second time — so
+      // an eager cutoff scored it at 1% of its real splash. Hold a floor on the
+      // run length as well as patience since the last improvement.
+      if (this.runT >= this.window ||
+          (this.earlyOut && M.peak > 0 && this.runT > 0.85 && this.runT - M.bestT > 0.6)) {
+        this.phase = 'done';
+        this.calmRun = false;      // hand the pool back to the jets and swimmers
+      }
+    }
+  }
+
+  score() { return this.m.peak; }
+}
+
+// ============================================================================
+// Headless evaluation used by the optimiser. Runs a jump at reduced resolution
+// with the pool held perfectly calm, so trials differ only by pose.
+// ============================================================================
+class Evaluator {
+  constructor() { this.sim = null; }
+  ensure() {
+    if (!this.sim) {
+      this.sim = new Sim(EVAL_QUALITY, 1337);
+      this.sim.nSwim = 0; this.sim.pump = 0;
+      this.sim.window = EVAL_WINDOW;
+      this.sim.earlyOut = true;
+      this.sim.settle(40);
+      // snapshot the settled pool so every trial starts from the same water
+      this.snapX = this.sim.fl.px.slice();
+      this.snapY = this.sim.fl.py.slice();
+      this.snapVX = this.sim.fl.pvx.slice();
+      this.snapVY = this.sim.fl.pvy.slice();
+    }
+  }
+  restore() {
+    const fl = this.sim.fl;
+    fl.px.set(this.snapX); fl.py.set(this.snapY);
+    fl.pvx.set(this.snapVX); fl.pvy.set(this.snapVY);
+    fl.u.fill(0); fl.v.fill(0); fl.uPrev.fill(0); fl.vPrev.fill(0);
+    this.sim.t = 0;
+    this.sim.body.active = false;
+    this.sim.solidCaps.length = 0;
+    this.sim.resetMetrics();
+    fl.resetSolids();
+    fl.markTypes();
+    fl.computeSurface();
+  }
+  // Run one pose to completion; returns the peak lifted-water energy.
+  run(pose) {
+    this.ensure();
+    this.restore();
+    const s = this.sim;
+    s.jump(pose, false, true);
+    const dt = 1 / 60;
+    let guard = 0;
+    while (s.phase !== 'done' && guard < 400) { s.step(dt); guard++; }
+    return { score: s.m.peak, hgt: s.m.peakHgt, vol: s.m.peakVol, deck: s.m.peakDeck };
+  }
+}
+// --- resumable evaluation, so a 70-trial search never blocks the page -------
+Evaluator.prototype.begin = function (pose) {
+  this.ensure(); this.restore();
+  this.sim.jump(pose, false, true);
+  this.guard = 0;
+};
+Evaluator.prototype.advance = function (budgetMs) {
+  const s = this.sim, t0 = performance.now();
+  while (s.phase !== 'done' && this.guard < 400) {
+    s.step(1 / 60); this.guard++;
+    if (performance.now() - t0 > budgetMs) return false;
+  }
+  return true;
+};
+Evaluator.prototype.result = function () {
+  const M = this.sim.m;
+  return { score: M.peak, hgt: M.peakHgt, vol: M.peakVol, deck: M.peakDeck };
+};
+
+// ============================================================================
+// OPTIMISER — find the biggest splash.
+//
+// Stage 1 sweeps every classic shape so the search starts from a real technique
+// rather than noise. Stage 2 runs a (1+1) evolution strategy from the best of
+// them: perturb a random handful of joints, keep the result if it splashes
+// harder, and adapt the step size by the 1/5th success rule.
+//
+// BODY SIZE IS HELD FIXED at whatever the user has dialled in. A bigger body
+// always splashes more, and that is not an interesting answer — the question is
+// which SHAPE wins at a given size and a fixed entry energy.
+// ============================================================================
+const SEARCH = [
+  { k: 'attitude', lo: -180, hi: 180, s: 26, wrap: true },
+  { k: 'launch',   lo: 25,   hi: 90,  s: 8 },
+  { k: 'spine',    lo: -40,  hi: 70,  s: 13 },
+  { k: 'shA',      lo: 0,    hi: 180, s: 22 },
+  { k: 'elA',      lo: 0,    hi: 150, s: 20 },
+  { k: 'shB',      lo: 0,    hi: 180, s: 22 },
+  { k: 'elB',      lo: 0,    hi: 150, s: 20 },
+  { k: 'hipA',     lo: -30,  hi: 150, s: 22 },
+  { k: 'knA',      lo: 0,    hi: 155, s: 22 },
+  { k: 'hipB',     lo: -30,  hi: 150, s: 22 },
+  { k: 'knB',      lo: 0,    hi: 155, s: 22 },
+  { k: 'tuck',     lo: 0,    hi: 100, s: 26 },
+  { k: 'tuckT',    lo: -250, hi: 250, s: 65 },
+  { k: 'spin',     lo: -540, hi: 540, s: 95 }
+];
+const REFINE_TRIALS = 34;
+
+const Opt = {
+  on: false, ev: null, rand: null,
+  queue: [], done: 0, total: 0,
+  cur: null, curName: '',
+  best: null, bestName: '', bestScore: -1,
+  sigma: 1.0, hits: 0, tries: 0, stage: 1
+};
+
+function gauss(rand) {
+  let u = 0, v = 0;
+  while (u === 0) u = rand();
+  while (v === 0) v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185 * v);
+}
+
+function mutate(base, sigma, rand) {
+  const p = Object.assign({}, base);
+  const n = 2 + Math.floor(rand() * 3);            // perturb 2-4 joints at once
+  for (let i = 0; i < n; i++) {
+    const d = SEARCH[Math.floor(rand() * SEARCH.length)];
+    let val = p[d.k] + gauss(rand) * d.s * sigma;
+    if (d.wrap) {
+      while (val > 180) val -= 360;
+      while (val < -180) val += 360;
+    } else val = clamp(val, d.lo, d.hi);
+    p[d.k] = Math.round(val);
+  }
+  return p;
+}
+
+function optStart(basePose) {
+  if (Opt.on) { optStop('Search cancelled.'); return; }
+  Opt.on = true;
+  Opt.ev = Opt.ev || new Evaluator();
+  Opt.rand = mulberry32(20260906);
+  Opt.queue = [];
+  Opt.done = 0;
+  Opt.best = null; Opt.bestScore = -1; Opt.bestName = '';
+  Opt.sigma = 1.0; Opt.hits = 0; Opt.tries = 0; Opt.stage = 1;
+  Opt.size = basePose.size;
+  // stage 1 — every classic shape, at the user's current body size
+  for (const pr of PRESETS) {
+    const p = Object.assign(defaultPose(), pr.p, { size: Opt.size });
+    Opt.queue.push({ pose: p, name: pr.n });
+  }
+  Opt.total = PRESETS.length + REFINE_TRIALS;
+  Opt.cur = null;
+  ui.optbar.style.display = 'block';
+  ui.bOpt.textContent = '■ STOP';
+  ui.bOpt.classList.add('on');
+  optMsg('Stage 1 — sweeping the classic shapes…');
+}
+
+function optStop(msg) {
+  Opt.on = false;
+  Opt.cur = null;
+  ui.optbar.style.display = 'none';
+  ui.bOpt.textContent = '◉ FIND BIGGEST';
+  ui.bOpt.classList.remove('on');
+  if (msg) optMsg(msg);
+}
+
+// Called once per animation frame; spends a fixed slice of the frame on search
+// so the pool keeps animating while the solver works.
+function optTick(budgetMs) {
+  if (!Opt.on) return;
+  if (!Opt.cur) {
+    if (!Opt.queue.length) {
+      if (Opt.stage === 1) {
+        Opt.stage = 2;
+        optMsg('Stage 2 — refining ' + Opt.bestName + '…');
+        // Seed the late tuck explicitly instead of hoping the mutation operator
+        // stumbles on it. It is the one technique with a real discontinuity in
+        // the score, and with tuck starting at 0 a random perturbation lands on
+        // a half-hearted 25% tuck that scores WORSE and gets rejected — so the
+        // search never reaches the good region on its own. These few trials buy
+        // the most interesting part of the answer.
+        for (const v of [{ tuck: 100, tuckT: -60 }, { tuck: 100, tuckT: 40 },
+                         { tuck: 100, tuckT: 0 }, { tuck: 70, tuckT: -20 },
+                         { tuck: 85, tuckT: 90 }]) {
+          Opt.queue.push({ pose: Object.assign({}, Opt.best, v),
+                           name: 'TUCK ' + v.tuck + '%@' + v.tuckT });
+        }
+      }
+      if (Opt.done >= Opt.total) {
+        loadPose(Opt.best, Opt.bestName);
+        optStop('Loaded ' + Opt.bestName + ' (~' + Math.round(Opt.bestScore) +
+                ' J/m est). Press JUMP to run it for real.');
+        toast('<b>Biggest splash found</b><br><span style="font-size:11.5px;opacity:.85;line-height:1.7">' +
+              describePose(Opt.best) +
+              '<br><br>Pose loaded &mdash; press <b>JUMP</b> to run it at full resolution.<br>' +
+              '<span style="opacity:.6">Solver scores are marked ~ because they are estimated on a coarser grid.</span></span>', 11000);
+        return;
+      }
+      Opt.queue.push({ pose: mutate(Opt.best, Opt.sigma, Opt.rand), name: 'SOLVER ' + (Opt.done - PRESETS.length + 1) });
+    }
+    Opt.cur = Opt.queue.shift();
+    Opt.ev.begin(Opt.cur.pose);
+  }
+  if (Opt.ev.advance(budgetMs)) {
+    const r = Opt.ev.result();
+    Opt.done++;
+    addResult(Opt.cur.name, Opt.cur.pose, r, true);   // ~ low-res estimate
+    if (Opt.stage === 2) {
+      Opt.tries++;
+      if (r.score > Opt.bestScore) Opt.hits++;
+    }
+    if (r.score > Opt.bestScore) {
+      Opt.bestScore = r.score; Opt.best = Opt.cur.pose; Opt.bestName = Opt.cur.name;
+    }
+    // 1/5th success rule — widen the search while it keeps paying off
+    if (Opt.stage === 2 && Opt.tries >= 8) {
+      Opt.sigma *= (Opt.hits / Opt.tries > 0.2) ? 1.25 : 0.80;
+      Opt.sigma = clamp(Opt.sigma, 0.12, 2.2);
+      Opt.tries = 0; Opt.hits = 0;
+    }
+    Opt.cur = null;
+    ui.optfill.style.width = (100 * Opt.done / Opt.total).toFixed(1) + '%';
+    if (Opt.stage === 2) {
+      optMsg('Trial ' + Opt.done + '/' + Opt.total + ' — best ' +
+             Math.round(Opt.bestScore) + ' J/m (' + Opt.bestName + ')');
+    }
+  }
+}
+// ============================================================================
+// RENDERER
+//
+// Water is drawn as a density field: particles are tent-splatted into a small
+// offscreen buffer, then upscaled with smoothing. Thin regions (few particles
+// per pixel) shade toward white — which is physically the right cue, because
+// aerated sheets and droplets ARE white, while the deep bulk is dark. That one
+// rule does most of the work of a foam simulation for none of the cost.
+// ============================================================================
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d', { alpha: false });
+let CW = 0, CH = 0, DPR = 1;
+
+const view = { zoom: 1, panX: 0, panY: 0, scale: 1, x0: 0, y0: 0 };
+// Wide enough that the top of a full-height jump stays in frame: the board sits
+// 4.10 m up and a 6.5 m/s takeoff adds another 2.15 m of rise.
+const VIEW_W = 12.2;         // world metres across the screen at zoom 1
+
+// Buffer width is a deliberate compromise: fine enough that a splash sheet
+// keeps its shape after upscaling, coarse enough that a render pixel holds
+// ~1 particle so the bulk reads as solid water rather than as speckle.
+const BW = 320;
+let BH = 250;
+let bufCv = document.createElement('canvas'), bufCtx = null, bufImg = null;
+let dfield = null, sfield = null;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  CW = Math.floor(window.innerWidth * DPR);
+  CH = Math.floor(window.innerHeight * DPR);
+  cv.width = CW; cv.height = CH;
+  cv.style.width = window.innerWidth + 'px';
+  cv.style.height = window.innerHeight + 'px';
+  BH = Math.max(60, Math.round(BW * CH / CW));
+  bufCv.width = BW; bufCv.height = BH;
+  bufCtx = bufCv.getContext('2d');
+  bufImg = bufCtx.createImageData(BW, BH);
+  dfield = new Float32Array(BW * BH);
+  sfield = new Float32Array(BW * BH);
+}
+
+function computeView() {
+  view.scale = CW / (VIEW_W / view.zoom);
+  view.x0 = 0.35 + view.panX;
+  view.y0 = -0.25 + view.panY;
+}
+const sxw = x => (x - view.x0) * view.scale;
+const syw = y => CH - (y - view.y0) * view.scale;
+
+// --------------------------------------------------------------- water pass
+function drawWater(S) {
+  const fl = S.fl;
+  dfield.fill(0); sfield.fill(0);
+  const kx = BW / CW, ky = BH / CH;
+  const { px, py, pvx, pvy, np } = fl;
+  for (let i = 0; i < np; i++) {
+    const bx = sxw(px[i]) * kx, by = syw(py[i]) * ky;
+    const x0 = Math.floor(bx - .5), y0 = Math.floor(by - .5);
+    if (x0 < 0 || y0 < 0 || x0 > BW - 3 || y0 > BH - 3) continue;
+    const fx = bx - .5 - x0, fy = by - .5 - y0;
+    const sp = Math.abs(pvx[i]) + Math.abs(pvy[i]);
+    // 3x3 tent, weights summing to exactly 1 so total density is conserved
+    // (that is what lets dRef below be an absolute reference, not a fudge).
+    for (let a = 0; a < 3; a++) {
+      const wx = a === 0 ? (1 - fx) * .5 : a === 1 ? .5 : fx * .5;
+      for (let b = 0; b < 3; b++) {
+        const wy = b === 0 ? (1 - fy) * .5 : b === 1 ? .5 : fy * .5;
+        const k = (y0 + b) * BW + (x0 + a);
+        const w = wx * wy;
+        dfield[k] += w; sfield[k] += w * sp;
+      }
+    }
+  }
+
+  // Reference density: how many particles a pixel of solid water should hold.
+  // Buffer pixels are square (BH is derived from the screen aspect), so this is
+  // just pixel area over the area of water each particle carries. Deriving it
+  // rather than hard-coding a threshold keeps the look identical across all
+  // three quality settings and at any zoom.
+  const pixW = (VIEW_W / view.zoom) / BW;
+  const dRef = Math.max(0.02, (pixW * pixW) / fl.pArea);
+  const inv = 1 / dRef;
+  const d = bufImg.data;
+  const worldTop = view.y0 + CH / view.scale;
+  const dy = (worldTop - view.y0) / BH;
+  for (let j = 0; j < BH; j++) {
+    const wy = worldTop - (j + .5) * dy;
+    const depth = clamp((S.restLevel - wy) / 2.4, 0, 1);
+    // deep water is darker and greener; near-surface picks up the sky
+    const dr = 6 + 10 * (1 - depth), dg = 40 + 62 * (1 - depth), db = 74 + 96 * (1 - depth);
+    for (let i = 0; i < BW; i++) {
+      const k = j * BW + i, o = k << 2;
+      const den = dfield[k] * inv;
+      if (den < 0.14) { d[o + 3] = 0; continue; }
+      const a = clamp((den - 0.14) / 0.42, 0, 1);
+      const thin = 1 - clamp((den - 0.30) / 0.60, 0, 1);
+      const spd = sfield[k] / Math.max(dfield[k], 1e-5);
+      const foam = clamp(thin * 0.92 + clamp((spd - 1.8) / 4.2, 0, 1) * 0.55, 0, 1);
+      const f2 = foam * foam;
+      d[o]     = dr + (238 - dr) * f2;
+      d[o + 1] = dg + (247 - dg) * f2;
+      d[o + 2] = db + (255 - db) * f2;
+      // capped below opaque so the tiled basin reads through the water
+      d[o + 3] = 255 * (0.24 + 0.60 * a);
+    }
+  }
+  bufCtx.putImageData(bufImg, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bufCv, 0, 0, BW, BH, 0, 0, CW, CH);
+}
+
+// ------------------------------------------------------------ pool structure
+// The basin is drawn brightly and the water layer is left slightly translucent
+// so the tiling reads THROUGH it. Drawn opaque over a black background, the
+// water was a flat blue slab with no sense of depth or containment.
+function drawPool(S) {
+  const g = ctx.createLinearGradient(0, 0, 0, CH);
+  g.addColorStop(0, '#03060e');
+  g.addColorStop(0.45, '#061020');
+  g.addColorStop(1, '#040a16');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
+
+  const hz = syw(POOL.deck);
+  // distant fence + pole lights
+  ctx.fillStyle = 'rgba(10,20,40,.85)';
+  ctx.fillRect(0, hz - 46 * DPR, CW, 46 * DPR);
+  ctx.strokeStyle = 'rgba(50,95,165,.18)';
+  ctx.lineWidth = DPR;
+  ctx.beginPath();
+  for (let x = 0; x < CW; x += 22 * DPR) { ctx.moveTo(x, hz - 44 * DPR); ctx.lineTo(x, hz); }
+  ctx.stroke();
+  for (const lx of [0.13, 0.62, 0.93]) {
+    const px = lx * CW, py = hz - 40 * DPR;
+    const rg = ctx.createRadialGradient(px, py, 0, px, py, 90 * DPR);
+    rg.addColorStop(0, 'rgba(170,205,255,.30)');
+    rg.addColorStop(1, 'rgba(170,205,255,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(px, py, 90 * DPR, 0, 6.2832); ctx.fill();
+  }
+
+  const bx = sxw(POOL.x0), bw = sxw(POOL.x1) - bx;
+  const by = hz, bh = syw(POOL.floor) - by;
+
+  // deck slabs
+  ctx.fillStyle = '#101d31';
+  ctx.fillRect(0, by, bx, CH - by);
+  ctx.fillRect(bx + bw, by, CW - (bx + bw), CH - by);
+  ctx.strokeStyle = 'rgba(70,150,240,.16)';
+  ctx.beginPath();
+  for (let x = bx; x > 0; x -= 0.9 * view.scale) { ctx.moveTo(x, by); ctx.lineTo(x, CH); }
+  for (let x = bx + bw; x < CW; x += 0.9 * view.scale) { ctx.moveTo(x, by); ctx.lineTo(x, CH); }
+  ctx.stroke();
+
+  // basin interior, tiled
+  ctx.fillStyle = '#0b1d36';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = 'rgba(95,175,255,.20)';
+  ctx.beginPath();
+  const tile = 0.30 * view.scale;
+  for (let x = bx; x <= bx + bw + 1; x += tile) { ctx.moveTo(x, by); ctx.lineTo(x, by + bh); }
+  for (let y = by + bh; y >= by; y -= tile) { ctx.moveTo(bx, y); ctx.lineTo(bx + bw, y); }
+  ctx.stroke();
+  // darker toward the deep end so the basin has some form
+  const bg = ctx.createLinearGradient(0, by, 0, by + bh);
+  bg.addColorStop(0, 'rgba(0,0,0,0)');
+  bg.addColorStop(1, 'rgba(0,4,12,.55)');
+  ctx.fillStyle = bg; ctx.fillRect(bx, by, bw, bh);
+
+  // waterline tile band + floor
+  ctx.fillStyle = 'rgba(70,155,255,.22)';
+  ctx.fillRect(bx, syw(S.restLevel + 0.17), bw, 0.15 * view.scale);
+  ctx.fillStyle = '#0c1c31';
+  ctx.fillRect(bx, syw(POOL.floor), bw, CH - syw(POOL.floor));
+  ctx.strokeStyle = 'rgba(110,180,255,.28)';
+  ctx.lineWidth = 2 * DPR;
+  ctx.beginPath(); ctx.moveTo(bx, syw(POOL.floor)); ctx.lineTo(bx + bw, syw(POOL.floor)); ctx.stroke();
+
+  // coping lip along both walls
+  ctx.fillStyle = 'rgba(150,195,255,.42)';
+  ctx.fillRect(bx - 0.16 * view.scale, by - 4 * DPR, 0.16 * view.scale + 3 * DPR, 4 * DPR);
+  ctx.fillRect(bx + bw - 3 * DPR, by - 4 * DPR, 0.16 * view.scale + 3 * DPR, 4 * DPR);
+  ctx.strokeStyle = 'rgba(110,175,255,.30)';
+  ctx.lineWidth = 2 * DPR;
+  ctx.beginPath();
+  ctx.moveTo(bx, by); ctx.lineTo(bx, by + bh);
+  ctx.moveTo(bx + bw, by); ctx.lineTo(bx + bw, by + bh);
+  ctx.stroke();
+
+  // ladder on the far wall, for scale
+  const lx0 = bx + bw - 0.55 * view.scale;
+  ctx.strokeStyle = 'rgba(165,205,255,.5)';
+  ctx.lineWidth = 3 * DPR;
+  ctx.beginPath();
+  ctx.moveTo(lx0, by - 0.42 * view.scale); ctx.lineTo(lx0, syw(S.restLevel - 0.75));
+  ctx.moveTo(lx0 + 0.30 * view.scale, by - 0.42 * view.scale);
+  ctx.lineTo(lx0 + 0.30 * view.scale, syw(S.restLevel - 0.75));
+  ctx.stroke();
+  ctx.lineWidth = 2 * DPR;
+  ctx.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const y = by - 0.28 * view.scale + k * 0.30 * view.scale;
+    ctx.moveTo(lx0, y); ctx.lineTo(lx0 + 0.30 * view.scale, y);
+  }
+  ctx.stroke();
+
+  // pump return jets set into the walls
+  ctx.fillStyle = 'rgba(120,180,255,.35)';
+  ctx.fillRect(bx, syw(1.55) - 0.07 * view.scale, 0.10 * view.scale, 0.14 * view.scale);
+  ctx.fillRect(bx + bw - 0.10 * view.scale, syw(0.95) - 0.07 * view.scale, 0.10 * view.scale, 0.14 * view.scale);
+
+  // diving board + support
+  const bxs = sxw(BOARD.x), bys = syw(BOARD.y);
+  ctx.fillStyle = 'rgba(160,200,255,.62)';
+  ctx.fillRect(sxw(0.42), bys, bxs - sxw(0.42), 6 * DPR);
+  ctx.fillStyle = 'rgba(70,145,255,.40)';
+  ctx.fillRect(sxw(0.95), bys + 6 * DPR, 6 * DPR, by - bys - 6 * DPR);
+}
+
+// ------------------------------------------------------------- lights & body
+function drawUnderwaterLights(fl) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const L of [{ x: POOL.x0 + 0.12, y: 1.62 }, { x: POOL.x1 - 0.12, y: 1.62 }]) {
+    const px = sxw(L.x), py = syw(L.y), R = 2.6 * view.scale;
+    const rg = ctx.createRadialGradient(px, py, 0, px, py, R);
+    rg.addColorStop(0, 'rgba(90,175,255,.30)');
+    rg.addColorStop(0.35, 'rgba(60,140,255,.10)');
+    rg.addColorStop(1, 'rgba(60,140,255,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(px, py, R, 0, 6.2832); ctx.fill();
+  }
+  ctx.restore();
+}
+
+const LIMB_COL = [
+  ['#f0b98a', '#c98457'],   // 0 trunk
+  ['#f6c79a', '#cf8d60'],   // 1 head
+  ['#f0b98a', '#c98457'],   // 2 arms
+  ['#eab082', '#c07e52'],   // 3 legs
+  ['#5c86bd', '#33547f']    // 4 other swimmers
+];
+
+function drawCaps(caps, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.lineCap = 'round';
+  // dark outline pass first so overlapping limbs stay readable
+  ctx.strokeStyle = 'rgba(4,10,20,.78)';
+  for (const c of caps) {
+    ctx.lineWidth = 2 * c.r * view.scale + 3.5 * DPR;
+    ctx.beginPath(); ctx.moveTo(sxw(c.ax), syw(c.ay)); ctx.lineTo(sxw(c.bx), syw(c.by)); ctx.stroke();
+  }
+  for (const c of caps) {
+    const col = LIMB_COL[c.k] || LIMB_COL[0];
+    ctx.strokeStyle = col[0];
+    ctx.lineWidth = 2 * c.r * view.scale;
+    ctx.beginPath(); ctx.moveTo(sxw(c.ax), syw(c.ay)); ctx.lineTo(sxw(c.bx), syw(c.by)); ctx.stroke();
+    // wet sheen along the upper edge
+    ctx.strokeStyle = 'rgba(255,255,255,.20)';
+    ctx.lineWidth = Math.max(1, 0.5 * c.r * view.scale);
+    ctx.beginPath();
+    ctx.moveTo(sxw(c.ax), syw(c.ay) - c.r * view.scale * .45);
+    ctx.lineTo(sxw(c.bx), syw(c.by) - c.r * view.scale * .45);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// bright sparkle on the fastest airborne droplets — cheap, sells the impact
+function drawSpray(S) {
+  const { px, py, pvx, pvy, np } = S.fl;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = 'rgba(210,235,255,.55)';
+  const lim = S.restLevel + 0.10;
+  for (let i = 0; i < np; i++) {
+    if (py[i] < lim) continue;
+    const sp = Math.abs(pvx[i]) + Math.abs(pvy[i]);
+    if (sp < 3.2) continue;
+    ctx.fillRect(sxw(px[i]) - DPR, syw(py[i]) - DPR, 2 * DPR, 2 * DPR);
+  }
+  ctx.restore();
+}
+
+// ------------------------------------------------------------- annotations
+function drawGuides(S) {
+  const y = syw(S.restLevel);
+  ctx.save();
+  ctx.setLineDash([6 * DPR, 6 * DPR]);
+  ctx.strokeStyle = 'rgba(60,140,255,.30)';
+  ctx.lineWidth = DPR;
+  ctx.beginPath(); ctx.moveTo(sxw(POOL.x0), y); ctx.lineTo(sxw(POOL.x1), y); ctx.stroke();
+
+  if (S.m.peakHgt > 0.05) {
+    const py = syw(S.restLevel + S.m.peakHgt);
+    ctx.strokeStyle = 'rgba(255,160,80,.55)';
+    ctx.beginPath(); ctx.moveTo(sxw(POOL.x0), py); ctx.lineTo(sxw(POOL.x1), py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,180,110,.9)';
+    ctx.font = (11 * DPR) + 'px "Segoe UI",sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('PEAK CROWN  ' + S.m.peakHgt.toFixed(2) + ' m',
+                 sxw(POOL.x0) + 8 * DPR, py - 6 * DPR);
+  }
+  ctx.restore();
+}
+
+function drawTrace(S) {
+  const c = ui.trace, g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  const t = S.trace;
+  if (t.length < 2) return;
+  let mx = 1;
+  for (const v of t) if (v > mx) mx = v;
+  const best = board.length ? board[0].score : 0;
+  if (best > 0) {
+    const yb = c.height - (best / Math.max(mx, best)) * (c.height - 4) - 2;
+    g.strokeStyle = 'rgba(255,160,80,.35)';
+    g.setLineDash([3, 3]); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, yb); g.lineTo(c.width, yb); g.stroke();
+    g.setLineDash([]);
+  }
+  const sc = Math.max(mx, best);
+  g.strokeStyle = 'rgba(120,190,255,.9)';
+  g.lineWidth = 1.4;
+  g.beginPath();
+  for (let i = 0; i < t.length; i++) {
+    const x = i / (t.length - 1) * c.width;
+    const y = c.height - (t[i] / sc) * (c.height - 4) - 2;
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  }
+  g.stroke();
+}
+
+function render(S) {
+  computeView();
+  drawPool(S);
+  drawWater(S);
+  drawUnderwaterLights(S.fl);
+  for (let i = 0; i < S.nSwim; i++) drawCaps(S.swimmers[i].caps, 0.75);
+  if (S.body.active) drawCaps(S.body.caps, 1);
+  drawSpray(S);
+  drawGuides(S);
+}
+// ============================================================================
+// UI + MAIN LOOP
+// ============================================================================
+const ui = {};
+['trace', 'scoreBig', 'scoreSub', 'mVol', 'mHgt', 'mRch', 'mDeck', 'mSpd', 'mAtt',
+ 'presets', 'board', 'optbar', 'optfill', 'optmsg', 'bOpt', 'bClear', 'bQual', 'mBody',
+ 'bSlow', 'jump', 'toast', 'c_calm', 's_pump', 'o_pump', 's_swim', 'o_swim']
+  .forEach(id => ui[id] = document.getElementById(id));
+
+const SLIDERS = {
+  launch: ['s_launch', '°'], attitude: ['s_body', '°'],
+  spin: ['s_spin', '°/s'], size: ['s_size', '%'],
+  spine: ['s_spine', '°'],
+  shA: ['s_shA', '°'], elA: ['s_elA', '°'],
+  shB: ['s_shB', '°'], elB: ['s_elB', '°'],
+  hipA: ['s_hipA', '°'], knA: ['s_knA', '°'],
+  hipB: ['s_hipB', '°'], knB: ['s_knB', '°'],
+  tuck: ['s_tuck', '%'], tuckT: ['s_tuckT', 'ms']
+};
+
+let pose = defaultPose();
+let poseName = 'STANDARD';
+let customN = 0;
+let qualKey = 'med';
+let sim = null;
+let slowMo = false;
+let pendingRun = null;
+const board = [];
+
+function optMsg(t) { ui.optmsg.textContent = t; }
+function toast(html, ms) {
+  ui.toast.innerHTML = html;
+  ui.toast.style.display = 'block';
+  clearTimeout(toast._t);
+  if (ms) toast._t = setTimeout(() => ui.toast.style.display = 'none', ms);
+}
+function hideToast() { ui.toast.style.display = 'none'; }
+
+// ------------------------------------------------------------- pose <-> UI
+// Mass of the real person this 2D silhouette stands for. Area scales with the
+// square of BODY SIZE and thickness with the first power, so mass goes as the
+// cube, exactly as it should.
+function jumperMass(p) {
+  return RHO_BODY * massProps(buildLocal(p)).area * BODY_DEPTH * (p.size / 100);
+}
+function showBody() {
+  const caps = buildLocal(pose);
+  let lo = 1e9, hi = -1e9;
+  for (const c of caps) { lo = Math.min(lo, c.ay - c.r, c.by - c.r); hi = Math.max(hi, c.ay + c.r, c.by + c.r); }
+  ui.mBody.textContent = jumperMass(pose).toFixed(0) + ' kg · ' + (hi - lo).toFixed(2) + ' m';
+}
+
+function syncUI() {
+  for (const k in SLIDERS) {
+    const [id, suf] = SLIDERS[k];
+    const el = document.getElementById(id);
+    el.value = pose[k];
+    document.getElementById('o_' + id.slice(2)).textContent = pose[k] + suf;
+  }
+  showBody();
+}
+for (const k in SLIDERS) {
+  const [id, suf] = SLIDERS[k];
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    pose[k] = +el.value;
+    document.getElementById('o_' + id.slice(2)).textContent = pose[k] + suf;
+    if (!poseName.startsWith('CUSTOM')) { customN++; poseName = 'CUSTOM ' + customN; }
+    showBody();
+  });
+}
+
+PRESETS.forEach((pr, i) => {
+  const b = document.createElement('button');
+  b.textContent = pr.n;
+  b.addEventListener('click', () => {
+    const size = pose.size;
+    pose = Object.assign(defaultPose(), pr.p, { size });
+    poseName = pr.n;
+    syncUI();
+    [...ui.presets.children].forEach(c => c.classList.remove('on'));
+    b.classList.add('on');
+  });
+  ui.presets.appendChild(b);
+});
+ui.presets.children[0].classList.add('on');
+
+// Plain-language summary of a pose — the payoff of the whole search is being
+// able to say what the winning shape actually IS.
+function describePose(p) {
+  const att = ((p.attitude % 360) + 540) % 360 - 180;
+  let ori;
+  if (Math.abs(att) < 35) ori = 'feet-first upright';
+  else if (Math.abs(att) > 145) ori = 'head-first';
+  else if (att < 0) ori = att < -65 && att > -115 ? 'flat on the front' : 'pitched forward';
+  else ori = att > 65 && att < 115 ? 'flat on the back' : 'pitched back';
+  const tuckAvg = (p.hipA + p.hipB + p.knA + p.knB) / 4;
+  const shape = tuckAvg > 105 ? 'balled up tight' : tuckAvg > 60 ? 'half-tucked'
+              : tuckAvg > 25 ? 'loosely open' : 'straight-bodied';
+  const asym = Math.abs(p.hipA - p.hipB) > 55 ? ', one leg speared out' : '';
+  const arms = (p.shA + p.shB) / 2 > 130 ? ', arms overhead'
+             : (p.shA + p.shB) / 2 > 70 ? ', arms wide' : ', arms in';
+  const late = p.tuck > 15
+    ? ` — then a ${Math.round(p.tuck)}% late tuck ${p.tuckT < 0 ? Math.abs(p.tuckT) + ' ms before' : p.tuckT + ' ms after'} contact`
+    : '';
+  return `${ori}, ${shape}${asym}${arms}${late}`;
+}
+
+function loadPose(p, name) {
+  pose = Object.assign({}, p);
+  poseName = name;
+  syncUI();
+  [...ui.presets.children].forEach(c => c.classList.remove('on'));
+  const m = [...ui.presets.children].find(c => c.textContent === name);
+  if (m) m.classList.add('on');
+}
+
+// -------------------------------------------------------------- leaderboard
+function addResult(name, p, r, est) {
+  board.push({ name, pose: Object.assign({}, p), score: r.score, hgt: r.hgt,
+               vol: r.vol, deck: r.deck, est: !!est });
+  board.sort((a, b) => b.score - a.score);
+  if (board.length > 26) board.length = 26;
+  renderBoard();
+}
+function renderBoard() {
+  ui.board.innerHTML = '';
+  board.forEach((e, i) => {
+    const row = document.createElement('div');
+    row.className = 'brow' + (i === 0 ? ' best' : '');
+    row.innerHTML = '<span class="r">' + (i + 1) + '</span>' +
+                    '<span class="n"></span>' +
+                    '<span class="s">' + (e.est ? '~' : '') + Math.round(e.score) + '</span>';
+    row.querySelector('.n').textContent = e.name;
+    row.title = e.name + ' — ' + Math.round(e.score) + ' J/m · crown ' +
+                e.hgt.toFixed(2) + ' m · ' + Math.round(e.vol) + ' L/m\n' + describePose(e.pose);
+    row.addEventListener('click', () => {
+      loadPose(e.pose, e.name);
+      toast('<b>' + e.name + '</b> loaded &mdash; ' + Math.round(e.score) +
+            ' J/m<br><span style="opacity:.7;font-size:11px">' + describePose(e.pose) +
+            '</span>', 3800);
+    });
+    ui.board.appendChild(row);
+  });
+}
+ui.bClear.addEventListener('click', () => { board.length = 0; renderBoard(); optMsg('Cleared.'); });
+
+// ------------------------------------------------------------------- actions
+function doJump() {
+  if (!sim || sim.phase === 'flight' || sim.phase === 'impact') return;
+  hideToast();
+  pendingRun = poseName;
+  sim.jump(pose, ui.c_calm.checked);
+}
+ui.jump.addEventListener('click', doJump);
+
+ui.bSlow.addEventListener('click', () => {
+  slowMo = !slowMo;
+  ui.bSlow.classList.toggle('on', slowMo);
+});
+
+const QK = ['low', 'med', 'high'];
+ui.bQual.addEventListener('click', () => {
+  qualKey = QK[(QK.indexOf(qualKey) + 1) % 3];
+  ui.bQual.textContent = 'QUALITY: ' + QUAL[qualKey].name;
+  buildSim();
+});
+
+ui.bOpt.addEventListener('click', () => {
+  if (Opt.on) { optStop('Search stopped at trial ' + Opt.done + '.'); return; }
+  toast('Searching pose space at low resolution &mdash; the pool keeps running.<br>' +
+        '<span style="opacity:.7;font-size:11px">Body size is held fixed; only technique varies.</span>', 3200);
+  optStart(pose);
+});
+
+ui.s_pump.addEventListener('input', () => {
+  ui.o_pump.textContent = ui.s_pump.value + '%';
+  if (sim) sim.pump = +ui.s_pump.value / 100;
+});
+ui.s_swim.addEventListener('input', () => {
+  ui.o_swim.textContent = ui.s_swim.value;
+  if (sim) sim.nSwim = +ui.s_swim.value;
+});
+
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); doJump(); }
+  else if (e.key === 'r' || e.key === 'R') { sim && sim.resetWater(); hideToast(); }
+});
+
+// pan / zoom
+let dragging = false, lastX = 0, lastY = 0;
+cv.addEventListener('pointerdown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerup', e => { dragging = false; });
+cv.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  view.panX -= (e.clientX - lastX) * DPR / view.scale;
+  view.panY += (e.clientY - lastY) * DPR / view.scale;
+  lastX = e.clientX; lastY = e.clientY;
+});
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  view.zoom = clamp(view.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.6, 5);
+}, { passive: false });
+
+// ------------------------------------------------------------------ startup
+function buildSim() {
+  toast('Priming the pool at ' + QUAL[qualKey].name + ' resolution&hellip;');
+  setTimeout(() => {
+    sim = new Sim(qualKey, 20260906);
+    sim.nSwim = +ui.s_swim.value;
+    sim.pump = +ui.s_pump.value / 100;
+    sim.settle(80);
+    hideToast();
+  }, 30);
+}
+
+function updateHUD() {
+  const M = sim.m;
+  const live = sim.phase === 'impact' || sim.phase === 'done';
+  ui.scoreBig.textContent = Math.round(live ? M.peak : 0);
+  ui.mVol.textContent = Math.round(M.peakVol) + ' L/m';
+  ui.mHgt.textContent = M.peakHgt.toFixed(2) + ' m';
+  ui.mRch.textContent = M.reach.toFixed(2) + ' m';
+  ui.mDeck.textContent = Math.round(M.peakDeck) + ' L/m';
+  const b = sim.body;
+  if (b.active && !b.airborne) {
+    ui.mSpd.textContent = b.entrySpeed.toFixed(2) + ' m/s';
+    const a = ((b.entryAtt % 360) + 540) % 360 - 180;
+    ui.mAtt.textContent = a.toFixed(0) + '°';
+  }
+  ui.scoreSub.textContent =
+    sim.phase === 'flight' ? 'IN FLIGHT…' :
+    sim.phase === 'impact' ? 'MEASURING — ' + sim.runT.toFixed(1) + ' / ' + WINDOW + ' s' :
+    sim.phase === 'done' ? (pendingRun ? '' : 'JOULES PER METRE OF POOL') :
+    'JOULES PER METRE OF POOL';
+  ui.jump.disabled = (sim.phase === 'flight' || sim.phase === 'impact');
+}
+
+let frameCount = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  if (!sim) return;
+  frameCount++;
+  // The search and the live pool were splitting the frame, which left the
+  // solver ~11 ms and got through one trial every twelve seconds. Freezing the
+  // pool for the duration hands it the whole frame; the pool is still drawn, so
+  // the page looks paused rather than hung, and the progress bar carries it.
+  if (!Opt.on && (!slowMo || (frameCount % 3 === 0))) sim.step(1 / 60);
+
+  if (sim.phase === 'done' && pendingRun) {
+    addResult(pendingRun, pose, { score: sim.m.peak, hgt: sim.m.peakHgt,
+                                  vol: sim.m.peakVol, deck: sim.m.peakDeck });
+    optMsg(pendingRun + ': ' + Math.round(sim.m.peak) + ' J/m');
+    pendingRun = null;
+  }
+
+  render(sim);
+  drawTrace(sim);
+  updateHUD();
+  if (Opt.on) optTick(13);
+}
+
+window.addEventListener('resize', resize);
+resize();
+syncUI();
+ui.o_pump.textContent = ui.s_pump.value + '%';
+ui.o_swim.textContent = ui.s_swim.value;
+renderBoard();
+buildSim();
+requestAnimationFrame(loop);
+
+setTimeout(() => {
+  if (!board.length) toast(
+    '<b>HYDRODYNE</b> &mdash; which body shape makes the biggest splash?<br><br>' +
+    '<span style="font-size:11.5px;opacity:.8;line-height:1.7">Takeoff speed is locked at 6.5 m/s from a fixed board, so every ' +
+    'jump hits the water at the same ~8.4 m/s &mdash; only <i>shape</i> and <i>attitude</i> vary.<br>' +
+    'Pick a shape, press <b>JUMP</b>, or hit <b>FIND BIGGEST</b> and let the solver search.</span>', 9000);
+}, 1400);
+</script>
+</body>
+</html>
