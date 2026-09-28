@@ -244,6 +244,7 @@ const HUD = (() => {
   // ---------------------------------------------------------------------------------------------- reticles
   const R = $('reticle');
   const gHole = el('g', {}, R);
+  const hEdge = el('path', {class: 'amb edge'}, gHole);
   const hRing = el('circle', {class: 'amb', cx: 0, cy: 0}, gHole);
   const hSpin = el('circle', {class: 'amb spin', cx: 0, cy: 0, 'stroke-dasharray': '1.5 9', opacity: 0.75}, gHole);
   const hTicks = el('path', {class: 'amb'}, gHole);
@@ -269,17 +270,37 @@ const HUD = (() => {
   const pArrow = el('path', {class: 'blu'}, gPro);
   const pT = el('text', {class: 'blu-f t-sm'}, gPro); pT.textContent = 'PROGRADE';
 
+  // The Kerr shadow's edge as seen from here (kerr.js: the critical curve through the same ZAMO camera the shader
+  // uses, so it hugs the drawn shadow): world directions, recomputed when the spin moves or the camera drifts.
+  let shadowCache = null;
+  function shadowOutline(){
+    if (typeof KERR === 'undefined' || !ORB.camM) return null;
+    const a = typeof bhSpin === 'function' ? bhSpin() : 0, now = ORB.tReal;
+    if (!shadowCache || Math.abs(shadowCache.a - a) > 5e-4 || now - shadowCache.t > 2) {
+      const c = KERR.camera(ORB.camM, a), dirs = KERR.criticalCurve(c, 72);
+      let m = [0, 0, 0]; for (const d of dirs) m = V.add(m, d); m = V.norm(m);
+      let rad = 0; for (const d of dirs) rad = Math.max(rad, Math.acos(clamp(V.dot(d, m), -1, 1)));
+      let md = 1; for (const d of dirs) for (const e of dirs) md = Math.min(md, V.dot(d, e));
+      shadowCache = {a, t: now, dirs, centre: m, rad, width: Math.acos(clamp(md, -1, 1))};
+    }
+    return shadowCache;
+  }
+
   function reticles(){
     const v = ORB.view, h = ORB.hud, W = ORB.W, H = ORB.H;
     const pxPerRad = H/2/Math.tan(v.fov/2);
-    // Gargantua: lock ring round the shadow (the shadow's radius is analytic: 6.48 degrees from MILLER)
-    const ph = orbitProject(h.dirHole), rs = Math.tan(ORB.shadowRad)*pxPerRad;
+    // Gargantua: lock ring round the shadow, centred on its (Kerr, D-shaped when fast) outline, which is traced too
+    const so = shadowOutline();
+    const ph = orbitProject(so ? so.centre : h.dirHole), rs = Math.tan(so ? so.rad : ORB.shadowRad)*pxPerRad;
     const r1 = rs*1.28, r2 = rs*1.46;
     const onScreen = ph.front && ph.x > -r2 && ph.x < W + r2 && ph.y > -r2 && ph.y < H + r2;
     gHole.style.display = onScreen ? '' : 'none';
     if (onScreen) {
       gHole.setAttribute('transform', 'translate(' + f1(ph.x) + ',' + f1(ph.y) + ')');
       setA(hRing, {r: f1(r1)}); setA(hSpin, {r: f1(r2)});
+      let d = '';
+      if (so) so.dirs.forEach((dir, i) => { const q = orbitProject(dir); d += (i ? 'L' : 'M') + f1(q.x - ph.x) + ' ' + f1(q.y - ph.y); });
+      hEdge.setAttribute('d', d ? d + 'Z' : '');
       const a = r1, b = r1 + 11;
       hTicks.setAttribute('d', 'M' + a + ' 0H' + b + 'M-' + a + ' 0H-' + b + 'M0 ' + a + 'V' + b + 'M0 -' + a + 'V-' + b);
       if (W < 700) {                                     // phones: a short title over the ring
@@ -347,15 +368,20 @@ const HUD = (() => {
 
   // ---------------------------------------------------------------------------------------------- instruments (10 Hz)
   const E = {alt: $('tAlt'), vel: $('tVel'), per: $('tPer'), ground: $('tGround'), side: $('tSide'), range: $('tRange'), shadow: $('tShadow'),
-    orbv: $('tOrbV'), dil: $('tDil'), met: $('cMet'), earth: $('cEarth'), delta: $('cDelta'), res: $('sRes'), fps: $('sFps')};
+    spin: $('tSpin'), isco: $('tIsco'), peak: $('tPeak'), dil: $('tDil'), met: $('cMet'), earth: $('cEarth'), delta: $('cDelta'), res: $('sRes'), fps: $('sFps')};
+  // Gargantua's spin as the picture shows it, and what follows from it (kerr.js); a = 0.6 if the scene never ran
+  const spinNow = () => typeof bhSpin === 'function' ? bhSpin() : 0.6;
+  const discPeakK = a => typeof BH !== 'undefined' && typeof KERR !== 'undefined' ? BH.gain.Tpeak*Math.pow(Math.pow(BH.rHaze/KERR.rIn(a), BH.gain.fluxExp), 0.25) : 7500;
   let lastText = 0, sideState = '', transitArmed = true, transitNear = true, nextFlavor = 40;
   const FLAVOR = [
     () => 'GEODESIC CACHE · ' + num(6*BH.CUBE*BH.CUBE) + ' RAYS · VALID',
-    () => 'PHOTON RING · r = 3 M · STABLE',
+    () => 'PHOTON ORBITS · r = ' + num(KERR.photonOrbit(spinNow(), 1), 2) + ' / ' + num(KERR.photonOrbit(spinNow(), -1), 2) + ' M · PRO / RETRO',
     () => 'EARTH CLOCK +' + num(ORB.hud.earth - ORB.hud.met, 0) + ' s AHEAD OF SHIP',
     () => 'LAST PACKET FROM EARTH · ' + num(ORB.hud.rangeHole/SI.c/3600, 1) + ' LIGHT-HOURS OUT FROM THE HOLE',
     () => 'MILLER · OCEAN WORLD · 1.05 R⊕ · 1.05 g',
-    () => 'DISC · 7,500 K PEAK · INNER EDGE 4.6 M',
+    () => 'DISC · ' + num(discPeakK(spinNow()), 0) + ' K PEAK · INNER EDGE ' + num(KERR.rIn(spinNow()), 2) + ' M',
+    () => 'FRAME DRAGGING · a = ' + num(spinNow(), 3) + ' · HORIZON ' + num(KERR.horizon(spinNow()), 3) + ' M',
+    () => 'DISC EFFICIENCY ' + num(KERR.efficiency(spinNow())*100, 1) + '% · MASS INTO LIGHT',
     () => 'HAWKING TEMPERATURE · 6×10⁻¹⁶ K',
     () => 'HULL 291 K · LIFE SUPPORT NOMINAL',
     () => 'MILLER ORBITS GARGANTUA AT ' + num(ORB.planet.vLocal, 3) + ' c',
@@ -372,9 +398,13 @@ const HUD = (() => {
     const side = h.el > 1.5*DEG ? 'DAYSIDE' : h.el < -1.5*DEG ? 'NIGHT SIDE' : 'TERMINATOR';
     setText(E.side, side);
     setText(E.range, num(h.rangeHole/SI.AU, 1) + ' AU');
-    setText(E.shadow, '⌀ ' + num(2*ORB.shadowRad/DEG, 2) + '°');
-    setText(E.orbv, num(pl.vLocal, 3) + ' c');
-    setText(E.dil, '×' + num(pl.dil, 4));
+    const so = shadowOutline(), a = spinNow(), S = typeof BH !== 'undefined' && BH.spin;
+    setText(E.shadow, '⌀ ' + num((so ? so.width : 2*ORB.shadowRad)/DEG, 2) + '°');
+    setText(E.spin, 'a ' + num(a, 3) + (S && S.move ? (S.move.a1 > a ? ' ▲' : ' ▼') : ''));
+    E.spin.classList.toggle('warn', !!(S && S.move));
+    setText(E.isco, typeof KERR !== 'undefined' ? num(KERR.isco(a), 2) + ' M' : '—');
+    setText(E.peak, num(discPeakK(a), 0) + ' K');
+    setText(E.dil, '×' + num(typeof KERR !== 'undefined' ? KERR.ut(pl.aM, a) : pl.dil, 4));
     setText(E.met, clock(h.met));
     setText(E.earth, clock(h.earth));
     setText(E.delta, '+' + num(h.earth - h.met, 1) + ' s');
@@ -452,6 +482,8 @@ const HUD = (() => {
     else if (kind === 'zoomIn') { log('TELESCOPE DEPLOYED · ×2.6'); $('bScope').setAttribute('aria-pressed', 'true'); AUDIO.select(); }
     else if (kind === 'zoomOut') { log('TELESCOPE STOWED'); $('bScope').setAttribute('aria-pressed', 'false'); AUDIO.blip(0.8); }
     else if (kind === 'contact') { log('CONTACT · FRIENDLY ' + arg.kind.toUpperCase() + ' GROUP OVERTAKING TO ' + (arg.side < 0 ? 'PORT' : 'STARBOARD')); AUDIO.ping(); }
+    else if (kind === 'spinMove') { log('GARGANTUA ' + (arg.to > arg.from ? 'SPINNING UP' : 'SPINNING DOWN') + ' · a ' + num(arg.from, 2) + ' → ' + num(arg.to, 2), true); AUDIO.select(); }
+    else if (kind === 'spinHold') log('SPIN STEADY · a = ' + num(arg.a, 3) + ' · ISCO ' + num(KERR.isco(arg.a), 2) + ' M');
   }
 
   return {bootStatus, online: onlineReq, fallback, frame, poke, restored, log};

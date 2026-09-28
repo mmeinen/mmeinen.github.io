@@ -207,6 +207,7 @@ body.nogl #reticle{display:none}
 #reticle .amb-f{fill:rgba(var(--amber),.95)}
 #reticle .blu{stroke:rgba(110,175,255,.7); fill:none; stroke-width:1}
 #reticle .blu-f{fill:rgba(150,200,255,.85)}
+#reticle .edge{stroke-width:1.1; stroke-dasharray:3 4; opacity:.8}        /* the Kerr shadow's traced edge */
 #reticle .spin{animation:spin 40s linear infinite; transform-box:fill-box; transform-origin:center}
 #reticle .spin.rev{animation-duration:26s; animation-direction:reverse}
 @keyframes spin{to{transform:rotate(360deg)}}

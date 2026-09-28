@@ -50,10 +50,11 @@
       <h2><i>02</i>TARGET<em>GARGANTUA</em></h2>
       <dl>
         <dt>MASS</dt><dd>1.0&times;10<sup>8</sup> M&#9737;</dd>
+        <dt>SPIN</dt><dd id="tSpin">&mdash;</dd>
         <dt>RANGE</dt><dd id="tRange">&mdash;</dd>
         <dt>SHADOW</dt><dd id="tShadow">&mdash;</dd>
-        <dt>DISC PEAK</dt><dd>7,500 K</dd>
-        <dt>MILLER v</dt><dd id="tOrbV">&mdash;</dd>
+        <dt>ISCO</dt><dd id="tIsco">&mdash;</dd>
+        <dt>DISC PEAK</dt><dd id="tPeak">&mdash;</dd>
         <dt>TIME DIL.</dt><dd id="tDil">&mdash;</dd>
       </dl>
     </section>
@@ -142,6 +143,7 @@
 
   <!-- classic scripts, in dependency order: the page must open from file:// -->
   <script src="js/scene/gl.js"></script>
+  <script src="js/scene/kerr.js"></script>
   <script src="js/scene/gargantua.js"></script>
   <script src="js/scene/planet.js"></script>
   <script src="js/scene/post.js"></script>

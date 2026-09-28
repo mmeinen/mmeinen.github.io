@@ -8,7 +8,7 @@
 
 const QS = new URLSearchParams(location.search);
 const SMALL = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 720;
-if (SMALL) BH.CUBE = 512;                       // 44 MB of bake targets instead of 176 MB on phones
+if (SMALL) { BH.CUBE = 512; BH.budgetMs = 0.8; }  // 44 MB of bake targets instead of 176 MB on phones
 
 const DPR_CAP = 1.25;
 let renderScale = SMALL ? 0.6 : 1.0;
@@ -135,10 +135,11 @@ function frameBody(now){
   orbitStep(dt*(1 + 30*ORB.warp*ORB.warp));    // the jump also spins the world up
   const contact = flyStep(dt);
   if (contact) HUD.poke('contact', contact);
-  // MILLER's orbit slowly carries the camera away from the bake point (height above the disc changes as the
-  // inclined orbit turns): re-bake in place, a few tiles per frame, long before it could show
-  if (BH.bake.done && bhBakeDrift(ORB.camM) > 0.02) bhStartBake(ORB.camM);
-  if (!BH.bake.done) { bhBakeStep(3); rsSettle = Math.max(rsSettle, 2); }
+  // Gargantua's spin drifts, and MILLER's inclined orbit slowly carries the camera away from the bake point: the
+  // scheduler re-bakes the stalest cube tiles inside a ~1 ms GPU budget. That load is small and steady, so unlike the
+  // old whole-cube re-bake it must NOT hold rsSettle: that froze the render-scale controller whenever a bake ran.
+  bhUpdate(ORB.camM, dt);
+  for (const ev of BH.spin.events.splice(0)) HUD.poke(ev.type, ev);
   updateRenderScale(ft);
   render(now);
   SCENE.fps += (1000/Math.max(ft, 1) - SCENE.fps)*0.05;
@@ -159,7 +160,7 @@ function bootStep(){
       bhStartBake(ORB.camM);
       bootBaking = true;
     }
-    const done = bhBakeStep(SMALL ? 4 : 12);
+    const done = bhBakeStep(SMALL ? 16 : 48);
     SCENE.bake = BH.bake.next/BH.bake.total;
     HUD.bootStatus(SCENE.bake);
     if (!done) { requestAnimationFrame(bootStep); return; }
@@ -212,6 +213,7 @@ addEventListener('keydown', e => {
   if (e.key === '+' || e.key === '=' || e.key === 'PageDown') altitudeBy(-0.25);
   else if (e.key === '-' || e.key === '_' || e.key === 'PageUp') altitudeBy(0.25);
   else if (e.key === 'z' || e.key === 'Z') SCENE.telescope();
+  else if (e.key === '[' || e.key === ']') { if (SCENE.state === 'run') bhSpinNudge(e.key === ']' ? 0.1 : -0.1); }   // the old page's spin keys
 });
 addEventListener('resize', () => { if (SCENE.state === 'run') { resize(); rsReset(); } else orbitResize(innerWidth, innerHeight); });
 addEventListener('blur', () => { ptr.clear(); document.body.classList.remove('grabbing'); });
@@ -236,6 +238,8 @@ SCENE.bench = n => { const px = new Uint8Array(4); render(performance.now()); gl
   const t0 = performance.now(); for (let i = 0; i < n; i++) render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   return +((performance.now() - t0)/n).toFixed(2); };
 SCENE.setScale = s => { renderScale = s; resize(); rsWarm = 1e9; };      // pin the scale (benchmarks)
+// jump straight to spin a, fully baked (tests / screenshots); the director then holds it
+SCENE.setSpin = a => { bhStartBake(ORB.camM, a); while (!bhBakeStep(64)) {} BH.spin.hold = 1e9; return bhSpin(); };
 SCENE.gpu = () => { const d = gl && gl.getExtension('WEBGL_debug_renderer_info'); return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : '?'; };
 
 boot();

@@ -157,7 +157,7 @@
       // LANDING PAGE (Sep 2026): a ship in orbit round MILLER, Gargantua always in view.
       // Renderer: js/scene/*.js (ported from demo/). HUD + game menu: index.html + js/hud.js.
       // =============================================
-      const SCENE_FILES = ['js/scene/gl.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
+      const SCENE_FILES = ['js/scene/gl.js', 'js/scene/kerr.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
                            'js/scene/orbit.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
       const src = {};
       for (const f of SCENE_FILES) {
@@ -166,7 +166,7 @@
       }
       const mainSrc = src['js/scene/main.js'] || '', bhSrc = src['js/scene/gargantua.js'] || '',
             plSrc = src['js/scene/planet.js'] || '', glSrc = src['js/scene/gl.js'] || '',
-            orbSrc = src['js/scene/orbit.js'] || '', postSrc = src['js/scene/post.js'] || '';
+            orbSrc = src['js/scene/orbit.js'] || '', postSrc = src['js/scene/post.js'] || '', kerrSrc = src['js/scene/kerr.js'] || '';
       const doc = new DOMParser().parseFromString(text, 'text/html');
 
       // 1. THE MENU. Every game that was reachable from the old planet menu must still be one click away, as a
@@ -196,17 +196,47 @@
 
       // 3. LENSING UNITS (the demo's "units trap"): M = 1 everywhere. x'' = -1.5 h^2 x / r^5 is the same law in
       //    r_s = 1 units; mixing it with M = 1 radii offset the photon ring from the shadow.
-      assert(/return\s+-3\.0\s*\*\s*h2\s*\*\s*p\s*\/\s*\(\s*r2\s*\*\s*r2\s*\*\s*r\s*\)/.test(bhSrc), 'Lensing: geodesic force is -3 h^2 x / r^5 (M = 1)',
-        'bhAccel() in js/scene/gargantua.js');
       assert(!/-1\.5\s*\*\s*h2/.test(bhSrc), 'Lensing: no r_s = 1 (-1.5) force law mixed in', 'none found');
-      assert(/b\s*-\s*5\.19615/.test(bhSrc), 'Lensing: analytic shadow edge at b = 3√3 M', 'shadow is computed from the impact parameter, not a filtered flag');
+      // Gargantua is a KERR hole (Sep 2026): the bake integrates Kerr null geodesics in Mino time, radially in u = 1/r
+      // (in r the far field drifts and lets rays inside the shadow escape) and angularly as a unit vector N on the sphere
+      // (theta/phi has an L/sin^2 spike that drew a bead chain along the spin axis). kerr.js is the float64 twin.
+      assert(/float\s+fU\s*\(\s*float\s+u\s*\)[^}]*cA\)\*u/.test(bhSrc) && /-\(B2\s*\+\s*A2\*m\*m\)\*N\s*\+\s*A2\*m\*\(vec3\(0\.0,\s*1\.0,\s*0\.0\)\s*-\s*m\*N\)/.test(bhSrc),
+        'Lensing: Kerr geodesics in Mino time, u = 1/r and N on the sphere', "FS_KERR_GEOM's fU() and fN()");
+      assert(/shadowDist\s*\(/.test(bhSrc) && /float\s+db\s*=\s*nr\s*<\s*0\.0\s*\?\s*shadowDist/.test(bhSrc),
+        'Lensing: the shadow is analytic per pixel (radial potential), never a filtered capture flag', "FS_KERR_SHADE main()");
+      let K = null;
+      try { K = new Function(kerrSrc + '\nreturn KERR;')(); } catch (e) {}
+      assert(!!K, 'Kerr maths: js/scene/kerr.js runs standalone (pure, no GL/DOM)', K ? 'KERR loaded' : 'failed to evaluate');
+      if (K) {
+        const near = (x, y, e) => Math.abs(x - y) <= e, DEG = Math.PI/180, P = [45*Math.cos(4*DEG), 45*Math.sin(4*DEG), 0];
+        assert(near(K.horizon(0), 2, 1e-12) && near(K.isco(0), 6, 1e-9) && near(K.photonOrbit(0, 1), 3, 1e-9) && near(K.rIn(0), 4.6, 1e-9),
+          'Kerr maths: a = 0 is Schwarzschild (horizon 2, ISCO 6, photon orbit 3, disc edge 4.6 M)', 'M = 1 units');
+        assert(near(K.horizon(1), 1, 1e-12) && near(K.isco(1), 1, 1e-6) && near(K.isco(-1), 9, 1e-9) && near(K.photonOrbit(1, -1), 4, 1e-9),
+          'Kerr maths: a = 1 limits (horizon 1, ISCO 1 / 9, retrograde photon orbit 4)', 'Bardeen-Press-Teukolsky');
+        // shadow radius at a = 0 seen by the ZAMO camera at 45 M: asin(sqrt27/45 * sqrt(1 - 2/45)) = 6.4811 deg
+        const c0 = K.camera(P, 0), hole = c0.er.map(x => -x), ax = c0.eth;
+        const tilt = t => { const c = Math.cos(t), s = Math.sin(t); return [hole[0]*c + ax[0]*s, hole[1]*c + ax[1]*s, hole[2]*c + ax[2]*s]; };
+        let lo = 0.1*DEG, hi = 20*DEG; for (let i = 0; i < 50; i++) { const m = 0.5*(lo + hi); (K.shadowDist(K.constants(c0, tilt(m)), c0) < 0 ? lo = m : hi = m); }
+        assert(near(lo, Math.asin(Math.sqrt(27)/45*Math.sqrt(1 - 2/45)), 1e-5), 'Kerr maths: a = 0 shadow radius from 45 M is 6.481°', (lo/DEG).toFixed(4) + '°');
+        const c9 = K.camera(P, 0.9), cur = K.criticalCurve(c9, 90);
+        let worst = 0; for (const d of cur) worst = Math.max(worst, Math.abs(K.shadowDist(K.constants(c9, d), c9)));
+        assert(cur.length > 60 && worst < 1e-6, 'Kerr maths: the HUD outline (critical curve) lies on the shader\'s shadow edge at a = 0.9', 'max |edge distance| ' + worst.toExponential(1) + ' M');
+        // handedness: the side where photons co-rotate (L > 0, looking toward -e_phi) is the FLAT side and the BLUESHIFTED one
+        const t9 = K.trace(c9, (() => { const m = c9.eph.map(x => -x), h = c9.er.map(x => -x), t = 14*DEG, d = [h[0]*Math.cos(t) + m[0]*Math.sin(t), h[1]*Math.cos(t) + m[1]*Math.sin(t) - 0.08, h[2]*Math.cos(t) + m[2]*Math.sin(t)], l = Math.hypot(...d); return d.map(x => x/l); })());
+        assert(t9.cross.length && t9.cross[0].g > 1, 'Kerr maths: the approaching (L > 0) side of the disc is blueshifted', t9.cross.length ? 'g = ' + t9.cross[0].g.toFixed(3) : 'no crossing');
+        const sAway = K.trace(c9, c9.er);   // straight out: escapes, pointing where it started
+        assert(!sAway.captured && Math.abs(sAway.dir[0]*c9.er[0] + sAway.dir[1]*c9.er[1] + sAway.dir[2]*c9.er[2] - 1) < 1e-6, 'Kerr maths: a radial ray outward escapes straight', 'reference tracer sanity');
+      }
 
       // 4. SHADER PARITY WITH THE DEMO. The landing page's shaders are copies of demo/'s so a fix in one can be
       //    mirrored in the other. If you changed one on purpose, change the other too (or document the split here).
       const lit = (s, name) => { const m = s.replace(/\r\n/g, '\n').match(new RegExp('const\\s+' + name + '\\s*=\\s*(?:\\w+\\s*\\+\\s*)?`([\\s\\S]*?)`;')); return m ? m[1] : null; };
       let demoBh = null, demoDeep = null;
       try { demoBh = await (await fetch('demo/js/gargantua.js')).text(); demoDeep = await (await fetch('demo/js/deep.js')).text(); } catch (e) {}
-      for (const [name, a, b] of [['BH_COMMON', bhSrc, demoBh], ['FS_BH_GEOM', bhSrc, demoBh], ['FS_BH_SHADE', bhSrc, demoBh],
+      // (Split, Sep 2026: the landing page's hole spins, so its GEOMETRY pass is its own Kerr FS_KERR_GEOM; the demo keeps
+      // the Schwarzschild FS_BH_GEOM. The shading helpers are still shared: FS_BH_SHADE is kept verbatim and the landing page
+      // splices its Kerr main() in at program creation.)
+      for (const [name, a, b] of [['BH_COMMON', bhSrc, demoBh], ['FS_BH_SHADE', bhSrc, demoBh],
           ['FS_SYS_COMMON', plSrc, demoDeep], ['FS_SYS_BASE', plSrc, demoDeep], ['FS_SYS_SURF', plSrc, demoDeep], ['FS_SYS_ATMO', plSrc, demoDeep]]) {
         const x = lit(a, name), y = b ? lit(b, name) : null;
         assert(x !== null && y !== null && x === y, 'Shader parity: ' + name + ' matches demo/',
@@ -221,8 +251,10 @@
 
       // 6. THE BAKE. Lensing geometry is baked once at MILLER; the ship's whole orbit is ~1e-4 M across, and
       //    MILLER's own orbit is re-baked in place before the camera can drift far from the bake point.
-      assert(/bhBakeDrift\s*\(\s*ORB\.camM\s*\)\s*>\s*0\.02/.test(mainSrc), 'Bake: re-baked when the camera drifts > 0.02 M from the bake point',
-        'main.js frame loop');
+      assert(/\)\s*\/\s*0\.02\s*;/.test(bhSrc) && /function\s+bhStale/.test(bhSrc) && /bhUpdate\s*\(\s*ORB\.camM/.test(mainSrc),
+        'Bake: stale tiles re-baked when the camera drifts 0.02 M or the spin outruns them', 'bhStale() in gargantua.js, bhUpdate() every frame from main.js');
+      assert(!/bhUpdate[^\n]*rsSettle/.test(mainSrc) && !/bhBakeStep\(\s*\d+\s*\)\s*;\s*rsSettle/.test(mainSrc),
+        'Render scale: the per-frame bake scheduler does not hold rsSettle', 'a steady ~1 ms bake load must not freeze the controller');
       const altMax = extractShaderFloat(orbSrc, /ALT_MAX\s*:\s*([\d.e]+)/), mKm = extractShaderFloat(bhSrc, /M_KM\s*:\s*([\d.e]+)/);
       assert(altMax !== null && mKm !== null && (altMax + 6.7e6) < 0.02*mKm*1e3*0.01,
         'Bake: the highest orbit stays a tiny fraction of the re-bake tolerance', `orbit radius ≤ ${((altMax + 6.7e6)/1e3).toFixed(0)} km vs 0.02 M = ${(0.02*mKm).toExponential(2)} km`);
