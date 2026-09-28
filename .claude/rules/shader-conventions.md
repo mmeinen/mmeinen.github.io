@@ -16,7 +16,7 @@ The landing page renderer is a port of the demo's Gargantua + planet pipeline. T
 `tests.html` enforces the invariants below — run it after any shader or renderer change.
 
 ## Shared shader sources must stay identical
-`BH_COMMON`, `FS_BH_GEOM`, `FS_BH_SHADE` (`js/scene/gargantua.js` ⇄ `demo/js/gargantua.js`) and `FS_SYS_COMMON`,
+`BH_COMMON`, `FS_BH_SHADE` (`js/scene/gargantua.js` ⇄ `demo/js/gargantua.js`) and `FS_SYS_COMMON`,
 `FS_SYS_BASE`, `FS_SYS_SURF`, `FS_SYS_ATMO` (`js/scene/planet.js` ⇄ `demo/js/deep.js`) are byte-identical copies.
 Change both, or document the divergence in the parity test. Landing-page-only variants are built by string
 injection at program creation (`#define GEOM_CUBE`, `SURF_KIND`), never by editing the copied source.
@@ -30,6 +30,14 @@ The camera stays within ~1e-4 M of MILLER, so lensing geometry is baked once int
 haze, two premultiplied disc crossings, bend cosines). Only shading runs per frame. The disc is axisymmetric: one
 bake at azimuth 0 serves any azimuth (`world = rotY(bake, -az)`). Re-bake when the camera's radius or height drifts
 > 0.02 M. The shadow and photon ring are analytic in the impact parameter — never filter a 0/1 capture flag.
+
+## The landing page's hole is KERR (Sep 2026); the demo's is not
+The landing page's geometry pass is its own `FS_KERR_GEOM` and its shading splices a Kerr `main()` after
+`FS_BH_SHADE`'s verbatim helpers. Every GLSL loop has a float64 twin in `js/scene/kerr.js` — change both. Trace in Mino
+time, radially in u = 1/r and angularly as a unit vector on the sphere (never θ/φ: its L/sin²θ spike draws a bead
+chain along the spin axis). The camera is a ZAMO. The shadow is analytic in (L, p_θ) via the radial potential.
+While the spin moves, a tile scheduler re-bakes only stale tiles (|Δa| > b²/5200, or 0.02 M drift) inside ~1 ms of GPU;
+the analytic parts use the spin the near-hole tiles were baked at. It must never hold `rsSettle`.
 
 ## GPU occupancy (Intel UHD iGPU)
 - The planet renderer is DEFERRED: a lean base pass writes a hit buffer; each material is its own small program

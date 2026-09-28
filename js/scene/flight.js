@@ -151,7 +151,8 @@ function flightStep(dt){
   }
   // hard floor: skip off the atmosphere
   { const rr = V.len(H.p), up = V.mul(H.p, 1/rr);
-    if (rr < R + H.FLOOR) { H.p = V.mul(up, R + H.FLOOR); const vr = V.dot(H.v, up); if (vr < 0) { H.v = V.sub(H.v, V.mul(up, 1.6*vr)); H.events.push({type: 'skip'}); } } }
+    if (rr < R + H.FLOOR) { H.p = V.mul(up, R + H.FLOOR); const vr = V.dot(H.v, up);
+      if (vr < 0) { H.v = V.sub(H.v, V.mul(up, 1.6*vr)); if (vr < -30 && o.tReal - (H.lastSkip || -9) > 2) { H.lastSkip = o.tReal; H.events.push({type: 'skip'}); } } } }
   // beyond the ceiling with the assist off: turned back like at the floor
   { const rr = V.len(H.p), up = V.mul(H.p, 1/rr), vr = V.dot(H.v, up);
     if (rr > H.CEIL*1.1 && vr > 0) H.v = V.sub(H.v, V.mul(up, 1.6*vr)); }

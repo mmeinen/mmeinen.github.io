@@ -280,7 +280,7 @@
       try {
         const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, src['js/scene/flight.js'] || '', `
           const SCENE = {state: 'run'};
-          const step = (n, dt) => { for (let i = 0; i < n; i++) { orbitStep(dt); flightStep(dt); } };
+          const step = (n, dt) => { for (let i = 0; i < n; i++) { HELM.idle = 0; orbitStep(dt); flightStep(dt); } };
           const out = {};
           orbitResize(1600, 900); orbitStep(0); helmEnter();
           // 1. point up and burn 2 s, then let go: the assist must settle a circular orbit
@@ -300,7 +300,7 @@
           out.auto = {mode: HELM.mode, minAlt: minR - ORB.planet.R};
           // 5. assist off, no thrust: energy conserved over one orbit (velocity Verlet)
           helmEnter(); HELM.assist = false; HELM.p = [ORB.planet.R + 8e5, 0, 0]; HELM.v = [0, 0, 1.05*Math.sqrt(ORB.planet.GM/(ORB.planet.R + 8e5))];
-          const E = () => V.dot(HELM.v, HELM.v)/2 - ORB.planet.GM/V.len(HELM.p), E0 = E(); step(900, 1/30);
+          const E = () => V.dot(HELM.v, HELM.v)/2 - ORB.planet.GM/V.len(HELM.p), E0 = E(); step(17000, 1/30);   // a full ~550 s (real) orbit
           out.energy = Math.abs((E() - E0)/E0);
           // 6. purely radial velocity does not break the assist (no horizontal direction to take)
           HELM.assist = true; HELM.v = V.mul(V.norm(HELM.p), 3000); HELM.hdir = null; step(600, 1/60);

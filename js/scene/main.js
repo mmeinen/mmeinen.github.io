@@ -198,7 +198,12 @@ function altitudeBy(k){ const s = ORB.ship; s.hTarget = clamp(s.hTarget*Math.exp
 function chaseBy(k){ HELM.chaseDist = clamp(HELM.chaseDist*Math.exp(k), 55, 900); HELM.idle = 0; }
 // held keys + the stick -> HELM.input (SCENE.input overrides it for tests)
 function helmInput(){
-  if (HELM.mode !== 'helm' || stickHold) return;
+  if (stickHold) return;
+  if (HELM.mode !== 'helm') {                     // nothing steers outside the helm, and a held stick ends with it
+    const I = HELM.input; I.pitch = I.yaw = I.roll = I.thrust = I.boost = I.hold = 0;
+    if (stick) { stick = null; hudStick(null); }
+    return;
+  }
   const k = c => keys.has(c) ? 1 : 0, I = HELM.input, t = window.HELM_TOUCH || {};   // hud.js's touch pad (phones)
   I.pitch = clamp(k('arrowup') - k('arrowdown') + (stick ? stick.py : 0), -1, 1);
   I.yaw = clamp(k('arrowleft') + k('a') - k('arrowright') - k('d') + (stick ? stick.yx : 0), -1, 1);
@@ -215,6 +220,7 @@ cv.addEventListener('pointerdown', e => {
   ORB.look.idle = 0; document.body.classList.add('grabbing');
 });
 cv.addEventListener('pointermove', e => {
+  HELM.idle = 0;                                  // any sign of life postpones the idle autopilot
   const p = ptr.get(e.pointerId); if (!p) return;
   if (ptr.size === 1 && stick) {
     const R = Math.max(90, Math.min(ORB.W, ORB.H)*0.16);
@@ -234,14 +240,19 @@ cv.addEventListener('pointermove', e => {
 });
 function endPtr(e){ ptr.delete(e.pointerId); if (ptr.size < 2) pinch0 = 0; if (!ptr.size) { document.body.classList.remove('grabbing'); stick = null; hudStick(null); } }
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
-cv.addEventListener('wheel', e => { e.preventDefault(); const k = clamp(e.deltaY, -240, 240)*0.0022; HELM.mode === 'station' ? altitudeBy(k) : chaseBy(k); }, {passive: false});
+cv.addEventListener('wheel', e => { e.preventDefault(); HELM.idle = 0; const k = clamp(e.deltaY, -240, 240)*0.0022; HELM.mode === 'station' ? altitudeBy(k) : chaseBy(k); }, {passive: false});
+// capture phase: this runs before hud.js's keydown, which closes the crew menu on Escape -- so Escape can tell whether
+// it was closing a menu (then it only does that) or asking for the autopilot
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || (e.target && e.target.closest && e.target.closest('input, textarea'))) return;
   const key = e.key.toLowerCase();
+  HELM.idle = 0;
+  if (e.repeat && ['f', 'v', 'o', 't', 'h'].includes(key)) return;            // toggles must not flicker on key repeat
+  if (key.startsWith('arrow') && e.target && e.target.closest && e.target.closest('#crew')) return;   // arrows scroll the manifest
   if (SCENE.state === 'run') {
     if (FLIGHT_KEYS.has(key) || key === 'shift' || key === 'x') {
       keys.add(key);
-      if (FLIGHT_KEYS.has(key) && HELM.mode === 'station') helmEnter();
+      if (FLIGHT_KEYS.has(key) && HELM.mode !== 'helm') helmEnter();       // from STATION, or taking back an AUTO flight
       if (HELM.mode === 'helm' && key.startsWith('arrow')) e.preventDefault();      // arrows would scroll the manifest
       return;
     }
@@ -258,11 +269,15 @@ addEventListener('keydown', e => {
   else if (HELM.mode === 'station' && (e.key === '-' || e.key === '_' || e.key === 'PageUp')) altitudeBy(0.25);
   else if (key === 'z') SCENE.telescope();
   else if (e.key === '[' || e.key === ']') { if (SCENE.state === 'run') bhSpinNudge(e.key === ']' ? 0.1 : -0.1); }   // the old page's spin keys
-});
+}, true);
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 addEventListener('resize', () => { if (SCENE.state === 'run') { resize(); rsReset(); } else orbitResize(innerWidth, innerHeight); });
 // a key released while the page was hidden never sends its keyup: forget everything held
-function clearInput(){ keys.clear(); ptr.clear(); stick = null; pinch0 = 0; document.body.classList.remove('grabbing'); hudStick(null); }
+function clearInput(){
+  keys.clear(); ptr.clear(); stick = null; pinch0 = 0; document.body.classList.remove('grabbing'); hudStick(null);
+  const t = window.HELM_TOUCH; if (t) for (const k in t) t[k] = 0;                  // the touch pad too
+  document.querySelectorAll('#touchPad .tp.on').forEach(b => b.classList.remove('on'));
+}
 addEventListener('blur', clearInput);
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
 addEventListener('pagehide', clearInput);
@@ -283,7 +298,7 @@ SCENE.unjump = () => { jump = null; ORB.warp = 0; LOOK.flash = 0; };     // a na
 // headless automation (tests / benchmarks): step the world, render synchronously, read the pixels back
 SCENE.advance = sec => { for (let t = 0; t < sec; t += 0.05) { const d = Math.min(0.05, sec - t); orbitStep(d); flightStep(d); } };
 // the helm, for the HUD buttons and headless tests
-SCENE.helm = () => { if (HELM.mode === 'station') { helmEnter(); return true; } if (HELM.mode === 'helm') helmAuto('manual'); return false; };
+SCENE.helm = () => { if (HELM.mode !== 'helm') { helmEnter(); return true; } helmAuto('manual'); return false; };   // AUTO can be taken back
 SCENE.input = o => { Object.assign(HELM.input, o); HELM.idle = 0; stickHold = !!o && Object.keys(o).length > 0; };
 SCENE.renderNow = () => { render(performance.now()); return cv.toDataURL('image/png'); };
 SCENE.bench = n => { const px = new Uint8Array(4); render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);

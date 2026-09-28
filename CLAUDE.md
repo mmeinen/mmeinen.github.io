@@ -19,11 +19,13 @@ are launched from the ship's crew manifest. No build tools, no npm, no framework
 ├── tests.html            Regression tests (landing page invariants + Pong); needs a server or file-access flag
 ├── js/scene/             Landing page renderer, classic scripts in this load order:
 │   ├── gl.js             WebGL2 context, program/target helpers, V/M3 maths
-│   ├── gargantua.js      the black hole: baked geodesics + per-frame shading (shaders = demo's, verbatim)
+│   ├── kerr.js           Kerr black-hole maths (pure): ZAMO camera, analytic shadow, critical curve, reference tracer
+│   ├── gargantua.js      the black hole: Kerr bake (tile scheduler) + per-frame shading (demo's helpers, verbatim)
 │   ├── planet.js         MILLER + moon: deferred terrain/clouds/atmosphere (shaders = demo's, verbatim)
 │   ├── post.js           bloom, tone map, FXAA upscale + grain + launch warp
-│   ├── orbit.js          system model, the ship's orbit, camera framing, telemetry (no GL)
-│   ├── ships.js          friendly formation flybys (mesh builder + shaders = demo's, verbatim)
+│   ├── orbit.js          system model, the station (scripted) orbit, camera framing, telemetry (no GL)
+│   ├── flight.js         the HELM: fly the ship round MILLER (orbit assist, rails, autopilot, chase/cockpit cams)
+│   ├── ships.js          the player's MSV MEINEN + friendly flybys (mesh builder + shaders = demo's, verbatim)
 │   └── main.js           boot, frame loop, adaptive render scale, input
 ├── js/hud.js             HUD behaviour: menu, telemetry, reticles, tape, plot, log, boot, jump, audio
 ├── minesweeper.html      Minesweeper game (uses js/*.js)
@@ -63,18 +65,41 @@ member's `<ul class="missions">` in `index.html`, and bump the `.cnt` in their `
 `GAMES` list in `tests.html` so the "every game is in the crew manifest" check keeps guarding it.
 
 ## Landing page renderer (`js/scene/`, Sep 2026)
-A lean port of the demo's Gargantua + planet pipeline (see "COLLIDE" below for how those work). **The shader
-strings are the demo's, verbatim** — `tests.html` fails if `BH_COMMON`, `FS_BH_*` or `FS_SYS_*` differ from
-`demo/js/*`, so a fix in one copy is mirrored in the other (or the split is documented in that test).
+A lean port of the demo's Gargantua + planet pipeline (see "COLLIDE" below for how those work). **Shared shader
+strings are the demo's, verbatim** — `tests.html` fails if `BH_COMMON`, `FS_BH_SHADE` or `FS_SYS_*` differ from
+`demo/js/*`, so a fix in one copy is mirrored in the other. The split (documented in that test): the landing page's
+hole SPINS, so its geometry pass is its own `FS_KERR_GEOM`, and its shading splices a Kerr `main()` (plus `discImageK`)
+after `FS_BH_SHADE`'s helpers at program creation; the demo stays Schwarzschild.
+- **Kerr Gargantua (Sep 2026, user request: "the rotation of the black hole changes the lensing and the disc")**:
+  `kerr.js` is the maths, float64, and each GLSL loop has a JS twin there (tests.html checks it: a = 0 limits, 6.481°
+  shadow from 45 M, critical curve on the edge, handedness). Rays run backward in Mino time in **u = 1/r** (in r the far
+  field drifts and rays inside the shadow escape) and angularly as a **unit vector N on the sphere** (θ/φ has an
+  L/sin²θ spike that drew a bead chain along the spin axis). The camera is a ZAMO (shadow 6.48° at a = 0, not the old
+  6.63°). The shadow is analytic per pixel: 2 Newton steps on min R(r) along its gradient in (L, p_θ). The disc's flux
+  follows its inner edge (r_in = r₊ + 0.65(ISCO − r₊)); dust lanes stay at fixed radii. Crossings are stored with the
+  BL azimuth so the turbulence flows WITH the gas (the demo's advects against its own Doppler beaming — not fixed there).
+- **Spin director + tile scheduler**: the spin eases along `SPIN_PLAN` (moves in ISCO space, holds between; `[` `]`
+  nudge). The cube is 8×8 tiles/face; a tile is stale past half a texel (|Δa| > b²/5200 for its closest impact parameter)
+  or 0.02 M of camera drift; `bhUpdate` bakes the stalest inside ~1.2 ms of GPU (timer-query calibrated). Tiles with
+  b < 10 M re-bake every spin step and the analytic spin glides across the step as they land, so nothing seams. The
+  scheduler must NOT hold `rsSettle` (it froze the render-scale controller). A full 1024² Kerr bake = 75 ms GPU (Intel).
+- **The HELM (`flight.js`)**: STATION (scripted, hole always framed) / HELM / AUTO (blends home; also after 150 s idle).
+  Orbit assist drives v → v_circ(p) + v_cmd, so letting go settles a circular orbit; speed ∝ altitude; floor 50 km
+  (soft 70, plasma < 84), ceiling 120,000 km braked from 80%. Real-time dt for the ship (the jump warps only the world).
+  Chase cam: offset in the ship's lagged frame (a world-space lag trails km behind). The ship pass renders into a target
+  the size of the ships' screen rect; the player's hull is never drawn from inside (cockpit). Flybys live in MILLER's
+  frame. Hooks: `SCENE.helm()`, `SCENE.input({...})`, `SCENE.setSpin(a)`; tests.html flies the model in a sandbox.
+- Headless harness: emulate a desktop `screen` (CDP `screenWidth/screenHeight`), or the page takes its phone path
+  (`SMALL`: 512² cube, renderScale 0.6) and every measurement is off.
 - **World**: metres (float64), hole at the origin, disc in xz, M = 1 (`-3 h² x / r⁵`, never the r_s = 1 `-1.5`
   form). MILLER orbits at 45 M, 4° above the disc, at its real Schwarzschild rate × the time warp (`ORB.TC` 12).
 - **The ship** flies a circular **dawn–dusk orbit** (plane kept ⟂ to the hole, tilted β 8°): the hole never sets
   (`orbitCheck()` asserts β < limb dip − 5° at the lowest altitude). Over an orbit the disc rolls level → upright
   ("keyhole") → level. Framing (`orbitStep`): the limb 30% below centre, the hole ≥ 9° under the top edge, the
   vertical FOV widening when both don't fit; drag = look-around clamped so the hole stays on screen.
-- **Bake**: lensing geometry is baked once at MILLER (4 cube MRTs; 1024² desktop, 512² phones). The disc is
-  axisymmetric, so shading rotates by the planet's *current* azimuth; main.js re-bakes in place when the camera
-  drifts > 0.02 M in radius or height (MILLER's inclined orbit, after ~20 min).
+- **Bake**: lensing geometry is baked at MILLER (4 cube MRTs; 1024² desktop, 512² phones). The disc is
+  axisymmetric, so shading rotates by the planet's *current* azimuth; the tile scheduler (above) re-bakes what the
+  spin or the camera's drift (> 0.02 M, MILLER's inclined orbit, ~20 min) has made stale.
 - **Frame**: `bhShade` → `comp` (the sky) → `systemPass` (base hit pass + scissored terran/rock passes + clouds &
   atmosphere) → optional `flyRender` (MSAA ship pass, only while a formation is on screen) → `postProcess`
   (bloom + tone map at render scale, then FXAA/grain/warp to the canvas).
@@ -233,7 +258,8 @@ energy at entry, for every preset. That single check catches nearly all coupling
 
 ## Testing
 No test framework. `tests.html` checks the landing page (every game still in the menu and resolving, file:// safety,
-M = 1 lensing, shader parity with demo/, lean base pass, bake re-bake, render-scale controller) and Pong behaviour.
+Kerr lensing maths via kerr.js, shader parity with demo/, lean base pass, the tile scheduler, render-scale controller, the
+helm flown in a sandbox: settles, floor, ceiling, energy, autopilot) and Pong behaviour.
 It fetches files, so it needs a local server or Chrome's `--allow-file-access-from-files` (the headless harness).
 ```bash
 python3 -m http.server 8000

@@ -9,7 +9,7 @@ description: "Reviews black hole lensing, ray marching, Kerr metric, Doppler, an
 ---
 
 > **Sep 2026:** the landing page's lensing shader described below was retired. The renderer is now
-> js/scene/gargantua.js (a byte-identical copy of the shaders in demo/js/gargantua.js). Review changes there against `.claude/rules/shader-conventions.md`: M = 1 units (-3 h^2 x / r^5), the analytic shadow and photon ring, premultiplied baked crossings, bake validity (re-bake beyond 0.02 M drift, azimuth rotation), and parity with demo/js/gargantua.js.
+> js/scene/gargantua.js + js/scene/kerr.js (the landing page's hole is Kerr: FS_KERR_GEOM and a Kerr shading main(), each with a float64 twin in kerr.js; BH_COMMON and FS_BH_SHADE stay byte-identical to demo/js/gargantua.js, whose hole is Schwarzschild). Review changes there against `.claude/rules/shader-conventions.md`: M = 1 units, Mino time in u = 1/r with N on the sphere, the ZAMO camera, the analytic Kerr shadow and photon ring, premultiplied baked crossings, the stale-tile scheduler (0.02 M drift, b^2/5200 spin tolerance, no rsSettle), and parity with demo/js/gargantua.js.
 > The checklist below is historical (it applies to nothing that ships).
 
 # Black Hole Shader Reviewer

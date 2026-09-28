@@ -193,7 +193,7 @@ const HUD = (() => {
   }
   function onlineReq(){ bootStatus(1); setTimeout(goOnline, Math.max(0, MIN_BOOT - (performance.now() - T0))); }
   function fallback(why){
-    failed = true; body.classList.add('nogl'); body.classList.remove('booting');
+    failed = true; body.classList.add('nogl'); body.classList.remove('booting', 'helm', 'chase');   // a scene lost mid-flight
     log('OPTICS OFFLINE · ' + String(why).toUpperCase().slice(0, 48), true);
     log('CREW MANIFEST ONLINE · SELECT A MISSION');
     if (typeof orbitStep !== 'function') return;
@@ -490,7 +490,7 @@ const HUD = (() => {
   document.querySelectorAll('#touchPad .tp').forEach(b => {
     const k = b.dataset.in;
     if (k === 'home') { b.addEventListener('click', () => { if (typeof HELM !== 'undefined' && HELM.mode === 'helm') SCENE.helm(); }); return; }
-    const on = e => { e.preventDefault(); if (window.SCENE && SCENE.state === 'run' && typeof HELM !== 'undefined' && HELM.mode === 'station') SCENE.helm(); TOUCH[k] = 1; b.classList.add('on'); };
+    const on = e => { e.preventDefault(); if (window.SCENE && SCENE.state === 'run' && typeof HELM !== 'undefined' && HELM.mode !== 'helm') SCENE.helm(); TOUCH[k] = 1; b.classList.add('on'); };
     const off = () => { TOUCH[k] = 0; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, off));
   });
