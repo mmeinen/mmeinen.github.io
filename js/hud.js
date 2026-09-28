@@ -392,7 +392,7 @@ const HUD = (() => {
     setText(E.alt, num(h.alt/1e3) + ' km' + (h.burn ? (h.climb ? ' ▲' : ' ▼') : ''));
     E.alt.classList.toggle('warn', !!h.burn);
     setText(E.vel, num(h.vel/1e3, 2) + ' km/s');
-    setText(E.per, dur(h.period));
+    setText(E.per, isFinite(h.period) ? dur(h.period) : 'ESCAPE');
     const lat = h.lat/DEG, lon = h.lon/DEG;
     setText(E.ground, num(Math.abs(lat), 1) + '°' + (lat >= 0 ? 'N' : 'S') + ' ' + num(Math.abs(lon), 1) + '°' + (lon >= 0 ? 'E' : 'W'));
     const side = h.el > 1.5*DEG ? 'DAYSIDE' : h.el < -1.5*DEG ? 'NIGHT SIDE' : 'TERMINATOR';
@@ -470,9 +470,61 @@ const HUD = (() => {
     const sc = ((now || performance.now())/40) % 144 - 72; setA(sScan, {y1: f1(sc), y2: f1(sc)});
   }
 
+  // ---------------------------------------------------------------------------------------------- the helm
+  // Readouts round the centre, warnings, the autopilot countdown, the drag stick, the touch pad (phones), the controls
+  // card on the first time at the helm. flight.js owns the numbers; this only shows them.
+  const HH = {rel: $('hRel'), thr: $('hThr'), alt: $('hAlt'), vs: $('hVs'), warn: $('hWarn'), auto: $('hAuto'), card: $('hCard'),
+    orbit: $('tOrbit'), help: $('help'), btn: $('bHelm')};
+  const HELP_STATION = HH.help ? HH.help.innerHTML : '';
+  const HELP_HELM = 'W · THRUST &nbsp; DRAG · STEER &nbsp; SHIFT · BOOST &nbsp; X · HOLD ORBIT &nbsp; V · VIEW &nbsp; T · TRACK &nbsp; H · HOME';
+  const gStick = el('g', {}, R), sRing = el('circle', {class: 'blu', r: 38, opacity: 0.6}, gStick);
+  const sLine = el('path', {class: 'blu', opacity: 0.7}, gStick), sDot = el('circle', {class: 'blu-f', r: 6}, gStick);
+  gStick.style.display = 'none';
+  function stick(s){
+    if (!s) { gStick.style.display = 'none'; return; }
+    gStick.style.display = ''; setA(sRing, {cx: f1(s.x0), cy: f1(s.y0)}); setA(sDot, {cx: f1(s.x), cy: f1(s.y)});
+    sLine.setAttribute('d', 'M' + f1(s.x0) + ' ' + f1(s.y0) + 'L' + f1(s.x) + ' ' + f1(s.y));
+  }
+  const TOUCH = {thrust: 0, boost: 0, reverse: 0, hold: 0};
+  window.HELM_TOUCH = TOUCH;
+  document.querySelectorAll('#touchPad .tp').forEach(b => {
+    const k = b.dataset.in;
+    if (k === 'home') { b.addEventListener('click', () => { if (typeof HELM !== 'undefined' && HELM.mode === 'helm') SCENE.helm(); }); return; }
+    const on = e => { e.preventDefault(); if (window.SCENE && SCENE.state === 'run' && typeof HELM !== 'undefined' && HELM.mode === 'station') SCENE.helm(); TOUCH[k] = 1; b.classList.add('on'); };
+    const off = () => { TOUCH[k] = 0; b.classList.remove('on'); };
+    b.addEventListener('pointerdown', on); ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, off));
+  });
+  HH.btn.addEventListener('click', () => { if (window.SCENE && SCENE.helm) SCENE.helm(); });
+  HH.card.addEventListener('click', () => HH.card.classList.remove('show'));
+  let cardDone = false, lastHelm = false;
+  function helmFrame(){
+    const on = typeof HELM !== 'undefined' && HELM.mode !== 'station';
+    if (on !== lastHelm) {
+      lastHelm = on; body.classList.toggle('helm', on);
+      HH.help.innerHTML = on ? HELP_HELM : HELP_STATION;
+      setText(HH.btn, on ? 'AUTOPILOT' : 'TAKE HELM'); HH.btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on && !cardDone) { cardDone = true; HH.card.classList.add('show'); setTimeout(() => HH.card.classList.remove('show'), 9000); }
+      if (!on) setText(HH.orbit, 'DAWN–DUSK · 8.0°');
+    }
+    body.classList.toggle('chase', on && HELM.view === 'chase' && HELM.camK > 0.5);
+    if (!on) return;
+    const h = ORB.hud, vr = V.dot(HELM.v, h.up);
+    setText(HH.rel, num(h.rel/1e3, 2) + ' km/s');
+    HH.thr.style.width = Math.round(clamp(h.rel/Math.max(h.vmax, 1), 0, 1)*100) + '%';
+    HH.thr.classList.toggle('boost', !!HELM.input.boost);
+    setText(HH.alt, num(h.alt/1e3) + ' km');
+    setText(HH.vs, (vr >= 0 ? '▲ ' : '▼ ') + num(Math.abs(vr)/1e3, 2) + ' km/s');
+    const warn = HELM.warn || (HELM.assist ? '' : 'ORBIT ASSIST OFF');
+    setText(HH.warn, warn); HH.warn.className = 'hwarn' + (HELM.warn ? ' hot' : warn ? ' on' : '');
+    const left = HELM.IDLE_AUTO - HELM.idle;
+    setText(HH.auto, HELM.mode === 'auto' ? 'AUTOPILOT · RETURNING TO STATION' : left < 10 ? 'AUTOPILOT IN ' + Math.ceil(left) + ' s · ANY KEY TO STAY' : (HELM.track ? 'TRACKING GARGANTUA' : ''));
+    setText(HH.orbit, h.ecc < 0.01 ? 'CIRCULAR · ' + num(h.alt/1e3) + ' km' : 'AP ' + (isFinite(h.ap) ? num(h.ap/1e3) : '∞') + ' · PE ' + num(h.pe/1e3) + ' km');
+  }
+
   // ---------------------------------------------------------------------------------------------- per frame
   function frame(now, scale){
     if (!ORB.view) return;
+    helmFrame();
     reticles();
     if (now - lastText > 100) { lastText = now; instruments(now, scale); }
   }
@@ -484,7 +536,14 @@ const HUD = (() => {
     else if (kind === 'contact') { log('CONTACT · FRIENDLY ' + arg.kind.toUpperCase() + ' GROUP OVERTAKING TO ' + (arg.side < 0 ? 'PORT' : 'STARBOARD')); AUDIO.ping(); }
     else if (kind === 'spinMove') { log('GARGANTUA ' + (arg.to > arg.from ? 'SPINNING UP' : 'SPINNING DOWN') + ' · a ' + num(arg.from, 2) + ' → ' + num(arg.to, 2), true); AUDIO.select(); }
     else if (kind === 'spinHold') log('SPIN STEADY · a = ' + num(arg.a, 3) + ' · ISCO ' + num(KERR.isco(arg.a), 2) + ' M');
+    else if (kind === 'helm:helm') { log('HELM · MANUAL CONTROL · ORBIT ASSIST ' + (HELM.assist ? 'ON' : 'OFF'), true); AUDIO.select(); }
+    else if (kind === 'helm:auto') { log(arg.why === 'idle' ? 'AUTOPILOT ENGAGED · NO INPUT · RETURNING TO STATION' : 'AUTOPILOT · RETURNING TO STATION'); AUDIO.blip(0.8); }
+    else if (kind === 'helm:station') log('STATION KEEPING · DAWN–DUSK ORBIT · ' + num(ORB.ship.h/1e3) + ' km');
+    else if (kind === 'helm:view') log(arg.view === 'chase' ? 'VIEW · CHASE CAMERA' : 'VIEW · COCKPIT');
+    else if (kind === 'helm:assist') log('ORBIT ASSIST ' + (arg.on ? 'ON · LET GO TO SETTLE INTO ORBIT' : 'OFF · NEWTONIAN FLIGHT'), !arg.on);
+    else if (kind === 'helm:track') log(arg.on ? 'TRACKING GARGANTUA' : 'TRACKING OFF');
+    else if (kind === 'helm:skip') { log('ATMOSPHERIC SKIP · HULL TEMP NOMINAL', true); AUDIO.ping(); }
   }
 
-  return {bootStatus, online: onlineReq, fallback, frame, poke, restored, log};
+  return {bootStatus, online: onlineReq, fallback, frame, poke, restored, log, stick};
 })();

@@ -372,17 +372,46 @@ void main(){
   o = c;
 }`;
 
+// ------------------------------------------------------------------------------------------ the player's ship
+// MSV MEINEN, the family's deep-survey ship (46 m): a lifting-body hull, canopy strip, twin engine nacelles on pylons,
+// swept radiator fins, and a dorsal sensor spine carrying the survey dish. Drawn behind the chase camera (flight.js).
+SHIP_CLASSES.meinen = () => {
+  const m = new Mesh(), rnd = mulberry(5150);
+  m.seg(-16, 7.2, 3.0, 0, 4, 6.4, 2.8, 0.1, 0, 1, 71);
+  m.seg(4, 6.4, 2.8, 0.1, 15, 3.2, 1.8, -0.1, 0, 1, 72, 'b');
+  m.seg(15, 3.2, 1.8, -0.1, 23, 0.6, 0.5, -0.3, 0, 1, 73, 'b');
+  m.box([0, 1.62, 10.5], [1.15, 0.36, 2.8], 3, 1, 0);                               // canopy strip
+  m.seg(-15, 1.6, 1.3, 2.0, 3, 1.1, 0.9, 1.75, 1, 0.9, 74);                          // dorsal spine
+  m.cyl([0, 2.5, -6], [0, 3.0, -6], 1.9, 2.1, 16, 2, 1, 0, true);                    // survey dish
+  m.cyl([0, 3.0, -6], [0, 4.3, -6], 0.12, 0.08, 6, 1, 1, 0, true, 6);                // its feed
+  for (const s of [-1, 1]) {
+    m.box([s*4.6, -0.3, -9], [1.5, 0.35, 3.2], 1, 0.85, 75);                         // pylon
+    m.cyl([s*6.2, -0.4, -2], [s*6.2, -0.4, -19], 1.5, 1.35, 14, 0, 0.95, 76);        // nacelle
+    engineBell(m, -19, s*6.2, -0.4, 1.25, 2.6);
+    m.hex([[s*3.4, -0.1, -10], [s*3.4, -0.1, 1], [s*3.4, 0.15, -10], [s*3.4, 0.15, 1],
+           [s*13, -0.05, -14], [s*13, -0.05, -9], [s*13, 0.1, -14], [s*13, 0.1, -9]].map((v, i, a) => a[s < 0 ? [4,5,6,7,0,1,2,3][i] : i]), 2, 1, 77);
+    m.box([s*13, 0.35, -11.5], [0.18, 0.55, 2.6], 7, 1, 0);                          // fin-tip strake
+  }
+  m.greeble(rnd, [-3.1, 1.42, -15], [1, 0, 0], [0, 0, 1], 6.2, 17, [0, 1, 0], 26, 0.7, [0, 1, 7]);
+  m.greeble(rnd, [-3.1, -1.45, -15], [1, 0, 0], [0, 0, 1], 6.2, 24, [0, -1, 0], 20, 0.7, [0, 1, 7]);
+  return m;
+};
+
 // ------------------------------------------------------------------------------------------ flybys (landing page)
 // Every minute or so a friendly formation overtakes the ship and heads for the hole: the MSAA ship pass runs only
-// while one is on screen. Positions are world metres (float64); the GPU gets camera-relative km, like the planet.
-const FLY_CLS = {   // half extents (km) for plumes and the HUD contact, as demo/js/battle.js CLS
+// while one (or the player's own ship, flight.js) is on screen. Formations live in MILLER's frame, spawned beside the
+// ship with its orbital velocity plus their own, and fall round MILLER like it does -- placed relative to the camera
+// instead they would stick to you at the helm (and in the hole's frame MILLER moves at 0.15 c).
+const FLY_CLS = {   // half extents (km) for plumes, the HUD contact and the scissor rect, as demo/js/battle.js CLS
   frigate: {ext: [0.05, 0.03, 0.12], name: 'FRIGATE'}, cruiser: {ext: [0.09, 0.07, 0.38], name: 'CRUISER'}, hawk: {ext: [0.008, 0.003, 0.008], name: 'HAWK WING', fighter: true},
+  meinen: {ext: [0.013, 0.005, 0.022], name: 'MSV MEINEN'},
 };
 const FLY = {ships: [], next: 24, n: 0, t: 0, vao: null, buf: null, data: new Float32Array(16*64), contact: null};
 
 function shipPrograms(){
   program('ship', VS_SHIP, FS_SHIP);
-  program('shipBg', VS_FULL, FS_BATTLE_BG);
+  // the priming pass fills a target the size of the ships' screen rect: fetch the full-size inputs at + u_off
+  program('shipBg', VS_FULL, FS_BATTLE_BG.replace('out vec4 o;', 'uniform ivec2 u_off;\nout vec4 o;').replace('ivec2 p = ivec2(gl_FragCoord.xy);', 'ivec2 p = ivec2(gl_FragCoord.xy) + u_off;'));
   program('spr', VS_SPR, FS_SPR);
 }
 function flyPerspective(fovy, asp, n, f){
@@ -395,51 +424,58 @@ function flyMul(a, b){
   return o;
 }
 
-let BT = null;               // MSAA colour + depth at the render scale, and the resolve texture
-function ensureShipTargets(w, h){
-  if (BT && BT.w === w && BT.h === h) return;
-  if (BT) { gl.deleteFramebuffer(BT.msFb); gl.deleteFramebuffer(BT.resFb); gl.deleteRenderbuffer(BT.col); gl.deleteRenderbuffer(BT.dep); gl.deleteTexture(BT.tex); }
+let BT = null;               // MSAA colour + depth sized to the ships' screen rect (grow-only), and its resolve target
+function ensureShipTargets(rw, rh){
+  const w = Math.min(T.w, Math.ceil(rw/64)*64), h = Math.min(T.h, Math.ceil(rh/64)*64);
+  if (BT && BT.w >= w && BT.h >= h) return;
+  const W = Math.max(w, BT ? BT.w : 0), H = Math.max(h, BT ? BT.h : 0);
+  if (BT) { gl.deleteFramebuffer(BT.msFb); gl.deleteRenderbuffer(BT.col); gl.deleteRenderbuffer(BT.dep); gl.deleteFramebuffer(BT.resFb); gl.deleteTexture(BT.tex); }
   const fs = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES);
-  const S = Math.min(4, fs && fs.length ? fs[0] : 0), b = {w, h};
-  b.col = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.col); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.RGBA16F, w, h);
-  b.dep = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.dep); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.DEPTH_COMPONENT24, w, h);
+  const S = Math.min(4, fs && fs.length ? fs[0] : 0), b = {w: W, h: H};
+  b.col = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.col); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.RGBA16F, W, H);
+  b.dep = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, b.dep); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, S, gl.DEPTH_COMPONENT24, W, H);
   b.msFb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, b.msFb);
   gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, b.col);
   gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, b.dep);
   const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
-  b.tex = tex(w, h, gl.RGBA16F, gl.LINEAR); b.resFb = fbo([b.tex]);
+  b.tex = tex(W, H, gl.RGBA16F, gl.NEAREST); b.resFb = fbo([b.tex]);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   BT = ok ? b : null;
-  if (!ok) {                 // no multisampled float targets: no flybys, everything else unaffected
-    gl.deleteFramebuffer(b.msFb); gl.deleteFramebuffer(b.resFb); gl.deleteRenderbuffer(b.col); gl.deleteRenderbuffer(b.dep); gl.deleteTexture(b.tex);
+  if (!ok) {                 // no multisampled float targets: no ships, everything else unaffected (the helm flies cockpit-only)
+    gl.deleteFramebuffer(b.msFb); gl.deleteRenderbuffer(b.col); gl.deleteRenderbuffer(b.dep); gl.deleteFramebuffer(b.resFb); gl.deleteTexture(b.tex);
     FLY.off = true; FLY.ships = []; FLY.contact = null;
   }
 }
-
-// A formation: a lead and its wingmen overtaking on one side, flying on toward the hole. The frame is the ship's
-// orbital frame at spawn (toward-the-hole horizontal, local up, and their cross), fixed in space for the pass --
-// both they and we are in orbit, so for the ~40 s it lasts a straight line is exact enough.
+// A formation: a lead and its wingmen overtaking on one side, flying on toward the hole. Offsets and velocities are
+// set in the ship's local frame at spawn (toward-the-hole horizontal, local up, and their cross).
 function flySpawn(){
   const h = ORB.hud, up = h.up, fwd = V.norm(V.sub(h.dirHole, V.mul(up, V.dot(h.dirHole, up)))), right = V.cross(fwd, up);
   const side = FLY.n++ % 2 ? 1 : -1, kind = FLY.n % 3 === 0 ? "cruiser" : "frigate";
-  const lead = {cls: kind, off: [side*0.5, -0.12, -0.9], v: [-side*0.02, -0.004, 0.2]};   // km, km/s in (right, up, fwd)
+  const lead = {cls: kind, off: [side*0.5, -0.12, -0.9], v: [-side*0.02, -0.004, 0.2]};   // km, km per REAL s in (right, up, fwd)
   const wing = [[side*0.16, 0.05, -0.06], [side*0.24, -0.03, -0.12], [side*-0.12, 0.08, -0.16], [side*0.34, 0.02, -0.2]];
   const list = [lead].concat(wing.slice(0, kind === 'cruiser' ? 2 : 4).map(o => ({cls: 'hawk', off: V.add(lead.off, o), v: lead.v})));
-  FLY.ships = list.map(s => ({cls: s.cls, v: s.v, p0: s.off, fwd, up, right, t0: FLY.t}));
+  const P = ORB.bodies[1].pos, base = V.sub(ORB.view.eye, P), TC = ORB.TC;
+  const vShip = HELM.mode === 'station' ? V.mul(h.pro, Math.sqrt(ORB.planet.GM/V.len(base))) : HELM.v;
+  const W = l => V.add(V.add(V.mul(right, l[0]), V.mul(up, l[1])), V.mul(fwd, l[2]));
+  FLY.ships = list.map(s => ({cls: s.cls, p: V.add(base, V.mul(W(s.off), 1000)), v: V.add(vShip, V.mul(W(s.v), 1000/TC)),
+    dir: V.norm(W(s.v)), up, t0: FLY.t}));
   return {side, kind};
 }
-// world position (m) of ship s now. The formation shares our orbit, so it is placed relative to where WE are now:
-// in the hole's frame MILLER moves at 0.15 c, and anything fixed there would be left behind within a frame.
-function flyPos(s){
-  const t = FLY.t - s.t0, l = V.add(s.p0, V.mul(s.v, t));
-  return V.add(ORB.view.eye, V.mul(V.add(V.add(V.mul(s.right, l[0]), V.mul(s.up, l[1])), V.mul(s.fwd, l[2])), 1000));
-}
+// world position (m) of ship s now: MILLER's position + its own orbit round MILLER
+function flyPos(s){ return V.add(ORB.bodies[1].pos, s.p); }
 function flyStep(dt){
   if (FLY.off) return null;
   FLY.t += dt;
   let ev = null;
-  if (!FLY.ships.length && FLY.t > FLY.next) { ev = flySpawn(); }
+  if (!FLY.ships.length && FLY.t > FLY.next && HELM.mode !== 'auto') { ev = flySpawn(); }
   if (FLY.ships.length) {
+    const GM = ORB.planet.GM;
+    for (const s of FLY.ships) {               // velocity Verlet round MILLER, real dt x the time warp
+      let rem = dt*ORB.TC;
+      while (rem > 1e-9) { const h = Math.min(rem, 1); rem -= h;
+        const acc = p => V.mul(p, -GM/Math.pow(V.dot(p, p), 1.5));
+        const vh = V.add(s.v, V.mul(acc(s.p), h/2)); s.p = V.add(s.p, V.mul(vh, h)); s.v = V.add(vh, V.mul(acc(s.p), h/2)); }
+    }
     const t = FLY.t - FLY.ships[0].t0;
     if (t > 42) { FLY.ships = []; FLY.next = FLY.t + 50 + Math.random()*30; FLY.contact = null; }
     else {
@@ -449,27 +485,97 @@ function flyStep(dt){
   }
   return ev;
 }
+// every ship the pass may draw this frame: {cls, pos (world m), f, u, glow, player?, heat?, boost?}
+function flyList(){
+  const out = [];
+  for (const s of FLY.ships) out.push({cls: s.cls, pos: flyPos(s), f: s.dir, u: s.up, glow: 0.15});
+  const me = typeof helmShip === 'function' ? helmShip() : null;
+  if (me) out.push({cls: 'meinen', pos: me.pos, f: me.f, u: me.u, glow: me.glow, player: true, heat: me.heat, boost: me.boost});
+  return out;
+}
 function flyVisible(){
-  if (!FLY.ships.length || FLY.off) return false;
+  if (FLY.off) return false;
+  const list = flyList(); if (!list.length) return false;
   const b = ORB.view.b, th = Math.tan(ORB.view.fov/2)*1.3, asp = ORB.W/ORB.H;
-  return FLY.ships.some(s => { const r = V.sub(flyPos(s), ORB.view.eye), z = V.dot(r, b.f); if (z <= 0) return false;
+  return list.some(s => { const r = V.sub(s.pos, ORB.view.eye), z = V.dot(r, b.f); if (z <= 0) return false;
     return Math.abs(V.dot(r, b.r)) < z*th*asp + 400 && Math.abs(V.dot(r, b.u)) < z*th + 400; });
 }
-// Draws the formation over the planet image (depth primed from its hit buffer). Returns the texture to post.
+// Draws the ships over the planet image, inside the screen rect they (and their glows) cover: depth is primed from the
+// planet's hit buffer there, the MSAA result is resolved straight back into the image's own framebuffer. The pass costs
+// what the ships cover, not the whole screen (the player's ship is on screen the whole time you fly).
 function flyRender(img, timeSec){
-  ensureShipTargets(T.w, T.h);
+  if (FLY.off) return img;
+  const w = T.w, h = T.h, v = ORB.view, b = v.b, eye = v.eye, list = flyList();
+  const dstFb = img === T.comp3 ? T.comp3Fb : img === T.comp2 ? T.comp2Fb : null;
+  if (!dstFb) return img;
+  // instances + sprites, camera-relative km
+  const inst = {}, sprites = [], rects = [];
+  // screen rect of a sphere (camera-relative km): conservative rad/(z - rad); straddling the camera plane -> the whole screen
+  const th = Math.tan(v.fov/2), asp = w/h;
+  const addRect = (c, rad) => { const z = V.dot(c, b.f); if (z <= rad*1.05) { if (z > -rad) rects.push([0, 0, w, h]); return; }
+    const x = V.dot(c, b.r)/(z*th*asp), y = V.dot(c, b.u)/(z*th), rx = rad/((z - rad)*th*asp), ry = rad/((z - rad)*th);
+    const X0 = Math.floor(((x - rx)*0.5 + 0.5)*w), X1 = Math.ceil(((x + rx)*0.5 + 0.5)*w), Y0 = Math.floor(((y - ry)*0.5 + 0.5)*h), Y1 = Math.ceil(((y + ry)*0.5 + 0.5)*h);
+    if (X1 > 0 && Y1 > 0 && X0 < w && Y0 < h) rects.push([X0, Y0, X1 - X0, Y1 - Y0]); };
+  // a hull's rect from its 8 oriented-box corners (a bounding sphere badly overstates a ship seen end-on)
+  const addBox = (c, r, u, f, e) => { let X0 = 1e9, Y0 = 1e9, X1 = -1e9, Y1 = -1e9;
+    for (let k = 0; k < 8; k++) { const p = V.add(c, V.add(V.add(V.mul(r, k & 1 ? e[0] : -e[0]), V.mul(u, k & 2 ? e[1] : -e[1])), V.mul(f, k & 4 ? e[2] : -e[2])));
+      const z = V.dot(p, b.f); if (z <= 1e-3) { rects.push([0, 0, w, h]); return; }
+      const x = (V.dot(p, b.r)/(z*th*asp)*0.5 + 0.5)*w, y = (V.dot(p, b.u)/(z*th)*0.5 + 0.5)*h;
+      X0 = Math.min(X0, x); X1 = Math.max(X1, x); Y0 = Math.min(Y0, y); Y1 = Math.max(Y1, y); }
+    X0 = Math.floor(X0) - 2; Y0 = Math.floor(Y0) - 2; X1 = Math.ceil(X1) + 2; Y1 = Math.ceil(Y1) + 2;
+    if (X1 > 0 && Y1 > 0 && X0 < w && Y0 < h) rects.push([X0, Y0, X1 - X0, Y1 - Y0]); };
+  for (const s of list) {
+    const f = s.f, r = V.norm(V.cross(s.u, f)), u = V.cross(f, r), rel = V.mul(V.sub(s.pos, eye), 1e-3);
+    (inst[s.cls] = inst[s.cls] || []).push([rel[0], rel[1], rel[2], 0.001, r[0], r[1], r[2], 0, u[0], u[1], u[2], 0, f[0], f[1], f[2], s.glow]);
+    const e = FLY_CLS[s.cls].ext;
+    if (s.player) {
+      const at = (x, y, z) => V.add(rel, V.add(V.add(V.mul(r, x*1e-3), V.mul(u, y*1e-3)), V.mul(f, z*1e-3)));
+      const g = s.glow, col = s.boost ? [0.6, 1.0, 2.6] : [0.45, 0.8, 1.9], toCam = V.norm(V.mul(rel, -1));
+      const side = V.norm(V.cross(f, toCam));
+      for (const x of [-6.2, 6.2]) {
+        const n = at(x, -0.4, -21.7), L = 0.004 + 0.018*g*(s.boost ? 1.6 : 1);
+        sprites.push([n, 0.0028 + 0.002*g, V.mul(col, 0.8 + 2.2*g), 0, null, null]);                              // hot throat
+        if (g > 0.02) sprites.push([V.sub(n, V.mul(f, L*0.8)), 1, V.mul(col, 0.9*g), 0, V.mul(f, -L), V.mul(side, 0.0022*(0.7 + g))]);   // plume
+      }
+      const blink = (k, ph) => Math.pow(0.5 + 0.5*Math.sin(timeSec*k + ph), 16);
+      sprites.push([at(-13, 0.4, -11.5), 0.0016, [2.2, 0.15, 0.1].map(c => c*(0.35 + 1.5*blink(3.1, 0))), 0, null, null]);   // port, red
+      sprites.push([at(13, 0.4, -11.5), 0.0016, [0.1, 2.0, 0.4].map(c => c*(0.35 + 1.5*blink(3.1, 0))), 0, null, null]);    // starboard, green
+      sprites.push([at(0, 2.2, -15.5), 0.0022, [3, 3, 3].map(c => c*blink(1.3, 2)), 1, null, null]);                          // strobe
+      if (s.heat > 0.02) for (let k = 0; k < 5; k++) {                                                                            // re-entry plasma
+        const q = at((k - 2)*2.4, -1.4, 20 - k*1.5), fl = 0.8 + 0.2*Math.sin(timeSec*23 + k*1.7);
+        sprites.push([q, 0.009 + 0.004*k, V.mul([1.8, 0.62, 0.22], s.heat*fl), 2, null, null, 0.1 + 0.15*k]);
+      }
+      addBox(rel, r, u, f, e);                                   // the hull; its glows add their own below
+    } else {
+      const fighter = !!FLY_CLS[s.cls].fighter, stern = V.sub(rel, V.mul(f, e[2]*1.02));
+      sprites.push([stern, e[0]*(fighter ? 1.6 : 0.9), V.mul([0.4, 0.75, 1.6], fighter ? 2.5 : 1.2), 0, null, null]);
+      addBox(rel, r, u, f, e);
+    }
+  }
+  for (const [p, size, , , ax, ay] of sprites) addRect(p, ax ? Math.max(V.len(ax), V.len(ay || [0, 0, 0]))*size : size);
+  if (!rects.length) return img;
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (const r of rects) { x0 = Math.min(x0, r[0]); y0 = Math.min(y0, r[1]); x1 = Math.max(x1, r[0] + r[2]); y1 = Math.max(y1, r[1] + r[3]); }
+  x0 = Math.max(0, x0 - 4); y0 = Math.max(0, y0 - 4); x1 = Math.min(w, x1 + 4); y1 = Math.min(h, y1 + 4);
+  if (x1 <= x0 || y1 <= y0) return img;
+  const rw = x1 - x0, rh = y1 - y0;
+  FLY.rect = [x0, y0, rw, rh];
+  ensureShipTargets(rw, rh);
   if (!BT) return img;
-  const w = BT.w, h = BT.h, v = ORB.view, b = v.b, eye = v.eye;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, BT.msFb); gl.viewport(0, 0, w, h);
-  gl.disable(gl.BLEND); gl.disable(gl.SCISSOR_TEST); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.ALWAYS);
-  const B = P.shipBg; gl.useProgram(B.p);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, BT.msFb); gl.viewport(0, 0, rw, rh);
+  gl.enable(gl.SCISSOR_TEST); gl.scissor(0, 0, rw, rh);
+  gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.ALWAYS);
+  const B = P.shipBg; gl.useProgram(B.p); gl.uniform2i(B.u.u_off, x0, y0);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, img); gl.uniform1i(B.u.u_img, 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.gb); gl.uniform1i(B.u.u_gb, 1);
   gl.activeTexture(gl.TEXTURE0);
   fullscreen();
   gl.depthFunc(gl.LESS);
   const rot = new Float32Array([b.r[0], b.u[0], -b.f[0], 0, b.r[1], b.u[1], -b.f[1], 0, b.r[2], b.u[2], -b.f[2], 0, 0, 0, 0, 1]);
-  const vp = flyMul(flyPerspective(v.fov, w/h, LOGZ_NEAR, 1e8), rot);
+  // the full-screen projection, re-mapped so the rect's NDC range fills the small target
+  const nx0 = x0/w*2 - 1, nx1 = x1/w*2 - 1, ny0 = y0/h*2 - 1, ny1 = y1/h*2 - 1, sx = 2/(nx1 - nx0), sy = 2/(ny1 - ny0);
+  const K = new Float32Array([sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, -sx*(nx0 + nx1)/2, -sy*(ny0 + ny1)/2, 0, 1]);
+  const vp = flyMul(K, flyMul(flyPerspective(v.fov, w/h, LOGZ_NEAR, 1e8), rot));
   const Q = P.ship; gl.useProgram(Q.p);
   gl.uniformMatrix4fv(Q.u.u_vp, false, vp);
   const pl = ORB.bodies[1], pC = V.mul(V.sub(pl.pos, eye), 1e-3), toBH = V.norm(V.mul(eye, -1));
@@ -477,31 +583,25 @@ function flyRender(img, timeSec){
   gl.uniform3f(Q.u.u_amb, 0.018, 0.02, 0.028); gl.uniform3fv(Q.u.u_pC, pC); gl.uniform1f(Q.u.u_pR, pl.R*1e-3);
   gl.uniform3f(Q.u.u_pCol, 0.12, 0.2, 0.3); gl.uniform1f(Q.u.u_time, timeSec);
   for (const k of ['hull', 'dark', 'trim', 'eng', 'win']) gl.uniform3fv(Q.u['u_' + k], FLEET_LOOK[k].flat());
-  const byCls = {};
-  for (const s of FLY.ships) (byCls[s.cls] = byCls[s.cls] || []).push(s);
-  const sprites = [];
-  for (const [cls, list] of Object.entries(byCls)) {
+  for (const [cls, rows] of Object.entries(inst)) {
     const G = shipClassGL(cls), d = G.inst;
-    let n = 0;
-    for (const s of list) {
-      const dv = V.norm(s.v), f = V.norm(V.add(V.add(V.mul(s.right, dv[0]), V.mul(s.up, dv[1])), V.mul(s.fwd, dv[2])));
-      const r = V.norm(V.cross(s.up, f)), u = V.cross(f, r), rel = V.mul(V.sub(flyPos(s), eye), 1e-3);
-      d.set([rel[0], rel[1], rel[2], 0.001, r[0], r[1], r[2], 0, u[0], u[1], u[2], 0, f[0], f[1], f[2], 0.15], n*16); n++;
-      const e = FLY_CLS[cls].ext, fighter = !!FLY_CLS[cls].fighter, stern = V.sub(rel, V.mul(f, e[2]*1.02));
-      sprites.push([stern, e[0]*(fighter ? 1.6 : 0.9), V.mul([0.4, 0.75, 1.6], fighter ? 2.5 : 1.2)]);
-    }
+    rows.forEach((row, n) => d.set(row, n*16));
     gl.bindVertexArray(G.vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, G.instBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, d, 0, n*16);
-    gl.drawElementsInstanced(gl.TRIANGLES, G.n, G.type, 0, n);
+    gl.bindBuffer(gl.ARRAY_BUFFER, G.instBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, d, 0, rows.length*16);
+    gl.drawElementsInstanced(gl.TRIANGLES, G.n, G.type, 0, rows.length);
   }
-  // engine plumes: soft additive glows, depth-tested, fading to zero inside their quads
+  // glows: soft additive sprites, depth-tested, fading to zero inside their quads (oriented when an axis pair is given)
   if (!FLY.vao) {
     FLY.vao = gl.createVertexArray(); gl.bindVertexArray(FLY.vao);
     FLY.buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, FLY.buf); gl.bufferData(gl.ARRAY_BUFFER, FLY.data.byteLength, gl.DYNAMIC_DRAW);
     for (let k = 0; k < 4; k++) { gl.enableVertexAttribArray(k); gl.vertexAttribPointer(k, 4, gl.FLOAT, false, 64, k*16); gl.vertexAttribDivisor(k, 1); }
   }
   let n = 0;
-  for (const [p, size, col] of sprites) { FLY.data.set([p[0], p[1], p[2], size, col[0], col[1], col[2], 0, 0, 0, 0, 0, 0, 0, 0, 0], n*16); n++; }
+  for (const [p, size, col, type, ax, ay, age] of sprites) {
+    if (n >= 64) break;
+    const A = ax || [0, 0, 0], Bv = ay || [0, 0, 0];
+    FLY.data.set([p[0], p[1], p[2], size, col[0], col[1], col[2], type, A[0], A[1], A[2], age || 0, Bv[0], Bv[1], Bv[2], n*0.37], n*16); n++;
+  }
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.depthFunc(gl.LEQUAL);
   const S = P.spr; gl.useProgram(S.p);
   gl.uniformMatrix4fv(S.u.u_vp, false, vp); gl.uniform3fv(S.u.u_R, b.r); gl.uniform3fv(S.u.u_U, b.u); gl.uniform1f(S.u.u_time, timeSec);
@@ -509,8 +609,12 @@ function flyRender(img, timeSec){
   gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
   gl.bindVertexArray(vao);
   gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.DEPTH_TEST);
+  // resolve the small target (a multisample resolve must not move), then copy it into the planet image at the rect
+  gl.disable(gl.SCISSOR_TEST);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, BT.msFb); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, BT.resFb);
-  gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.blitFramebuffer(0, 0, rw, rh, 0, 0, rw, rh, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, BT.resFb); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dstFb);
+  gl.blitFramebuffer(0, 0, rw, rh, x0, y0, x1, y1, gl.COLOR_BUFFER_BIT, gl.NEAREST);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  return BT.tex;
+  return img;
 }

@@ -259,6 +259,42 @@ body.jumping .jbar i{animation:charge 1s cubic-bezier(.5,0,.2,1) forwards}
 @keyframes charge{to{width:100%}}
 body.jumping #hud, body.jumping #reticle{opacity:0; transition:opacity .35s}
 
+/* ---------------------------------------------------------------------------------------------- the helm */
+/* flight readouts flank the boresight; the canopy frame goes in the chase view (the camera is outside the ship) */
+#helmHud{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .5s}
+body.helm #helmHud{opacity:1}
+body.chase #canopy .glass, body.chase #canopy .corner, body.chase #canopy .edge{opacity:0; transition:opacity .6s}
+#canopy .glass, #canopy .corner, #canopy .edge{transition:opacity .6s}
+.hbox{position:absolute; top:50%; transform:translateY(-50%); min-width:132px; padding:7px 11px 9px; background:rgba(2,8,20,.55);
+  border:1px solid rgba(var(--blue),.35); display:flex; flex-direction:column; gap:3px}
+.hbox.spd{right:calc(50% + 150px); align-items:flex-end} .hbox.alt{left:calc(50% + 150px)}
+.hbox .v{font-size:17px; color:#eef5ff; letter-spacing:.08em; text-shadow:0 0 10px rgba(var(--blue),.6)}
+.hbox .k2{font-size:10px; color:var(--dim); letter-spacing:.1em}
+.hbox i{display:block; height:3px; width:0; margin-top:3px; background:rgba(var(--blue),.9); box-shadow:0 0 8px rgba(var(--blue),.9); transition:width .15s; align-self:stretch}
+.hbox i.boost{background:#bfe1ff; box-shadow:0 0 12px #9fd0ff}
+.hwarn{position:absolute; left:50%; top:calc(50% + 70px); transform:translateX(-50%); font-size:13px; letter-spacing:.34em; color:rgb(var(--amber))}
+.hwarn.hot{color:#ff7a5c; text-shadow:0 0 12px rgba(255,90,60,.9); animation:blink .6s steps(2) infinite}
+.hauto{position:absolute; left:50%; top:96px; transform:translateX(-50%); font-size:11px; letter-spacing:.3em; color:rgb(var(--amber)); white-space:nowrap}
+.hcard{position:absolute; left:50%; bottom:170px; transform:translateX(-50%); display:grid; grid-template-columns:auto auto auto auto; gap:6px 14px;
+  padding:14px 18px; background:rgba(2,8,20,.82); border:1px solid rgba(var(--blue),.5); font-size:10.5px; letter-spacing:.14em; color:var(--ink);
+  opacity:0; visibility:hidden; transition:opacity .5s, visibility 0s linear .5s; pointer-events:auto; cursor:pointer}
+.hcard.show{opacity:1; visibility:visible; transition:opacity .5s}
+.hcard b{grid-column:1/-1; font-weight:400; letter-spacing:.3em; color:rgba(122,182,255,.95); margin-bottom:4px}
+.hcard span{color:rgb(var(--amber)); text-align:right}
+.hcard em{grid-column:1/-1; font-style:normal; color:var(--dim); margin-top:6px; letter-spacing:.2em}
+.tog.helm{color:rgb(var(--amber)); border-color:rgba(var(--amber),.55)}
+.tog.helm[aria-pressed="true"]{color:#fff; background:rgba(var(--amber),.3); border-color:rgba(var(--amber),.9); box-shadow:0 0 12px rgba(var(--amber),.4) inset}
+#touchPad{display:none}
+body.nogl #bHelm{display:none}
+@media (pointer: coarse){
+  body.online #touchPad{display:flex; position:absolute; right:max(12px, var(--inR)); bottom:calc(max(10px, env(safe-area-inset-bottom)) + 150px);
+    flex-direction:column; gap:8px; pointer-events:auto}
+  .tp{font:400 10px var(--mono); letter-spacing:.2em; color:#dff0ff; background:rgba(2,8,20,.62); border:1px solid rgba(var(--blue),.5);
+    width:86px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none}
+  .tp.on{background:rgba(var(--blue),.4); border-color:#bfe1ff}
+  .hbox{min-width:100px} .hbox.spd{right:calc(50% + 70px)} .hbox.alt{left:calc(50% + 70px)} .hcard{display:none}
+}
+
 /* ---------------------------------------------------------------------------------------------- smaller screens */
 @media (max-width: 1180px){
   .panel.left{width:236px} .panel.right{width:292px}

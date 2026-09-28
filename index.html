@@ -43,7 +43,7 @@
         <dt>ALTITUDE</dt><dd id="tAlt">&mdash;</dd>
         <dt>VELOCITY</dt><dd id="tVel">&mdash;</dd>
         <dt>PERIOD</dt><dd id="tPer">&mdash;</dd>
-        <dt>ORBIT</dt><dd>DAWN&ndash;DUSK &middot; 8.0&deg;</dd>
+        <dt>ORBIT</dt><dd id="tOrbit">DAWN&ndash;DUSK &middot; 8.0&deg;</dd>
         <dt>GROUND</dt><dd id="tGround">&mdash;</dd>
         <dt>BELOW</dt><dd id="tSide">&mdash;</dd>
       </dl>
@@ -115,11 +115,34 @@
         <div class="st"><span class="k">TIME</span><span class="v">&times;12</span></div>
         <div class="st"><span class="k">RES</span><span class="v" id="sRes">&mdash;</span></div>
         <div class="st"><span class="k">FPS</span><span class="v" id="sFps">&mdash;</span></div>
+        <button type="button" id="bHelm" class="tog helm" aria-pressed="false" title="Fly the ship yourself (F)">TAKE HELM</button>
         <button type="button" id="bScope" class="tog" aria-pressed="false" title="Telescope (Z)">TELESCOPE</button>
         <button type="button" id="bAudio" class="tog" aria-pressed="false" title="Cockpit sound">AUDIO</button>
       </div>
-      <div class="help" aria-hidden="true">DRAG &middot; LOOK &nbsp; SCROLL &middot; ALTITUDE &nbsp; Z &middot; TELESCOPE</div>
+      <div class="help" id="help" aria-hidden="true">F &middot; TAKE THE HELM &nbsp; DRAG &middot; LOOK &nbsp; SCROLL &middot; ALTITUDE &nbsp; Z &middot; TELESCOPE &nbsp; [ ] &middot; SPIN</div>
     </footer>
+
+    <!-- The helm (js/scene/flight.js): flight readouts round the centre, warnings, the autopilot countdown. -->
+    <div id="helmHud" aria-hidden="true">
+      <div class="hbox spd"><span class="k">REL</span><span class="v" id="hRel">&mdash;</span><i id="hThr"></i></div>
+      <div class="hbox alt"><span class="k">ALT</span><span class="v" id="hAlt">&mdash;</span><span class="k2" id="hVs"></span></div>
+      <div class="hwarn" id="hWarn"></div>
+      <div class="hauto" id="hAuto"></div>
+      <div class="hcard" id="hCard">
+        <b>AT THE HELM</b>
+        <span>W / S</span>THRUST &middot; REVERSE<span>DRAG &middot; ARROWS</span>STEER<span>A / D &middot; Q / E</span>YAW &middot; ROLL
+        <span>SHIFT</span>BOOST<span>X</span>HOLD ORBIT<span>V</span>CHASE / COCKPIT<span>T</span>TRACK GARGANTUA
+        <span>O</span>ORBIT ASSIST<span>H &middot; ESC</span>AUTOPILOT HOME
+        <em>LET GO AND THE ASSIST SETTLES YOU INTO ORBIT</em>
+      </div>
+    </div>
+    <div id="touchPad" aria-hidden="true">
+      <button type="button" class="tp" data-in="thrust">THRUST</button>
+      <button type="button" class="tp" data-in="boost">BOOST</button>
+      <button type="button" class="tp" data-in="reverse">RETRO</button>
+      <button type="button" class="tp" data-in="hold">HOLD</button>
+      <button type="button" class="tp" data-in="home">HOME</button>
+    </div>
   </div>
 
   <div id="boot" aria-hidden="true">
@@ -148,6 +171,7 @@
   <script src="js/scene/planet.js"></script>
   <script src="js/scene/post.js"></script>
   <script src="js/scene/orbit.js"></script>
+  <script src="js/scene/flight.js"></script>
   <script src="js/scene/ships.js"></script>
   <script src="js/hud.js"></script>
   <script src="js/scene/main.js"></script>

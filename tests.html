@@ -158,7 +158,7 @@
       // Renderer: js/scene/*.js (ported from demo/). HUD + game menu: index.html + js/hud.js.
       // =============================================
       const SCENE_FILES = ['js/scene/gl.js', 'js/scene/kerr.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
-                           'js/scene/orbit.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
+                           'js/scene/orbit.js', 'js/scene/flight.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
       const src = {};
       for (const f of SCENE_FILES) {
         try { const r = await fetch(f); src[f] = r.ok ? await r.text() : null; } catch (e) { src[f] = null; }
@@ -255,9 +255,11 @@
         'Bake: stale tiles re-baked when the camera drifts 0.02 M or the spin outruns them', 'bhStale() in gargantua.js, bhUpdate() every frame from main.js');
       assert(!/bhUpdate[^\n]*rsSettle/.test(mainSrc) && !/bhBakeStep\(\s*\d+\s*\)\s*;\s*rsSettle/.test(mainSrc),
         'Render scale: the per-frame bake scheduler does not hold rsSettle', 'a steady ~1 ms bake load must not freeze the controller');
-      const altMax = extractShaderFloat(orbSrc, /ALT_MAX\s*:\s*([\d.e]+)/), mKm = extractShaderFloat(bhSrc, /M_KM\s*:\s*([\d.e]+)/);
-      assert(altMax !== null && mKm !== null && (altMax + 6.7e6) < 0.02*mKm*1e3*0.01,
-        'Bake: the highest orbit stays a tiny fraction of the re-bake tolerance', `orbit radius ≤ ${((altMax + 6.7e6)/1e3).toFixed(0)} km vs 0.02 M = ${(0.02*mKm).toExponential(2)} km`);
+      const altMax = extractShaderFloat(orbSrc, /ALT_MAX\s*:\s*([\d.e]+)/), mKm = extractShaderFloat(bhSrc, /M_KM\s*:\s*([\d.e]+)/),
+            ceil = extractShaderFloat(src['js/scene/flight.js'] || '', /CEIL\s*:\s*([\d.e]+)/);
+      assert(altMax !== null && mKm !== null && ceil !== null && Math.max(altMax + 6.7e6, ceil) < 0.02*mKm*1e3*0.1,
+        'Bake: the whole flight envelope stays well inside the re-bake tolerance',
+        'station orbit ≤ ' + ((altMax + 6.7e6)/1e3).toFixed(0) + ' km, helm ceiling ' + ((ceil || 0)/1e3).toFixed(0) + ' km vs 0.02 M = ' + (0.02*mKm).toExponential(2) + ' km');
 
       // 7. GARGANTUA ALWAYS IN VIEW: the orbit tilt is checked against the limb dip at boot, and look-around is clamped.
       assert(/function\s+orbitCheck/.test(orbSrc) && /orbitCheck\s*\(\s*\)/.test(mainSrc), 'Always in view: orbit tilt checked against the limb dip at boot',
@@ -273,6 +275,47 @@
         'a controller with no memory of what was too heavy keeps re-probing, which pumps');
       const rsMin = extractShaderFloat(mainSrc, /RS_MIN\s*=\s*([\d.]+)/);
       assert(rsMin !== null && rsMin >= 0.35, 'Render scale: floor stays at 0.35 or above', 'RS_MIN = ' + rsMin + ' (sub-floor scaling was rejected)');
+
+      // 8b. THE HELM (flight.js): fly the real orbit.js + flight.js in a sandbox (no GL) and check the promises.
+      try {
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, src['js/scene/flight.js'] || '', `
+          const SCENE = {state: 'run'};
+          const step = (n, dt) => { for (let i = 0; i < n; i++) { orbitStep(dt); flightStep(dt); } };
+          const out = {};
+          orbitResize(1600, 900); orbitStep(0); helmEnter();
+          // 1. point up and burn 2 s, then let go: the assist must settle a circular orbit
+          HELM.f = V.norm(HELM.p); HELM.u = V.norm(V.cross(V.cross(HELM.f, HELM.hdir), HELM.f)); HELM.input.thrust = 1;
+          step(120, 1/60); HELM.input.thrust = 0; step(1200, 1/60);
+          out.settle = {ecc: ORB.hud.ecc, alt: HELM.alt};
+          // 2. dive with boost: the floor holds
+          HELM.f = V.mul(V.norm(HELM.p), -1); HELM.u = HELM.hdir; HELM.input.thrust = 1; HELM.input.boost = 1;
+          let minAlt = 1e12; for (let i = 0; i < 900; i++) { step(1, 1/60); minAlt = Math.min(minAlt, HELM.alt); }
+          out.floor = minAlt; HELM.input.thrust = 0; HELM.input.boost = 0; step(600, 1/60);
+          // 3. climb with boost for a long time: the ceiling holds (radial command limited, not the position clamped)
+          HELM.f = V.norm(HELM.p); HELM.u = HELM.hdir; HELM.input.thrust = 1; HELM.input.boost = 1;
+          let maxR = 0; for (let i = 0; i < 2400; i++) { step(1, 1/30); maxR = Math.max(maxR, V.len(HELM.p)); }
+          out.ceil = maxR/HELM.CEIL; HELM.input.thrust = 0; HELM.input.boost = 0;
+          // 4. the autopilot flies home without cutting through MILLER, and hands back to STATION
+          helmAuto('test'); let minR = 1e12; for (let i = 0; i < 900 && HELM.mode !== 'station'; i++) { step(1, 1/60); minR = Math.min(minR, V.len(HELM.p || [1e12, 0, 0])); }
+          out.auto = {mode: HELM.mode, minAlt: minR - ORB.planet.R};
+          // 5. assist off, no thrust: energy conserved over one orbit (velocity Verlet)
+          helmEnter(); HELM.assist = false; HELM.p = [ORB.planet.R + 8e5, 0, 0]; HELM.v = [0, 0, 1.05*Math.sqrt(ORB.planet.GM/(ORB.planet.R + 8e5))];
+          const E = () => V.dot(HELM.v, HELM.v)/2 - ORB.planet.GM/V.len(HELM.p), E0 = E(); step(900, 1/30);
+          out.energy = Math.abs((E() - E0)/E0);
+          // 6. purely radial velocity does not break the assist (no horizontal direction to take)
+          HELM.assist = true; HELM.v = V.mul(V.norm(HELM.p), 3000); HELM.hdir = null; step(600, 1/60);
+          out.radial = {ok: [...HELM.p, ...HELM.v].every(Number.isFinite), ecc: ORB.hud.ecc};
+          return out;`].join('\n'));
+        const r = sb(document);
+        assert(r.settle.ecc < 0.005 && r.settle.alt > 7.2e5, 'Helm: let go and the orbit assist settles a circular orbit', 'e = ' + r.settle.ecc.toFixed(4) + ' at ' + (r.settle.alt/1e3).toFixed(0) + ' km');
+        assert(r.floor > 4.9e4, 'Helm: a boosted dive cannot break the 50 km floor', 'lowest ' + (r.floor/1e3).toFixed(1) + ' km');
+        assert(r.ceil < 1.05, 'Helm: a long boosted climb stops at the Hill-sphere ceiling', (r.ceil*100).toFixed(1) + '% of the ceiling');
+        assert(r.auto.mode === 'station' && r.auto.minAlt > 4e4, 'Helm: the autopilot flies home around MILLER, never through it', r.auto.mode + ', lowest ' + (r.auto.minAlt/1e3).toFixed(0) + ' km');
+        assert(r.energy < 1e-6, 'Helm: with the assist off, energy is conserved over an orbit', 'drift ' + r.energy.toExponential(2));
+        assert(r.radial.ok && r.radial.ecc < 0.05, 'Helm: a purely radial velocity still settles into orbit', 'e = ' + r.radial.ecc.toFixed(4));
+      } catch (e) { assert(false, 'Helm: flight sandbox ran', e.message); }
+      assert(/orbitStep\(\s*dt\s*\*/.test(mainSrc) && /flightStep\(\s*dt\s*\)/.test(mainSrc), 'Helm: the launch jump warps the world, not the ship', 'orbitStep(dt*...) but flightStep(dt)');
+      assert(/function\s+helmAuto/.test(src['js/scene/flight.js'] || '') && /IDLE_AUTO/.test(src['js/scene/flight.js'] || ''), 'Always in view: an idle helm flies home to the station framing', 'helmAuto() after IDLE_AUTO s');
 
       // 9. ANTI-ALIASING: fullscreen passes only, so no MSAA on the context; the FXAA upscale does the edges.
       assert(/getContext\(\s*['"]webgl2['"]\s*,\s*\{[^}]*antialias\s*:\s*false/.test(glSrc), 'Render pipeline: WebGL2 context requests antialias:false',

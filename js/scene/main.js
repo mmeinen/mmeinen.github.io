@@ -52,7 +52,8 @@ let rsProbing = 0;           // frames left in which a miss counts as "that prob
 let rsRelaxAge = 0, rsRelaxEvery = 1800;   // how often the ceiling is allowed to creep back up
 let rsViewKey = 0;           // altitude / zoom the ceiling was measured at (they change the cost)
 
-function viewKey(){ return ORB.ship.hTarget/ORB.zoomTarget; }
+// what the frame cost tracks: altitude (how much of the screen is terrain), telescope zoom, and the chase view's ship pass
+function viewKey(){ return (HELM.mode === 'station' ? ORB.ship.hTarget : Math.max(HELM.alt, 5e4))/ORB.zoomTarget*(HELM.mode !== 'station' && HELM.view === 'chase' ? 1.6 : 1); }
 function rsReset(){ rsCeiling = RS_MAX; rsMiss = 0; rsGood = 0; rsWarm = 30; rsSettle = 0; rsProbing = 0; rsRelaxAge = 0; rsRelaxEvery = 1800; rsViewKey = viewKey(); }
 
 function rsSet(v){
@@ -111,7 +112,8 @@ function render(now){
   bhShade(T.compFb, T.w, T.h, v.b, Math.tan(v.fov/2), tSec, ORB.camM);
   let img = systemPass(T, v, ORB.bodies, tSec, 1, 0.4);         // 0.4: the demo's sky gain beside a planet
   if (flyVisible()) img = flyRender(img, tSec);                  // the MSAA ship pass only runs while one is in view
-  LOOK.warp = ORB.warp;
+  // the jump's tunnel, or a faint smear while boosting at the helm
+  LOOK.warp = Math.max(ORB.warp, HELM.mode === 'helm' && HELM.input.boost && HELM.thrustNow > 0 ? 0.07 : 0);
   postProcess(img, cw, ch, tSec, LOOK);
 }
 
@@ -133,6 +135,8 @@ function frameBody(now){
     if (k >= 1 && !jump.fired) { jump.fired = true; jump.done(); }
   }
   orbitStep(dt*(1 + 30*ORB.warp*ORB.warp));    // the jump also spins the world up
+  helmInput(dt); flightStep(dt);                 // ...but not the ship: the helm gets real time
+  for (const ev of HELM.events.splice(0)) HUD.poke('helm:' + ev.type, ev);
   const contact = flyStep(dt);
   if (contact) HUD.poke('contact', contact);
   // Gargantua's spin drifts, and MILLER's inclined orbit slowly carries the camera away from the bake point: the
@@ -180,43 +184,88 @@ function boot(){
 }
 
 // ------------------------------------------------------------------------------------------ input
-// drag = look around (clamped by orbit.js so the hole stays on screen; springs back when idle),
-// wheel / pinch = orbit-altitude burn, +/- keys too, Z = telescope
+// STATION: drag = look around (clamped by orbit.js so the hole stays on screen; springs back when idle), wheel / pinch =
+// orbit-altitude burn, +/- keys too, Z = telescope, [ ] = Gargantua's spin.
+// HELM (flight.js): drag = a virtual stick (the nose turns toward the drag, faster the further from where you pressed),
+// wheel / pinch = chase distance. Any flight key takes the helm; F toggles it; H or Esc fly home. Space is never a
+// flight key: it activates the focused menu item.
 const ptr = new Map();
-let pinch0 = 0;
+let pinch0 = 0, stick = null, stickHold = false;
+const keys = new Set();
+const FLIGHT_KEYS = new Set(['w', 's', 'a', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
+const hudStick = s => { if (HUD.stick) HUD.stick(s); };
 function altitudeBy(k){ const s = ORB.ship; s.hTarget = clamp(s.hTarget*Math.exp(k), ORB.ALT_MIN, ORB.ALT_MAX); HUD.poke('burn'); }
+function chaseBy(k){ HELM.chaseDist = clamp(HELM.chaseDist*Math.exp(k), 55, 900); HELM.idle = 0; }
+// held keys + the stick -> HELM.input (SCENE.input overrides it for tests)
+function helmInput(){
+  if (HELM.mode !== 'helm' || stickHold) return;
+  const k = c => keys.has(c) ? 1 : 0, I = HELM.input, t = window.HELM_TOUCH || {};   // hud.js's touch pad (phones)
+  I.pitch = clamp(k('arrowup') - k('arrowdown') + (stick ? stick.py : 0), -1, 1);
+  I.yaw = clamp(k('arrowleft') + k('a') - k('arrowright') - k('d') + (stick ? stick.yx : 0), -1, 1);
+  I.roll = k('e') - k('q'); I.thrust = clamp(k('w') - k('s') + (t.thrust || 0) - (t.reverse || 0), -1, 1);
+  I.boost = k('shift') || t.boost || 0; I.hold = k('x') || t.hold || 0;
+  if (keys.size || stick || t.thrust || t.reverse || t.boost || t.hold) HELM.idle = 0;
+}
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   ptr.set(e.pointerId, {x: e.clientX, y: e.clientY});
-  if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); }
+  if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); stick = null; hudStick(null); }
+  else if (HELM.mode === 'helm') { stick = {x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, py: 0, yx: 0}; HELM.idle = 0; hudStick(stick); }
   ORB.look.idle = 0; document.body.classList.add('grabbing');
 });
 cv.addEventListener('pointermove', e => {
   const p = ptr.get(e.pointerId); if (!p) return;
-  if (ptr.size === 1 && ORB.view) {
+  if (ptr.size === 1 && stick) {
+    const R = Math.max(90, Math.min(ORB.W, ORB.H)*0.16);
+    stick.x = e.clientX; stick.y = e.clientY;
+    stick.yx = clamp(-(e.clientX - stick.x0)/R, -1, 1); stick.py = clamp(-(e.clientY - stick.y0)/R, -1, 1);
+    hudStick(stick);
+  } else if (ptr.size === 1 && ORB.view && HELM.mode === 'station') {
     const k = ORB.view.fov/ORB.H;                 // radians per CSS pixel: the scene follows the pointer
     ORB.look.yaw += (e.clientX - p.x)*k; ORB.look.pitch += (e.clientY - p.y)*k;
   }
   p.x = e.clientX; p.y = e.clientY; ORB.look.idle = 0;
   if (ptr.size === 2) {
     const [a, b] = [...ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinch0 > 0 && d > 0) altitudeBy(Math.log(pinch0/d)*1.5);
+    if (pinch0 > 0 && d > 0) { const k = Math.log(pinch0/d)*1.5; HELM.mode === 'station' ? altitudeBy(k) : chaseBy(k); }
     pinch0 = d;
   }
 });
-function endPtr(e){ ptr.delete(e.pointerId); if (ptr.size < 2) pinch0 = 0; if (!ptr.size) document.body.classList.remove('grabbing'); }
+function endPtr(e){ ptr.delete(e.pointerId); if (ptr.size < 2) pinch0 = 0; if (!ptr.size) { document.body.classList.remove('grabbing'); stick = null; hudStick(null); } }
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
-cv.addEventListener('wheel', e => { e.preventDefault(); altitudeBy(clamp(e.deltaY, -240, 240)*0.0022); }, {passive: false});
+cv.addEventListener('wheel', e => { e.preventDefault(); const k = clamp(e.deltaY, -240, 240)*0.0022; HELM.mode === 'station' ? altitudeBy(k) : chaseBy(k); }, {passive: false});
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || (e.target && e.target.closest && e.target.closest('input, textarea'))) return;
-  if (e.key === '+' || e.key === '=' || e.key === 'PageDown') altitudeBy(-0.25);
-  else if (e.key === '-' || e.key === '_' || e.key === 'PageUp') altitudeBy(0.25);
-  else if (e.key === 'z' || e.key === 'Z') SCENE.telescope();
+  const key = e.key.toLowerCase();
+  if (SCENE.state === 'run') {
+    if (FLIGHT_KEYS.has(key) || key === 'shift' || key === 'x') {
+      keys.add(key);
+      if (FLIGHT_KEYS.has(key) && HELM.mode === 'station') helmEnter();
+      if (HELM.mode === 'helm' && key.startsWith('arrow')) e.preventDefault();      // arrows would scroll the manifest
+      return;
+    }
+    if (key === 'f') { SCENE.helm(); return; }
+    if (HELM.mode === 'helm') {
+      if (key === 'h') { helmAuto('manual'); return; }
+      if (key === 'escape' && !document.querySelector('#crew details[open]')) { helmAuto('manual'); return; }
+      if (key === 'v') { helmToggleView(); return; }
+      if (key === 'o') { helmToggleAssist(); return; }
+      if (key === 't') { helmToggleTrack(); return; }
+    }
+  }
+  if (HELM.mode === 'station' && (e.key === '+' || e.key === '=' || e.key === 'PageDown')) altitudeBy(-0.25);
+  else if (HELM.mode === 'station' && (e.key === '-' || e.key === '_' || e.key === 'PageUp')) altitudeBy(0.25);
+  else if (key === 'z') SCENE.telescope();
   else if (e.key === '[' || e.key === ']') { if (SCENE.state === 'run') bhSpinNudge(e.key === ']' ? 0.1 : -0.1); }   // the old page's spin keys
 });
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 addEventListener('resize', () => { if (SCENE.state === 'run') { resize(); rsReset(); } else orbitResize(innerWidth, innerHeight); });
-addEventListener('blur', () => { ptr.clear(); document.body.classList.remove('grabbing'); });
+// a key released while the page was hidden never sends its keyup: forget everything held
+function clearInput(){ keys.clear(); ptr.clear(); stick = null; pinch0 = 0; document.body.classList.remove('grabbing'); hudStick(null); }
+addEventListener('blur', clearInput);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
+addEventListener('pagehide', clearInput);
 // back/forward cache: the page can come back mid-jump; put the ship back in orbit
 addEventListener('pageshow', e => {
   if (!e.persisted) return;
@@ -232,7 +281,10 @@ SCENE.altitudeBy = altitudeBy;
 SCENE.jump = (ms, done) => { if (SCENE.state !== 'run' || jump) return false; jump = {t0: performance.now(), ms, done, fired: false}; return true; };
 SCENE.unjump = () => { jump = null; ORB.warp = 0; LOOK.flash = 0; };     // a navigation that never happened
 // headless automation (tests / benchmarks): step the world, render synchronously, read the pixels back
-SCENE.advance = sec => { for (let t = 0; t < sec; t += 0.05) orbitStep(Math.min(0.05, sec - t)); };
+SCENE.advance = sec => { for (let t = 0; t < sec; t += 0.05) { const d = Math.min(0.05, sec - t); orbitStep(d); flightStep(d); } };
+// the helm, for the HUD buttons and headless tests
+SCENE.helm = () => { if (HELM.mode === 'station') { helmEnter(); return true; } if (HELM.mode === 'helm') helmAuto('manual'); return false; };
+SCENE.input = o => { Object.assign(HELM.input, o); HELM.idle = 0; stickHold = !!o && Object.keys(o).length > 0; };
 SCENE.renderNow = () => { render(performance.now()); return cv.toDataURL('image/png'); };
 SCENE.bench = n => { const px = new Uint8Array(4); render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   const t0 = performance.now(); for (let i = 0; i < n; i++) render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
