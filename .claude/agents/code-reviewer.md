@@ -38,7 +38,6 @@ You are a general-purpose code reviewer for this static GitHub Pages site. You c
 - WAT correctness -> `wat-reviewer`
 - WAT performance -> `wat-optimizer`
 - Shader performance -> `webgl-optimizer`
-- Navigation mode -> `navigation-reviewer`
 - Individual game logic -> game-specific reviewer
 
 ## Agent Routing
@@ -47,11 +46,9 @@ Based on changed files, recommend running:
 
 | Changed Files | Recommended Agent |
 |--------------|-------------------|
-| index.html (shader) | `planet-shader-reviewer`, `blackhole-shader-reviewer` |
-| index.html (JS nav) | `navigation-reviewer` |
-| index.html (perf) | `webgl-optimizer` |
-| index.html (volumetric/cloud/particle fx) | `volumetric-fx` |
-| js/*.wat | `wat-reviewer`, `wat-optimizer` |
+| `js/scene/*.js` (shaders, renderer) | `blackhole-shader-reviewer` (gargantua.js), `planet-shader-reviewer` (planet.js), `webgl-optimizer` (perf) |
+| `index.html`, `js/hud.js`, `css/hud.css` (HUD, game menu) | `ui-designer` (layout), `code-reviewer` (conventions) |
+| js/pong.wat | `wat-reviewer`, `wat-optimizer` |
 | minesweeper.html, js/game.js, js/board.js, js/tile.js, js/bomb.js, js/Renderer.js | `minesweeper-reviewer` |
 | pong.html, js/pong.js, js/pong.wat | `pong-reviewer` |
 | freecell/** | `freecell-reviewer` |

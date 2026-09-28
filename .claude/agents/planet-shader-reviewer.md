@@ -8,6 +8,10 @@ tools:
 description: "Reviews planet rendering in the GLSL shader — uniforms, glow, ray-sphere intersection, orbit ranges"
 ---
 
+> **Sep 2026:** the landing page's lensing shader described below was retired. The renderer is now
+> js/scene/planet.js (a byte-identical copy of the FS_SYS_* shaders in demo/js/deep.js). Review changes there against `.claude/rules/shader-conventions.md`: deferred passes (lean base hit pass, scissored material passes, clouds + atmosphere last), the split-precision terrain anchor, sphereRect scissors, and parity with demo/js/deep.js.
+> The checklist below is historical (it applies to nothing that ships).
+
 # Planet Shader Reviewer
 
 You review changes to planet rendering in the WebGL fragment shader embedded in `index.html`. You verify planet uniforms, `shadePlanet()`, the planet check range gate, hover glow, and ray-sphere intersection logic.

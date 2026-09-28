@@ -153,349 +153,100 @@
         return;
       }
 
-      // --- Fetch shader file ---
-      let shadersText;
-      try {
-        shadersText = await (await fetch('js/scene/shaders.js')).text();
-      } catch(e) {
-        showError('Could not fetch js/scene/shaders.js: ' + e.message);
-      }
-
-      // --- Extract shader source (fsSource lives in js/scene/shaders.js, NOT index.html) ---
-      const shaderMatch = (shadersText || '').match(/const\s+fsSource\s*=\s*`([\s\S]*?)`;/);
-      if (!shaderMatch) { showError('Could not extract fragment shader source from js/scene/shaders.js.'); render(); return; }
-      const shader = shaderMatch[1];
-
-      // --- Extract JS (all inline <script> blocks, concatenated) ---
-      const scriptBlocks = [...text.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-      if (!scriptBlocks.length) { showError('Could not extract <script> block.'); render(); return; }
-      const js = scriptBlocks.join('\n');
-
       // =============================================
-      // 1. Early escape threshold > renderable objects
+      // LANDING PAGE (Sep 2026): a ship in orbit round MILLER, Gargantua always in view.
+      // Renderer: js/scene/*.js (ported from demo/). HUD + game menu: index.html + js/hud.js.
       // =============================================
+      const SCENE_FILES = ['js/scene/gl.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
+                           'js/scene/orbit.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
+      const src = {};
+      for (const f of SCENE_FILES) {
+        try { const r = await fetch(f); src[f] = r.ok ? await r.text() : null; } catch (e) { src[f] = null; }
+        assert(src[f] !== null, 'Extraction: ' + f + ' loaded', src[f] ? src[f].length + ' chars' : 'could not fetch');
+      }
+      const mainSrc = src['js/scene/main.js'] || '', bhSrc = src['js/scene/gargantua.js'] || '',
+            plSrc = src['js/scene/planet.js'] || '', glSrc = src['js/scene/gl.js'] || '',
+            orbSrc = src['js/scene/orbit.js'] || '', postSrc = src['js/scene/post.js'] || '';
+      const doc = new DOMParser().parseFromString(text, 'text/html');
 
-      // Pattern: if (r > LOW && dot(pos, vel) > 0.0) break;
-      const escapeThreshold = extractShaderFloat(
-        shader, /if\s*\(\s*r\s*>\s*([\d.]+)\s*&&\s*dot\s*\(\s*pos\s*,\s*vel\s*\)\s*>\s*0\.0\s*\)\s*break/
-      );
-      assert(escapeThreshold !== null,
-        'Extraction: early escape threshold found',
-        escapeThreshold !== null ? `value = ${escapeThreshold}` : 'regex matched nothing');
+      // 1. THE MENU. Every game that was reachable from the old planet menu must still be one click away, as a
+      //    plain link in the static HTML (so it works with no JavaScript and no WebGL).
+      const GAMES = ['minesweeper.html', 'freecell/index.html', 'pong.html', 'erosion/index.html', 'pool/index.html',
+        'demo/index.html', 'beatrix_game/index.html', 'Isle%20of%20Wandering/index.html', 'fps/index.html',
+        'edmund_game/index.html', 'tower_defense/index.html', 'castle_siege/index.html', 'castle_pov/index.html',
+        'cat_invasion/index.html', 'island_world/index.html', 'Turtle%20Race/turtle-racing.html'];
+      const links = [...doc.querySelectorAll('#crew a.mission')].map(a => a.getAttribute('href'));
+      const missing = GAMES.filter(g => !links.includes(g));
+      assert(missing.length === 0, 'Menu: every game is in the crew manifest',
+        missing.length ? 'MISSING: ' + missing.join(', ') : links.length + ' links, all ' + GAMES.length + ' games present');
+      assert(new Set(links).size === links.length, 'Menu: no duplicate game links', links.length + ' links');
+      assert(doc.querySelectorAll('#crew details.crew').length === 5, 'Menu: five crew members (Dad, Beatrix, Edmund, Madeline, Theo)',
+        doc.querySelectorAll('#crew details.crew').length + ' found');
+      const dead = [];
+      for (const g of links) { try { const r = await fetch(g); if (!r.ok) dead.push(g); } catch (e) { dead.push(g); } }
+      assert(dead.length === 0, 'Menu: every game link resolves to a file', dead.length ? 'BROKEN: ' + dead.join(', ') : 'all ' + links.length + ' resolve');
 
-      // Extract planet data from JS: planetData array
-      const planetEntries = [...js.matchAll(/\{\s*oR:\s*([\d.]+)\s*,.*?radius:\s*([\d.]+)/g)];
-      assert(planetEntries.length >= 4,
-        'Extraction: planetData entries found',
-        `found ${planetEntries.length} planets`);
+      // 2. FILE:// SAFETY. The user opens pages by double-clicking: classic scripts only, and nothing may fetch.
+      const tags = [...doc.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
+      assert(![...doc.querySelectorAll('script')].some(s => s.type === 'module'), 'file:// safety: no module scripts', tags.length + ' classic scripts');
+      assert(tags.join() === SCENE_FILES.join(), 'file:// safety: scripts load in dependency order', tags.join(' → '));
+      const runtime = Object.values(src).filter(Boolean).join('\n');
+      assert(!/\bfetch\s*\(|XMLHttpRequest|\bimport\s*\(/.test(runtime), 'file:// safety: page scripts never fetch local files',
+        'no fetch / XHR / dynamic import in js/scene/*.js or js/hud.js');
 
-      const planets = planetEntries.map(m => ({
-        oR: parseFloat(m[1]),
-        radius: parseFloat(m[2]),
-      }));
+      // 3. LENSING UNITS (the demo's "units trap"): M = 1 everywhere. x'' = -1.5 h^2 x / r^5 is the same law in
+      //    r_s = 1 units; mixing it with M = 1 radii offset the photon ring from the shadow.
+      assert(/return\s+-3\.0\s*\*\s*h2\s*\*\s*p\s*\/\s*\(\s*r2\s*\*\s*r2\s*\*\s*r\s*\)/.test(bhSrc), 'Lensing: geodesic force is -3 h^2 x / r^5 (M = 1)',
+        'bhAccel() in js/scene/gargantua.js');
+      assert(!/-1\.5\s*\*\s*h2/.test(bhSrc), 'Lensing: no r_s = 1 (-1.5) force law mixed in', 'none found');
+      assert(/b\s*-\s*5\.19615/.test(bhSrc), 'Lensing: analytic shadow edge at b = 3√3 M', 'shadow is computed from the impact parameter, not a filtered flag');
 
-      // Extract accretion disc outer edge from shader
-      const outerEdge = extractShaderFloat(shader, /float\s+outerEdge\s*=\s*([\d.]+)/);
-      assert(outerEdge !== null,
-        'Extraction: accretion disc outerEdge found',
-        outerEdge !== null ? `value = ${outerEdge}` : 'regex matched nothing');
-
-      // Invariant 1a: threshold > max(planet oR + radius)
-      if (escapeThreshold !== null && planets.length > 0) {
-        const maxPlanetR = Math.max(...planets.map(p => p.oR + p.radius));
-        assert(escapeThreshold > maxPlanetR,
-          'Early escape: threshold > farthest planet edge',
-          `threshold ${escapeThreshold} vs max planet reach ${maxPlanetR}`);
+      // 4. SHADER PARITY WITH THE DEMO. The landing page's shaders are copies of demo/'s so a fix in one can be
+      //    mirrored in the other. If you changed one on purpose, change the other too (or document the split here).
+      const lit = (s, name) => { const m = s.replace(/\r\n/g, '\n').match(new RegExp('const\\s+' + name + '\\s*=\\s*(?:\\w+\\s*\\+\\s*)?`([\\s\\S]*?)`;')); return m ? m[1] : null; };
+      let demoBh = null, demoDeep = null;
+      try { demoBh = await (await fetch('demo/js/gargantua.js')).text(); demoDeep = await (await fetch('demo/js/deep.js')).text(); } catch (e) {}
+      for (const [name, a, b] of [['BH_COMMON', bhSrc, demoBh], ['FS_BH_GEOM', bhSrc, demoBh], ['FS_BH_SHADE', bhSrc, demoBh],
+          ['FS_SYS_COMMON', plSrc, demoDeep], ['FS_SYS_BASE', plSrc, demoDeep], ['FS_SYS_SURF', plSrc, demoDeep], ['FS_SYS_ATMO', plSrc, demoDeep]]) {
+        const x = lit(a, name), y = b ? lit(b, name) : null;
+        assert(x !== null && y !== null && x === y, 'Shader parity: ' + name + ' matches demo/',
+          x === null || y === null ? 'could not extract' : x === y ? 'identical' : 'DIFFERS — mirror the change in both copies');
       }
 
-      // Invariant 1b: threshold > outerEdge + margin (disc must be fully visible)
-      if (escapeThreshold !== null && outerEdge !== null) {
-        const margin = 2.0; // outerFade extends +1.0 beyond outerEdge
-        assert(escapeThreshold > outerEdge + margin,
-          'Early escape: threshold > accretion disc outer edge + margin',
-          `threshold ${escapeThreshold} vs outerEdge ${outerEdge} + ${margin} = ${outerEdge + margin}`);
-      }
+      // 5. DEFERRED PLANET (GPU occupancy): the base pass stays lean. Terrain, clouds and scattering live in their
+      //    own scissored passes; inlined into the per-pixel base pass they throttled every pixel (igpu lessons).
+      const base = lit(plSrc, 'FS_SYS_BASE') || '';
+      assert(base.length > 0 && !/\b(terrain|cloudD|atmo|shadeTerran|shadeRock)\s*\(/.test(base.replace(/^[\s\S]*?void\s+main/, 'void main')),
+        'Deferred planet: the base pass calls no material or atmosphere functions', 'FS_SYS_BASE main() only finds hits');
 
-      // Invariant 1c: convergence escape threshold > farthest planet edge
-      // Line: ... && dot(pos, pos) > N && ... break;
-      // N = R^2. A too-low N kills outbound rays bound for far-side planets
-      // before they arrive -> flat-bottom planet clipping (the bug this guards).
-      const convergenceSq = extractShaderFloat(
-        shader, /dot\s*\(\s*pos\s*,\s*pos\s*\)\s*>\s*([\d.]+)/
-      );
-      assert(convergenceSq !== null,
-        'Extraction: convergence escape threshold found',
-        convergenceSq !== null
-          ? `value = ${convergenceSq} (r > ${Math.sqrt(convergenceSq).toFixed(1)})`
-          : 'regex matched nothing');
-      if (convergenceSq !== null && planets.length > 0) {
-        const convergenceR = Math.sqrt(convergenceSq);
-        const maxPlanetReach = Math.max(...planets.map(p => p.oR + p.radius));
-        assert(convergenceR > maxPlanetReach,
-          'Convergence escape: threshold > farthest planet edge',
-          `r > ${convergenceR.toFixed(1)} vs max planet reach ${maxPlanetReach}`);
-      }
+      // 6. THE BAKE. Lensing geometry is baked once at MILLER; the ship's whole orbit is ~1e-4 M across, and
+      //    MILLER's own orbit is re-baked in place before the camera can drift far from the bake point.
+      assert(/bhBakeDrift\s*\(\s*ORB\.camM\s*\)\s*>\s*0\.02/.test(mainSrc), 'Bake: re-baked when the camera drifts > 0.02 M from the bake point',
+        'main.js frame loop');
+      const altMax = extractShaderFloat(orbSrc, /ALT_MAX\s*:\s*([\d.e]+)/), mKm = extractShaderFloat(bhSrc, /M_KM\s*:\s*([\d.e]+)/);
+      assert(altMax !== null && mKm !== null && (altMax + 6.7e6) < 0.02*mKm*1e3*0.01,
+        'Bake: the highest orbit stays a tiny fraction of the re-bake tolerance', `orbit radius ≤ ${((altMax + 6.7e6)/1e3).toFixed(0)} km vs 0.02 M = ${(0.02*mKm).toExponential(2)} km`);
 
-      // =============================================
-      // 2. Iteration budget sufficient for camera dist
-      // =============================================
+      // 7. GARGANTUA ALWAYS IN VIEW: the orbit tilt is checked against the limb dip at boot, and look-around is clamped.
+      assert(/function\s+orbitCheck/.test(orbSrc) && /orbitCheck\s*\(\s*\)/.test(mainSrc), 'Always in view: orbit tilt checked against the limb dip at boot',
+        'orbitCheck() throws if Gargantua could set below the limb');
+      assert(/L\.yaw\s*=\s*clamp\(\s*L\.yaw/.test(orbSrc) && /L\.pitch\s*=\s*clamp\(\s*L\.pitch/.test(orbSrc), 'Always in view: look-around offsets are clamped',
+        'drag cannot turn the hole off screen');
 
-      // Planet check range, extracted here because the step-size invariants below depend on it.
-      // Pattern: if (max(r, rNew) > LOW && min(r, rNew) < HIGH && accumulatedAlpha ...
-      const rangeMatch = shader.match(
-        /if\s*\(\s*max\s*\(\s*r\s*,\s*rNew\s*\)\s*>\s*([\d.]+)\s*&&\s*min\s*\(\s*r\s*,\s*rNew\s*\)\s*<\s*([\d.]+)\s*&&\s*accumulatedAlpha/
-      );
-      const rangeLow = rangeMatch ? parseFloat(rangeMatch[1]) : null;
-      const rangeHigh = rangeMatch ? parseFloat(rangeMatch[2]) : null;
+      // 8. ADAPTIVE RENDER SCALE (Aug 2026). Under vsync a frame costs one refresh or two, so a controller with a
+      //    millisecond hold band can never hold and pumps the resolution. The controller must settle instead.
+      assert(/rsSettle\s*>\s*0/.test(mainSrc) && /rsSettle\s*=\s*\d+/.test(mainSrc),
+        'Render scale: controller has a settle window after each change', 'without it the resize cost of a change reads as a reason to change again');
+      assert(/rsCeiling/.test(mainSrc), 'Render scale: controller latches a measured ceiling and holds under it',
+        'a controller with no memory of what was too heavy keeps re-probing, which pumps');
+      const rsMin = extractShaderFloat(mainSrc, /RS_MIN\s*=\s*([\d.]+)/);
+      assert(rsMin !== null && rsMin >= 0.35, 'Render scale: floor stays at 0.35 or above', 'RS_MIN = ' + rsMin + ' (sub-floor scaling was rejected)');
 
-      // Loop count: the ray-march loop specifically (anchored on its first statement
-      // `minR = min(minR, r)` so it isn't confused with the galaxy `for (int i ...)` loops).
-      const loopCount = extractShaderInt(
-        shader, /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\d+)\s*;\s*i\s*\+\+\s*\)\s*\{\s*minR\s*=\s*min\s*\(\s*minR\s*,\s*r\s*\)/
-      );
-      assert(loopCount !== null,
-        'Extraction: ray march loop count found',
-        loopCount !== null ? `value = ${loopCount}` : 'regex matched nothing');
+      // 9. ANTI-ALIASING: fullscreen passes only, so no MSAA on the context; the FXAA upscale does the edges.
+      assert(/getContext\(\s*['"]webgl2['"]\s*,\s*\{[^}]*antialias\s*:\s*false/.test(glSrc), 'Render pipeline: WebGL2 context requests antialias:false',
+        'MSAA is wasted bandwidth when every pass is a fullscreen triangle');
+      assert(/fxaa\s*\(/.test(postSrc) && /FS_RESOLVE/.test(postSrc), 'Render pipeline: FXAA upscale pass present', 'post.js FS_RESOLVE');
 
-      // Default camDist from JS
-      const defaultCamDist = extractShaderFloat(js, /let\s+camDist\s*=\s*([\d.]+)/);
-      assert(defaultCamDist !== null,
-        'Extraction: default camDist found',
-        defaultCamDist !== null ? `value = ${defaultCamDist}` : 'regex matched nothing');
-
-      // Step size now comes from stepSize(r, r_h, L2) — curvature-adaptive, not a fixed
-      // fraction of radius. |acc| = 1.5*L2/r^4, so dt = EPS/|acc| holds the per-step deflection
-      // constant; the far field no longer gets resolved orders of magnitude finer than it needs.
-      const eps      = extractShaderFloat(shader, /float\s+dtCurv\s*=\s*([\d.]+)\s*\*\s*r2\s*\*\s*r2/);
-      const farFrac  = extractShaderFloat(shader, /float\s+dt\s*=\s*min\s*\(\s*dtCurv\s*,\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*\)/);
-      const detailM  = shader.match(/if\s*\(\s*r\s*<\s*([\d.]+)\s*\)\s*dt\s*=\s*min\s*\(\s*dt\s*,\s*([\d.]+)\s*\*\s*\(\s*r\s*-\s*r_h\s*\)\s*\)/);
-      const detailR  = detailM ? parseFloat(detailM[1]) : null;
-      const nearFrac = detailM ? parseFloat(detailM[2]) : null;
-      const clampM   = shader.match(/return\s+clamp\s*\(\s*dt\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)/);
-      const stepMin  = clampM ? parseFloat(clampM[1]) : null;
-      const stepCap  = clampM ? parseFloat(clampM[2]) : null;
-      assert(eps !== null && farFrac !== null && detailR !== null && stepMin !== null,
-        'Extraction: stepSize() parameters found',
-        eps !== null ? `eps=${eps}, farFrac=${farFrac}, detailR=${detailR}, nearFrac=${nearFrac}, clamp=[${stepMin}, ${stepCap}]`
-                     : 'regex matched nothing — did stepSize() change shape?');
-
-      // Invariant 2a: the step must never charge the horizon. dt <= farFrac * (r - r_h), so
-      // farFrac < 1 keeps a step strictly short of r_h. Half that leaves room for |vel| drift.
-      if (farFrac !== null) {
-        assert(farFrac <= 0.5,
-          'Step size: bounded well inside the distance to the horizon',
-          `farFrac ${farFrac} <= 0.5 (dt <= farFrac × (r - r_h))`);
-      }
-
-      // Invariant 2b: THE ONE THAT REPLACES THE OLD "step cap < planet radius × 4" RULE.
-      // That rule existed because a coarse step could step OVER a planet. It no longer applies:
-      // the planet test is a segment-sphere closest-approach test, exact for a straight segment
-      // at any length. What matters instead is the radial GATE. It uses min(r, rNew) as the
-      // segment's inner reach, which overstates it by at most the chord sagitta ~ r*frac²/8.
-      // That error must stay well inside the margin between the gate's outer bound and the
-      // farthest planet, or a long segment dipping into the band gets skipped -> clipped planet.
-      if (farFrac !== null && rangeHigh !== null && planets.length > 0) {
-        const maxPlanetReach = Math.max(...planets.map(p => p.oR + p.radius));
-        const sagitta = rangeHigh * farFrac * farFrac / 8;
-        const margin = rangeHigh - maxPlanetReach;
-        assert(margin > sagitta * 4,
-          'Step size: chord sagitta stays inside the planet-gate margin',
-          `sagitta ≈ ${sagitta.toFixed(2)} vs margin ${margin.toFixed(2)} (gate ${rangeHigh} − reach ${maxPlanetReach})`);
-      }
-
-      // Invariant 2c: the fine-step detail zone must cover the accretion disc, whose hit
-      // position is interpolated along the segment — coarse steps there would smear it.
-      if (detailR !== null && outerEdge !== null) {
-        assert(detailR > outerEdge + 2.0,
-          'Step size: detail zone covers the accretion disc',
-          `detailR ${detailR} > outerEdge ${outerEdge} + 2`);
-      }
-
-      // Invariant 2d: the planet gate must test the SEGMENT's radial span. Gating on the start
-      // radius alone silently clips far-side planets once steps get long.
-      const segmentGate = /max\s*\(\s*r\s*,\s*rNew\s*\)\s*>\s*[\d.]+\s*&&\s*min\s*\(\s*r\s*,\s*rNew\s*\)\s*</.test(shader);
-      assert(segmentGate,
-        'Planet gate: tests the segment radial span, not just its start',
-        segmentGate ? 'gate uses max(r, rNew) / min(r, rNew)'
-                    : 'gate must span both endpoint radii — a long step can cross the band entirely');
-
-      // Invariant 2e: iteration budget. Under dt = frac × (r - r_h) the radius shrinks
-      // geometrically, so crossing a shell costs ln(ratio)/frac steps. Budget the inbound leg
-      // (camDist -> detail zone -> horizon) and double it for a lensed round trip.
-      if (loopCount !== null && defaultCamDist !== null && farFrac !== null &&
-          detailR !== null && nearFrac !== null) {
-        const rH = 2.0;                                  // Schwarzschild horizon at spin 0
-        const outer = Math.log((defaultCamDist - rH) / (detailR - rH)) / farFrac;
-        const inner = Math.log((detailR - rH) / (rH * 0.05)) / nearFrac;
-        const needed = 2 * (outer + inner);
-        assert(loopCount > needed,
-          'Iteration budget: covers a lensed round trip from default camDist',
-          `${loopCount} iters vs ≈${needed.toFixed(0)} needed (${outer.toFixed(0)} outer + ${inner.toFixed(0)} inner, ×2)`);
-      }
-
-      // =============================================
-      // 4. Planet check range covers all orbits
-      // =============================================
-
-      // (rangeLow / rangeHigh are extracted above — the step-size invariants depend on them.)
-      assert(rangeMatch !== null,
-        'Extraction: planet check range found',
-        rangeMatch ? `low=${rangeLow}, high=${rangeHigh}` : 'regex matched nothing');
-
-      if (rangeLow !== null && rangeHigh !== null && planets.length > 0) {
-        const minOrbitInner = Math.min(...planets.map(p => p.oR - p.radius));
-        const maxOrbitOuter = Math.max(...planets.map(p => p.oR + p.radius));
-
-        assert(rangeLow < minOrbitInner,
-          'Planet range: lower bound < nearest planet inner edge',
-          `${rangeLow} < ${minOrbitInner}`);
-
-        assert(rangeHigh > maxOrbitOuter,
-          'Planet range: upper bound > farthest planet outer edge',
-          `${rangeHigh} > ${maxOrbitOuter}`);
-      }
-
-      // =============================================
-      // Done with lensing tests
-      // =============================================
-
-      // =============================================
-      // 5. Scene render pipeline (anti-aliasing + camera-jitter work, Jun 2026)
-      // =============================================
-
-      // 5a. CAMERA-JITTER FIX. The WASM derives the camera basis (mem 0x030-0x05C) from the
-      //     frame-time it is handed at mem 0x028. Feeding it the RAW per-frame delta makes the
-      //     whole scene (black hole, disk, stars, planets, labels) buzz at idle, because the
-      //     delta is random frame-to-frame. The fix writes a low-pass (EMA) of the frame-time
-      //     instead. Regressing to `setFloat32(0x028, ft, ...)` reintroduces the buzz.
-      const ftWrite = js.match(/setFloat32\(\s*0x028\s*,\s*([A-Za-z_$][\w$]*)\s*,/);
-      assert(ftWrite !== null,
-        'Extraction: frame-time write to WASM (mem 0x028) found',
-        ftWrite ? `writes "${ftWrite[1]}"` : 'no setFloat32(0x028, ...) call found');
-
-      if (ftWrite) {
-        const ftVar = ftWrite[1];
-        assert(ftVar !== 'ft',
-          'Camera jitter: WASM is fed a smoothed frame-time, not the raw delta',
-          `0x028 <- "${ftVar}" (must NOT be the raw "ft" — a raw delta reintroduces the whole-scene buzz)`);
-
-        // The written var must be a recursive low-pass filter: it appears on both sides of its
-        // own update (e.g. `ftSmooth += (… - ftSmooth) * k`), tolerant of the exact coefficient.
-        const lowPass = new RegExp(ftVar + '\\s*\\+?=\\s*[^;]*\\b' + ftVar + '\\b').test(js);
-        assert(lowPass,
-          'Camera jitter: frame-time is low-pass filtered (EMA) before the WASM',
-          lowPass ? `"${ftVar}" is updated from its own previous value each frame` : `no recursive smoothing of "${ftVar}" found`);
-      }
-
-      // 5b. ANTI-ALIASING / FPS. The scene is one fullscreen ray-marched quad (no polygon edges),
-      //     so context MSAA does nothing but cost framebuffer bandwidth (~15 FPS on test hardware).
-      //     It must stay off; the FXAA resolve pass handles edge AA. Guard against antialias:true.
-      assert(/getContext\(\s*['"]webgl['"]\s*,\s*\{[^}]*antialias\s*:\s*false/.test(js),
-        'Render pipeline: WebGL context requests antialias:false (FXAA handles AA)',
-        'getContext must pass { antialias: false } — MSAA is wasted bandwidth on a fullscreen raymarch');
-
-      // 5c. The FXAA resolve shaders (which replaced MSAA) must exist in shaders.js.
-      if (shadersText) {
-        assert(/const\s+fxaaVS\s*=/.test(shadersText) && /const\s+fxaaFS\s*=/.test(shadersText),
-          'Render pipeline: FXAA resolve shaders present in shaders.js',
-          'fxaaVS/fxaaFS must exist — they anti-alias the upscaled low-res scene');
-      }
-
-      // 5d. ADAPTIVE-RESOLUTION PUMPING (Aug 2026). The WASM ships its own rule (js/scene.wat:
-      //     frame-time > 28ms -> scale x0.85, < 20ms -> x1.05, hold between). Under vsync a frame
-      //     costs either one refresh (16.7ms) or two (33.3ms), so the 20-28ms hold band sits in
-      //     the gap between the only two values it can observe: it can NEVER hold, and steps every
-      //     frame. That is a permanent limit cycle sweeping the range in about a second — the
-      //     scene going fuzzy and snapping back to sharp. It was masked while the shader was slow
-      //     enough to pin the scale at the 0.35 floor. The scale is controlled in index.html
-      //     instead; adopting the WASM's 0x06C output again reinstates the pump.
-      assert(!/getFloat32\(\s*0x06C/.test(js),
-        'Render scale: index.html does not adopt the WASM adaptive-resolution output (0x06C)',
-        'the WASM rule oscillates by construction (its 20-28ms hold band is unreachable under vsync) — the scale must be controlled in JS');
-
-      // The JS controller must ignore frames right after a scale change. Changing the scale
-      // reallocates the offscreen target, so that frame is itself slow; counting it as evidence
-      // is what drove the old loop all the way to the floor instead of dithering by one step.
-      assert(/rsSettle\s*>\s*0/.test(js) && /rsSettle\s*=\s*\d+/.test(js),
-        'Render scale: controller has a settle window after each change',
-        'without it the resize cost of a change is misread as a reason to change again');
-
-      // It must park under a remembered ceiling rather than re-probing every frame — that is what
-      // makes the steady state "change nothing" instead of "keep hunting".
-      assert(/rsCeiling/.test(js),
-        'Render scale: controller latches a measured ceiling and holds under it',
-        'a controller with no memory of what was too heavy has to keep re-probing, which pumps');
-
-      // =============================================
-      // 6. Ray-march hot-loop invariants (perf, Aug 2026)
-      // =============================================
-      // The march loop runs up to 250x per pixel. Anything expensive living INSIDE it is paid
-      // by every pixel, including the vast majority that never hit what the code is for: a
-      // large inlined function inflates register allocation and collapses GPU occupancy even
-      // when its branch is almost never taken. Hoisting planet surface shading out of the loop
-      // and folding out the dead u_noiseTex chain made the shader 3.4-4.8x faster with no
-      // visible change (max delta < 5/255). These guard that work against regression.
-
-      // Extract the ray-march loop body by brace matching, anchored on its first statement so
-      // it can't latch onto the galaxy/spiral loops earlier in the file.
-      function marchLoopBody(src) {
-        const m = src.match(
-          /for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*\d+\s*;\s*i\s*\+\+\s*\)\s*\{\s*minR\s*=\s*min\s*\(\s*minR\s*,\s*r\s*\)/);
-        if (!m) return null;
-        const start = src.indexOf('{', m.index);
-        let i = start + 1, depth = 1;
-        while (i < src.length && depth > 0) {
-          if (src[i] === '{') depth++;
-          else if (src[i] === '}') depth--;
-          i++;
-        }
-        return depth === 0 ? src.slice(start + 1, i - 1) : null;
-      }
-
-      const marchBody = marchLoopBody(shader);
-      assert(marchBody !== null,
-        'Extraction: ray-march loop body found',
-        marchBody !== null ? `${marchBody.length} chars` : 'brace matching failed');
-
-      if (marchBody !== null) {
-        // 6a. Planet surface shading must stay OUT of the march loop. Inlining it there cost
-        //     ~2x frame time: shadePlanet's live registers throttle occupancy for every pixel.
-        assert(!/\bshadePlanet\s*\(/.test(marchBody),
-          'Hot loop: planet shading is deferred out of the ray-march loop',
-          'shadePlanet must be called once AFTER the loop using the recorded hit, not inside it');
-
-        // 6b. ...but it must still be called somewhere, or planets render black.
-        assert(/\bshadePlanet\s*\(/.test(shader),
-          'Hot loop: deferred planet shading is still applied after the loop',
-          'shadePlanet must be invoked once outside the march loop');
-
-        // 6c. The fbm/noiseLUT chain fed by the never-bound u_noiseTex sampler must not come
-        //     back into the loop: it cost ~40% of the frame and returned a constant.
-        assert(!/\bfbm\s*\(/.test(marchBody) && !/\bnoiseLUT\s*\(/.test(marchBody),
-          'Hot loop: no fbm/noiseLUT sampling inside the ray-march loop',
-          'fbm over the unbound u_noiseTex evaluated to a constant while costing ~40% of the frame');
-      }
-
-      // 6d. Planets are a vec4 array uniform, sized to match planetData. Five separate
-      //     uniforms forced a select cascade evaluated on every march step.
-      const planetArrayN = extractShaderInt(shader, /uniform\s+vec4\s+u_planets\s*\[\s*(\d+)\s*\]/);
-      assert(planetArrayN !== null,
-        'Extraction: u_planets array uniform found',
-        planetArrayN !== null ? `u_planets[${planetArrayN}]` : 'no vec4 array uniform — did it revert to u_planet0..N?');
-      if (planetArrayN !== null && planets.length > 0) {
-        assert(planetArrayN === planets.length,
-          'Planet uniform: array size matches planetData length',
-          `u_planets[${planetArrayN}] vs ${planets.length} planets in planetData`);
-      }
-
-      // 6e. The slab half-thickness that gates the planet test must be DERIVED from planetData,
-      //     never hardcoded — a stale literal smaller than the largest radius silently clips
-      //     planets out of the scene.
-      const slabFromData = /uniform1f\s*\(\s*\w+\s*,\s*Math\.max\s*\([^;]*planetData[^;]*\)\s*\)/.test(js);
-      assert(slabFromData,
-        'Planet slab: uploaded value is derived from planetData, not a literal',
-        slabFromData ? 'u_planetSlab computed from planetData radii'
-                     : 'u_planetSlab must be Math.max(...planetData.map(p => p.radius))');
 
       // =============================================
       // PONG BEHAVIORAL TESTS — JS sandbox
@@ -982,49 +733,6 @@
         assert(hasDom,
           'Pong structure: DOM elements preserved',
           hasDom ? 'playerScore, aiScore, gameOver found' : 'missing elements');
-      }
-
-      // =============================================
-      // SCENE STRUCTURAL TESTS (WASM version)
-      // =============================================
-
-      {
-        const hasWasmBlob = /["'][A-Za-z0-9+/]{40,}={0,2}["']/.test(js);
-        assert(hasWasmBlob,
-          'Scene structure: WASM binary present',
-          hasWasmBlob ? 'base64 blob found in script' : 'no base64 blob');
-
-        const hasEnvSin = /env[\s\S]*?sin/.test(js);
-        const hasEnvCos = /env[\s\S]*?cos/.test(js);
-        const hasEnvSqrt = /env[\s\S]*?sqrt/.test(js);
-        assert(hasEnvSin && hasEnvCos && hasEnvSqrt,
-          'Scene structure: WASM imports sin/cos/sqrt',
-          `sin=${hasEnvSin} cos=${hasEnvCos} sqrt=${hasEnvSqrt}`);
-
-        const hasLensAccel = /function\s+lensAccel/.test(js);
-        const hasTraceLensed = /function\s+traceLensedRay/.test(js);
-        const hasCheckHover = /function\s+checkPlanetHover/.test(js);
-        assert(!hasLensAccel && !hasTraceLensed && !hasCheckHover,
-          'Scene structure: no CPU ray tracing in JS',
-          `lensAccel=${hasLensAccel} traceLensedRay=${hasTraceLensed} checkPlanetHover=${hasCheckHover}`);
-
-        const hasCosElSinAz = /cosEl\s*\*\s*sinAz/.test(js);
-        const hasMathCosCamElev = /Math\.cos\s*\(\s*camElev\s*\)/.test(js);
-        assert(!hasCosElSinAz && !hasMathCosCamElev,
-          'Scene structure: camera math moved to WASM',
-          `cosEl*sinAz=${hasCosElSinAz} Math.cos(camElev)=${hasMathCosCamElev}`);
-
-        assert(shaderMatch !== null,
-          'Scene structure: shader source preserved',
-          shaderMatch ? 'const fsSource extraction works' : 'failed');
-
-        assert(planetEntries.length >= 4,
-          'Scene structure: planetData preserved',
-          `found ${planetEntries.length} planets`);
-
-        assert(defaultCamDist !== null,
-          'Scene structure: camDist preserved',
-          defaultCamDist !== null ? `let camDist = ${defaultCamDist}` : 'not found');
       }
 
       // =============================================

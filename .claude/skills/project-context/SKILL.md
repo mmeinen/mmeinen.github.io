@@ -12,7 +12,7 @@ allowed-tools:
 
 # Project Context Explorer
 
-You are exploring the codebase of a static GitHub Pages site at `https://mmeinen.github.io/`. The site features an interactive WebGL black hole with gravitational lensing as the main navigation interface, linking to browser games.
+You are exploring the codebase of a static GitHub Pages site at `https://mmeinen.github.io/`. The landing page is a spaceship flight deck orbiting a planet beside the black hole Gargantua; its crew manifest links to the browser games.
 
 ## If invoked with arguments
 
@@ -26,34 +26,18 @@ Provide a high-level overview of the project architecture.
 
 ## Key Architecture
 
-### Navigation Scene (`index.html`)
-- **WebGL shader**: Fragment shader implements Kerr black hole gravitational lensing via Verlet integration. Rays march through curved spacetime, detecting: accretion disc (y-plane crossings), planets (ray-sphere segment tests), galaxy background.
-- **Planet system**: 6 planets orbit the black hole. Data in `planetData` array (oR, ph, sp, radius, name, href). Positions computed by `getPlanetWorldPos()`. Shader receives positions as `u_planet0-5` vec4 uniforms.
-- **Interaction**: Mouse drag orbits camera, scroll zooms, arrow keys control black hole spin. Planet hover via JS lensed ray trace (Verlet integration matching shader physics). Click navigates to game.
-- **Navigation mode**: Fly mode with thrust physics, HUD slider, bullet time, trajectory visualization.
-- **HUD**: CSS overlay with readouts (spin, range, FPS) and planet labels positioned by JS.
+### Landing page (`index.html`, Sep 2026)
+- A spaceship flight deck in a dawn-dusk orbit round the ocean world MILLER, which orbits the black hole Gargantua.
+- Renderer `js/scene/*.js` (classic scripts, load order gl → gargantua → planet → post → orbit → ships → main):
+  baked Schwarzschild geodesics + per-frame disc shading, a deferred planet (terrain, clouds, atmosphere), bloom +
+  tone map + FXAA, occasional friendly-formation flybys. Shader strings are byte-identical copies of `demo/`'s.
+- `js/scene/orbit.js` is pure maths: the system model, camera framing (the hole always in view) and telemetry.
+- HUD `js/hud.js` + `css/hud.css`. The game menu is static HTML: five crew `<details>` with `<a class="mission">`
+  links (works with no JS / no WebGL; `?nogl` forces the fallback).
+- Invariants: `.claude/rules/shader-conventions.md` and CLAUDE.md "Landing page renderer".
 
 ### WASM Modules
-- **`js/scene.wat`** — Camera state, planet projection, hover detection (base64-embedded in index.html)
-- **`js/pong.wat`** — Ball/paddle physics for Pong game
-
-### Shader Critical Constants
-| Constant | Location | Value | Depends On |
-|----------|----------|-------|------------|
-| Early escape | `if (r > X ...)` | 90.0 | Must > max planet reach (87.4) |
-| Planet range | `if (r > L && r < H ...)` | 16.0-100.0*scale | Must cover all planet oR +/- radius |
-| Step cap | `min(M*(r-r_h), C)` | 3.0 | Must < min planet radius * 4 (2.16) |
-| Loop count | `for (i < N)` | 250 | Budget must > 2x camDist |
-
-### Planet Data
-| Planet | idx | oR | radius | Link |
-|--------|-----|------|--------|------|
-| Jupiter | 0 | 38.0 | 2.5 | minesweeper.html |
-| Saturn | 1 | 52.0 | 2.0 | pong.html |
-| Uranus | 2 | 68.0 | 1.5 | edmund_game/index.html |
-| Neptune | 3 | 86.0 | 1.4 | beatrix_game/index.html |
-| Venus | 4 | 28.0 | 0.54 | fps/index.html |
-| Earth | 5 | 33.0 | 0.6 | freecell/index.html |
+- **`js/pong.wat`** — Ball/paddle physics for Pong game (the landing page's old `js/scene.wat` was removed)
 
 ### Games
 - **Minesweeper** (`minesweeper.html`): Uses `js/game.js`, `js/board.js`, `js/tile.js`, `js/bomb.js`, `js/Renderer.js`. Castle theme.
@@ -64,4 +48,6 @@ Provide a high-level overview of the project architecture.
 - **Freecell** (`freecell/`): Self-contained card game with drag-and-drop.
 
 ### Testing
-- `tests.html`: Browser-based regression tests. Fetches `index.html`, extracts shader/JS constants via regex, validates invariants (early escape, planet range, step cap, iteration budget).
+- `tests.html`: fetches the landing page sources and checks the menu (every game present and resolving), file://
+  safety, M = 1 lensing, shader parity with demo/, the lean base pass, re-baking and the render-scale controller;
+  plus Pong behaviour. Needs a local server or Chrome's `--allow-file-access-from-files`.

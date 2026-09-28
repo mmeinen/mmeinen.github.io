@@ -24,11 +24,9 @@ You are a changeset review dispatcher. Your job is to identify what changed and 
 
 | Changed File Pattern | Agent(s) to Run |
 |---------------------|-----------------|
-| `index.html` (shader code) | `planet-shader-reviewer`, `blackhole-shader-reviewer` |
-| `index.html` (JS/navigation) | `navigation-reviewer` |
-| `index.html` (performance) | `webgl-optimizer` |
-| `index.html` (volumetric/cloud/particle fx) | `volumetric-fx` |
-| `js/scene.wat`, `js/pong.wat` | `wat-reviewer` |
+| `js/scene/*.js` (shaders, renderer) | `blackhole-shader-reviewer` (gargantua.js), `planet-shader-reviewer` (planet.js), `webgl-optimizer` (perf) |
+| `index.html`, `js/hud.js`, `css/hud.css` (HUD, game menu) | `ui-designer` (layout), `code-reviewer` (conventions) |
+| `js/pong.wat` | `wat-reviewer` |
 | `minesweeper.html`, `js/game.js`, `js/board.js`, `js/tile.js`, `js/bomb.js`, `js/Renderer.js` | `minesweeper-reviewer` |
 | `pong.html`, `js/pong.js` | `pong-reviewer` |
 | `freecell/**` | `freecell-reviewer` |
@@ -37,7 +35,7 @@ You are a changeset review dispatcher. Your job is to identify what changed and 
 | `fps/**` | `travellers-reviewer` |
 | `cat_invasion/**` | `cat-invasion-reviewer` |
 | `css/style.css` | `code-reviewer` (convention check) |
-| `tests.html` | `planet-shader-reviewer` (invariant alignment) |
+| `tests.html` | `code-reviewer` (invariant alignment with CLAUDE.md) |
 
 ## Quick Convention Check
 

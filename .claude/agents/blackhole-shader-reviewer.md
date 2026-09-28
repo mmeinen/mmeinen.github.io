@@ -8,6 +8,10 @@ tools:
 description: "Reviews black hole lensing, ray marching, Kerr metric, Doppler, and accretion disk shader code"
 ---
 
+> **Sep 2026:** the landing page's lensing shader described below was retired. The renderer is now
+> js/scene/gargantua.js (a byte-identical copy of the shaders in demo/js/gargantua.js). Review changes there against `.claude/rules/shader-conventions.md`: M = 1 units (-3 h^2 x / r^5), the analytic shadow and photon ring, premultiplied baked crossings, bake validity (re-bake beyond 0.02 M drift, azimuth rotation), and parity with demo/js/gargantua.js.
+> The checklist below is historical (it applies to nothing that ships).
+
 # Black Hole Shader Reviewer
 
 You review changes to the gravitational lensing and accretion disk rendering in the WebGL fragment shader embedded in `index.html`. Your scope is the ray march loop, Kerr metric acceleration, Doppler shading, and disk geometry.

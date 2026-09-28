@@ -1,7 +1,9 @@
 # CLAUDE.md - Project Context for Claude Code
 
 ## Project Overview
-Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive WebGL black hole scene with clickable planets linking to browser games. No build tools, no npm, no framework — pure HTML/CSS/JS.
+Static GitHub Pages personal site at `https://mmeinen.github.io/`. The landing page is a spaceship's flight deck in
+orbit around the ocean world MILLER, which itself orbits the supermassive black hole Gargantua; the family's games
+are launched from the ship's crew manifest. No build tools, no npm, no framework — pure HTML/CSS/JS.
 
 ## Deployment
 - **Method**: GitHub Pages, auto-deployed from `master` branch
@@ -11,14 +13,23 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 ## Directory Structure
 ```
 /                         Root (GitHub Pages serves from here)
-├── index.html            Landing page (WebGL black hole + planet navigation)
-├── css/style.css         Global styles (HUD, labels, animations, game pages)
-├── tests.html            Lensing regression tests (shader invariant checks)
+├── index.html            Landing page: flight deck HUD + crew manifest (the game menu, plain links)
+├── css/hud.css           Landing page styles (canopy, HUD panels, reticles, boot, jump, phone dock)
+├── css/style.css         Game page styles (pong, minesweeper, the shared #canvas rule)
+├── tests.html            Regression tests (landing page invariants + Pong); needs a server or file-access flag
+├── js/scene/             Landing page renderer, classic scripts in this load order:
+│   ├── gl.js             WebGL2 context, program/target helpers, V/M3 maths
+│   ├── gargantua.js      the black hole: baked geodesics + per-frame shading (shaders = demo's, verbatim)
+│   ├── planet.js         MILLER + moon: deferred terrain/clouds/atmosphere (shaders = demo's, verbatim)
+│   ├── post.js           bloom, tone map, FXAA upscale + grain + launch warp
+│   ├── orbit.js          system model, the ship's orbit, camera framing, telemetry (no GL)
+│   ├── ships.js          friendly formation flybys (mesh builder + shaders = demo's, verbatim)
+│   └── main.js           boot, frame loop, adaptive render scale, input
+├── js/hud.js             HUD behaviour: menu, telemetry, reticles, tape, plot, log, boot, jump, audio
 ├── minesweeper.html      Minesweeper game (uses js/*.js)
 ├── pong.html             Pong game (uses js/pong.js)
 ├── js/                   Game JS files
 │   ├── game.js, board.js, tile.js, bomb.js, Renderer.js  (Minesweeper)
-│   ├── pong.js                                            (Pong)
 │   └── md5-min.js
 ├── pool/                 "Pool Splash Lab" — 2D FLIP fluid sim (self-contained)
 │   └── index.html        Solver + body coupling + optimiser + renderer, one file
@@ -33,8 +44,9 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 ```
 
 ## Architecture Patterns
-- **Navigation**: WebGL black hole scene in `index.html`. 5 orbiting planets (one per family member) are clickable; clicking opens a game-selection submenu. Planet hover detection via CPU ray-sphere intersection; hover glow via `u_hoveredPlanet` shader uniform. HUD labels track planet screen positions.
-- **Shader**: Fragment shader (`fsSource` in `js/scene/shaders.js`) implements gravitational lensing with Verlet integration. Key constants have physical dependencies — see `.claude/rules/shader-conventions.md`.
+- **Landing page**: WebGL2 scene (`js/scene/*`) behind a DOM/SVG HUD (`js/hud.js`, `css/hud.css`). The menu is
+  static HTML — five `<details>` crew members, each a list of `<a class="mission">` links — so it works with no
+  JavaScript and no WebGL (the page falls back to a painted backdrop: `body.nogl`, forced with `?nogl`).
 - **Games**: Each game is a standalone HTML file or subdirectory with its own index.html. Self-contained with minimal code reuse.
 - **Styling**: Space/sci-fi HUD theme. Blue palette (`rgba(60,140,255,*)`) on dark backgrounds.
 - **No shared JS framework** — each game implements its own logic.
@@ -43,54 +55,54 @@ Static GitHub Pages personal site at `https://mmeinen.github.io/`. Interactive W
 - All pages link back to `index.html`
 - Game pages use `<canvas>` elements
 - Color scheme: `rgba(60,140,255,*)` for blue HUD, `rgba(255,160,80,*)` for warnings
-- Canvas z-index 1, HUD overlay z-index 10, planet labels z-index 25
+- Landing page layers: `#scene` canvas 1, `#canopy` 4, `#reticle` 8, `#hud` 10, `#boot` 50, `#jump` 60
 
-## Adding a New Planet/Game Link
-1. Add entry to `planetData` array in `index.html` with `oR`, `ph`, `sp`, `radius`, `name`, `person`, `games:[{t,h}]`
-2. Grow the `uniform vec4 u_planets[N]` array in the shader and its `for (int p = 0; p < N; p++)`
-   loop, plus the `i < 5` planet loops in `index.html` (upload, labels, hover). Planets are ONE
-   array uniform, not `u_planetN` scalars — see "Ray-march hot loop" below.
-3. Add corresponding `.planet-label` div in HTML
-4. Update planet check range `if (r > LOW && r < HIGH ...)` in shader to cover new orbit
-5. Verify both escape thresholds (zone `r > 100.0`, convergence `r > 90.0`) still exceed new planet's `oR + radius`
-6. `u_planetSlab` needs no edit — it is derived from `planetData` radii at upload time
-7. Run `tests.html` to verify all shader invariants still pass
+## Adding a Game Link
+Add `<li><a class="mission" href="…"><span class="mt">Title</span><span class="mc">M·NN</span></a></li>` to the crew
+member's `<ul class="missions">` in `index.html`, and bump the `.cnt` in their `<summary>`. Add the href to the
+`GAMES` list in `tests.html` so the "every game is in the crew manifest" check keeps guarding it.
 
-## Ray-march hot loop (performance-critical)
-The march loop in `fsSource` runs up to 250 iterations **per pixel**. Cost there is dominated by
-register pressure, not arithmetic: a large function inlined into the loop inflates register
-allocation and collapses GPU occupancy for *every* pixel, even when its branch almost never runs.
-Measured on the Intel UHD iGPU, hoisting planet shading out of the loop alone was worth 2.1x.
+## Landing page renderer (`js/scene/`, Sep 2026)
+A lean port of the demo's Gargantua + planet pipeline (see "COLLIDE" below for how those work). **The shader
+strings are the demo's, verbatim** — `tests.html` fails if `BH_COMMON`, `FS_BH_*` or `FS_SYS_*` differ from
+`demo/js/*`, so a fix in one copy is mirrored in the other (or the split is documented in that test).
+- **World**: metres (float64), hole at the origin, disc in xz, M = 1 (`-3 h² x / r⁵`, never the r_s = 1 `-1.5`
+  form). MILLER orbits at 45 M, 4° above the disc, at its real Schwarzschild rate × the time warp (`ORB.TC` 12).
+- **The ship** flies a circular **dawn–dusk orbit** (plane kept ⟂ to the hole, tilted β 8°): the hole never sets
+  (`orbitCheck()` asserts β < limb dip − 5° at the lowest altitude). Over an orbit the disc rolls level → upright
+  ("keyhole") → level. Framing (`orbitStep`): the limb 30% below centre, the hole ≥ 9° under the top edge, the
+  vertical FOV widening when both don't fit; drag = look-around clamped so the hole stays on screen.
+- **Bake**: lensing geometry is baked once at MILLER (4 cube MRTs; 1024² desktop, 512² phones). The disc is
+  axisymmetric, so shading rotates by the planet's *current* azimuth; main.js re-bakes in place when the camera
+  drifts > 0.02 M in radius or height (MILLER's inclined orbit, after ~20 min).
+- **Frame**: `bhShade` → `comp` (the sky) → `systemPass` (base hit pass + scissored terran/rock passes + clouds &
+  atmosphere) → optional `flyRender` (MSAA ship pass, only while a formation is on screen) → `postProcess`
+  (bloom + tone map at render scale, then FXAA/grain/warp to the canvas).
+- **MILLER I** is art-directed: it transits in front of the hole every 5 min (first at 45 s) — the dark silhouette
+  from `black_hole.jpg`. Flybys (`ships.js`) co-move with the ship: positions are relative to the *current* eye,
+  because in the hole's frame MILLER moves at 0.15 c.
+- An early-out for sky pixels behind the planet was tried and measured no faster (A/B, one page): don't redo it.
+- Cost on the Intel UHD (headless, 1600×900, full scale): ~9 ms at 1,500 km, ~13–17 ms at 700 km; the planet
+  passes dominate at low orbit. Headless timings drift ±2× with machine load — A/B within one page load only.
 
-Rules for anything touching that loop:
-- **Never call a big shading function inside it.** Record the hit (position, weight, index) and
-  shade once after the loop — an alpha-composited contribution is additive with a weight fixed at
-  hit time, so late shading is numerically identical.
-- **Gate before you compute.** All planets orbit the `y = 0` plane, so the `planetSlab` y-extent
-  check rejects the whole 5-planet test using values already live in registers.
-- Prefer array uniforms indexed by the loop counter over `(p==0)?a:(p==1)?b:...` select cascades.
-- Step size comes from `stepSize()` and is curvature-adaptive; the CPU hover trace in
-  `index.html` mirrors it and must be changed together with it.
-- `tests.html` suites 2 and 6 enforce these; re-run it after any loop change.
+## Adaptive render scale (owned by JS)
+The heavy passes render at `renderScale`; the FXAA pass resolves them up to the canvas (`updateRenderScale` in
+`js/scene/main.js`, enforced by `tests.html`). The controller was built for the old WASM landing page, whose rule
+(×1.05 below 20 ms, ×0.85 above 28 ms) could never hold under vsync — a frame costs one refresh or two — and pumped
+the resolution across its range about once a second.
 
-## Adaptive render scale (owned by JS, not the WASM)
-The heavy raymarch renders into a low-res offscreen target at `renderScale`; the FXAA pass
-resolves it up. **`index.html` controls that scale — do not re-adopt the WASM's `0x06C` output.**
-The WASM rule (`js/scene.wat`) steps ×1.05 below 20ms and ×0.85 above 28ms. Under vsync a frame
-costs either one refresh (16.7ms) or two (33.3ms), so its 20–28ms hold band is unreachable: it
-steps every frame and pumps the resolution across its whole range about once a second. It only
-looked stable while the shader was slow enough to pin the scale at the 0.35 floor.
-
-Rules for the JS controller (`updateRenderScale` in `index.html`, enforced by `tests.html` 5d):
+Rules for the controller:
 - **Count missed refreshes, not milliseconds.** Any absolute ms target is unreachable on the
   vsync grid. `vsyncMs` tracks the observed period; a miss is `ft > vsyncMs*1.75`, with an
   absolute `ft > 30` arm in case the estimate latches onto a multiple of the true refresh.
 - **Latch a ceiling and park under it** (`rsCeiling`) so the steady state is "change nothing".
   A controller with no memory of what was too heavy must keep re-probing, which pumps.
 - **Ignore frames right after a change** (`rsSettle`). A change calls `resize()`, which reallocs
-  the offscreen target and makes that frame slow — counting it drove the old loop to the floor.
-- Re-measure only on window resize or a >25% `camDist` change; at idle nothing may move.
+  the offscreen targets and makes that frame slow — counting it drove the old loop to the floor.
+- Re-measure only on window resize or a >25% change of altitude/zoom (`viewKey`); at idle nothing may move.
 - Don't lower the 0.35 floor — the user rejected sub-floor scaling (see memory).
+- Headless Chrome renders unsynced, so it settles far lower than a real vsync display: pin the scale
+  (`SCENE.setScale`) for screenshots and benchmarks.
 
 ## COLLIDE galaxy demo (`demo/`)
 **It is a film now** (Sep 25 2026): gate -> galaxies collide -> plunge into the merged core -> the APPROACH
@@ -220,11 +232,13 @@ Invariant to check after any change: peak splash energy must stay below the jump
 energy at entry, for every preset. That single check catches nearly all coupling regressions.
 
 ## Testing
-No test framework. `tests.html` validates shader/JS invariants via regex extraction.
+No test framework. `tests.html` checks the landing page (every game still in the menu and resolving, file:// safety,
+M = 1 lensing, shader parity with demo/, lean base pass, bake re-bake, render-scale controller) and Pong behaviour.
+It fetches files, so it needs a local server or Chrome's `--allow-file-access-from-files` (the headless harness).
 ```bash
 python3 -m http.server 8000
 # Open http://localhost:8000/tests.html — all tests should show green/PASS
-# Open http://localhost:8000 — visual check of black hole scene
+# Open index.html directly (file://) — visual check of the flight deck
 ```
 
 ## Subagents
@@ -241,4 +255,4 @@ python3 -m http.server 8000
 - After major changes, run the code-reviewer agent and update project-context if architecture shifted.
 
 ## Compaction Priorities
-When compacting, always preserve: the list of modified files, active shader constants and their interdependencies, the current implementation plan, any constraints or decisions made during the session, and the planet data table.
+When compacting, always preserve: the list of modified files, active shader constants and their interdependencies, the current implementation plan, any constraints or decisions made during the session, and the crew/game menu in index.html.

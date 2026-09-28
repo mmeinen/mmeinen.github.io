@@ -1,0 +1,297 @@
+/* ============================================================================================================
+   FLIGHT DECK — the landing page HUD (index.html). The view behind it is js/scene/*; behaviour is js/hud.js.
+   Layers: #space 0 (no-WebGL backdrop) · #scene canvas 1 · #canopy 4 · #reticle 8 · #hud 10 · #boot 50 · #jump 60
+   No backdrop-filter anywhere: over a live WebGL canvas the compositor would re-blur it every frame.
+   ============================================================================================================ */
+:root{
+  --blue: 60,140,255;
+  --amber: 255,160,80;
+  --ink: rgba(196,226,255,.95);
+  --dim: rgba(118,168,235,.66);
+  --line: rgba(60,140,255,.36);
+  --mono: Consolas, 'SF Mono', Menlo, 'Cascadia Mono', 'Liberation Mono', 'Courier New', monospace;
+  --sans: 'Segoe UI', 'Helvetica Neue', system-ui, Arial, sans-serif;
+  --inL: max(26px, env(safe-area-inset-left));
+  --inR: max(26px, env(safe-area-inset-right));
+  --inT: max(18px, env(safe-area-inset-top));
+  --inB: max(16px, env(safe-area-inset-bottom));
+}
+html, body{margin:0; height:100%; overflow:hidden; background:#000; color:var(--ink); font-family:var(--mono);
+  -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+
+/* ---------------------------------------------------------------------------------------------- the view */
+#scene{position:fixed; inset:0; width:100%; height:100%; z-index:1; display:block; touch-action:none; cursor:grab;
+  opacity:0; transition:opacity 1.8s ease .15s}
+body.online #scene{opacity:1}
+body.grabbing, body.grabbing #scene{cursor:grabbing}
+body.nogl #scene{display:none}
+
+/* No WebGL2: a painted stand-in (a lensed hole over a planet's rim) so the menu still sits in space */
+#space{position:fixed; inset:0; z-index:0; opacity:0; transition:opacity 1.2s ease; pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 33%, #000 0 6.2vmin, rgba(255,244,228,.95) 6.5vmin, rgba(255,196,130,.42) 8vmin, rgba(160,110,70,.14) 13vmin, transparent 20vmin),
+    radial-gradient(ellipse 58vmin 2.4vmin at 50% 34%, rgba(255,226,190,.7), rgba(255,170,100,.12) 60%, transparent 72%),
+    radial-gradient(ellipse 150% 70% at 50% 128%, #0b1c2e 0 52%, rgba(120,170,230,.55) 53%, rgba(255,190,130,.18) 55%, transparent 60%),
+    radial-gradient(1px 1px at 17% 22%, #cfe0ff, transparent), radial-gradient(1px 1px at 81% 14%, #ffe6c8, transparent),
+    radial-gradient(1px 1px at 66% 47%, #d8e6ff, transparent), radial-gradient(1px 1px at 29% 61%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 90% 40%, #cfe0ff, transparent), radial-gradient(1px 1px at 8% 44%, #ffd9b0, transparent),
+    radial-gradient(1px 1px at 43% 9%, #fff, transparent), radial-gradient(1px 1px at 58% 70%, #cfe0ff, transparent),
+    #000;}
+body.nogl #space{opacity:1}
+
+/* ---------------------------------------------------------------------------------------------- canopy */
+#canopy{position:fixed; inset:0; z-index:4; pointer-events:none}
+#canopy .glass{position:absolute; inset:0; background:
+  radial-gradient(ellipse 115% 95% at 50% 46%, transparent 58%, rgba(0,0,0,.5) 100%),
+  linear-gradient(118deg, transparent 16%, rgba(170,205,255,.035) 22%, transparent 28%),
+  linear-gradient(118deg, transparent 60%, rgba(170,205,255,.022) 63%, transparent 67%)}
+#canopy .edge{position:absolute; background:#05070b}
+#canopy .edge.top{top:0; left:0; right:0; height:6px; box-shadow:0 1px 0 rgba(255,176,110,.22), 0 3px 10px rgba(0,0,0,.8)}
+#canopy .edge.bottom{bottom:0; left:0; right:0; height:6px; box-shadow:0 -1px 0 rgba(255,176,110,.16), 0 -3px 10px rgba(0,0,0,.8)}
+#canopy .edge.left{top:0; bottom:0; left:0; width:6px; box-shadow:1px 0 0 rgba(255,176,110,.14), 3px 0 10px rgba(0,0,0,.8)}
+#canopy .edge.right{top:0; bottom:0; right:0; width:6px; box-shadow:-1px 0 0 rgba(255,176,110,.14), -3px 0 10px rgba(0,0,0,.8)}
+#canopy .corner{position:absolute; width:140px; height:140px; overflow:visible}
+#canopy .corner.tl{top:0; left:0}
+#canopy .corner.tr{top:0; right:0; transform:scaleX(-1)}
+#canopy .corner.bl{bottom:0; left:0; transform:scaleY(-1)}
+#canopy .corner.br{bottom:0; right:0; transform:scale(-1,-1)}
+#canopy .plate{fill:#06080c; filter:drop-shadow(2px 2px 5px rgba(0,0,0,.85))}
+#canopy .rim{stroke:rgba(255,178,112,.5); stroke-width:1.4; fill:none}
+#canopy .bolt{fill:#1b2432}
+#canopy .led{fill:rgb(var(--amber)); animation:led 4.2s ease-in-out infinite}
+#canopy .tr .led{animation-delay:-2.1s}
+@keyframes led{0%,100%{opacity:.25} 50%{opacity:1}}
+
+/* ---------------------------------------------------------------------------------------------- HUD frame */
+#hud{position:fixed; inset:0; z-index:10; pointer-events:none; opacity:0; transition:opacity .9s ease .4s}
+body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
+#hud .panel, #hud .bar-top, #hud .bar-bottom{position:absolute}
+#hud button, #hud a, #hud summary{pointer-events:auto}
+.k{color:var(--dim); font-size:10px; letter-spacing:.18em}
+.v{color:var(--ink); font-size:12px; letter-spacing:.08em; font-variant-numeric:tabular-nums}
+
+/* top: ident · heading tape · clocks */
+.bar-top{top:var(--inT); left:max(78px, var(--inL)); right:max(78px, var(--inR)); height:52px;
+  display:grid; grid-template-columns:1fr minmax(260px, 480px) 1fr; align-items:start; gap:18px}
+.ident .ship{font-family:var(--sans); font-weight:300; font-size:19px; letter-spacing:.42em; color:#eef5ff;
+  text-shadow:0 0 18px rgba(var(--blue),.65); white-space:nowrap; display:flex; align-items:center}
+.ident .ship b{font-weight:300; color:rgba(150,200,255,.95); margin-left:.42em}
+.ident .chev{width:7px; height:7px; margin-right:14px; background:rgb(var(--amber)); transform:rotate(45deg);
+  box-shadow:0 0 8px rgba(var(--amber),.9); animation:led 3s ease-in-out infinite}
+.ident .mission{margin-top:5px; font-size:9.5px; letter-spacing:.24em; color:var(--dim); white-space:nowrap}
+.tape{height:40px; position:relative;
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image:linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent)}
+.tape svg{width:100%; height:38px; overflow:hidden; display:block}
+#tape .tk{stroke:rgba(110,170,255,.5); stroke-width:1}
+#tape .tk.big{stroke:rgba(160,205,255,.85)}
+#tape .tl{fill:rgba(140,190,250,.8); font:9px var(--mono); letter-spacing:.08em}
+#tape .caret{fill:#eaf4ff}
+#tape .mk-hole{fill:rgb(var(--amber)); filter:drop-shadow(0 0 3px rgba(var(--amber),.9))}
+#tape .mk-moon{fill:none; stroke:#cfe3ff; stroke-width:1.2}
+.clocks{justify-self:end; text-align:right}
+.clk{display:flex; gap:10px; justify-content:flex-end; align-items:baseline}
+.clk .v{font-size:15px; letter-spacing:.1em; color:#eef5ff; text-shadow:0 0 10px rgba(var(--blue),.5)}
+.clk.sub{margin-top:4px}
+.clk.sub .v{font-size:11px; color:var(--ink); text-shadow:none}
+.clk .d{font-size:10px; color:rgba(var(--amber),.95); letter-spacing:.06em; min-width:5.5em}
+
+/* side panels: projected on the glass, fading into the view */
+.panel h2{margin:0 0 8px; font:400 10.5px/1 var(--mono); letter-spacing:.28em; color:rgba(122,182,255,.95);
+  display:flex; align-items:center; gap:9px; padding-bottom:7px; border-bottom:1px solid var(--line); position:relative}
+.panel h2::after{content:''; position:absolute; left:0; bottom:-2px; width:26px; height:3px; background:rgba(var(--blue),.85)}
+.panel h2 i{font-style:normal; font-size:9px; color:rgba(3,10,24,.95); background:rgba(var(--blue),.85); padding:2px 4px; letter-spacing:.08em}
+.panel h2 em{font-style:normal; margin-left:auto; font-size:9px; letter-spacing:.2em; color:var(--dim)}
+.panel dl{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0 0 18px; font-size:12px}
+.panel dt{color:var(--dim); font-size:10px; letter-spacing:.16em; align-self:baseline}
+.panel dd{margin:0; text-align:right; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:.06em; white-space:nowrap}
+.panel dd.warn{color:rgb(var(--amber))}
+.panel dd sup{font-size:.72em}
+
+.panel.left{top:112px; left:var(--inL); width:262px; padding:14px 16px 4px;
+  background:linear-gradient(90deg, rgba(2,8,20,.62), rgba(2,8,20,.32) 70%, rgba(2,8,20,0));
+  border-left:1px solid var(--line)}
+
+/* ---------------------------------------------------------------------------------------------- crew manifest */
+.panel.right{top:112px; right:var(--inR); width:318px; padding:14px 14px 10px; pointer-events:auto;
+  background:linear-gradient(270deg, rgba(2,8,20,.74), rgba(2,8,20,.5) 75%, rgba(2,8,20,.2));
+  border-right:1px solid var(--line); max-height:calc(100vh - 230px); overflow-y:auto; scrollbar-width:thin;
+  scrollbar-color:rgba(var(--blue),.4) transparent}
+.panel.right::-webkit-scrollbar{width:5px}
+.panel.right::-webkit-scrollbar-thumb{background:rgba(var(--blue),.4)}
+.crew{margin:0 0 3px}
+.crew summary{list-style:none; display:grid; grid-template-columns:26px 1fr auto 30px; align-items:center; gap:8px;
+  padding:9px 10px 9px 8px; cursor:pointer; border:1px solid transparent; position:relative; outline:none;
+  transition:background .2s, border-color .2s}
+.crew summary::-webkit-details-marker{display:none}
+.crew summary .n{font-size:10px; color:var(--dim); letter-spacing:.06em}
+.crew summary .who{font:300 16px/1 var(--sans); letter-spacing:.26em; color:#e7f1ff; white-space:nowrap}
+.crew summary .role{font-size:9.5px; letter-spacing:.2em; color:rgba(110,175,255,.85)}
+.crew summary .cnt{font-size:10px; color:var(--dim); text-align:right; letter-spacing:.04em}
+.crew summary .cnt::after{content:'\25B8'; display:inline-block; margin-left:6px; color:rgba(var(--blue),.9); transition:transform .25s}
+.crew summary::before{content:''; position:absolute; left:-1px; top:6px; bottom:6px; width:2px; background:rgba(var(--blue),.0); transition:background .2s}
+.crew summary:hover, .crew summary:focus-visible{background:linear-gradient(90deg, rgba(var(--blue),.2), rgba(var(--blue),.03)); border-color:rgba(var(--blue),.34)}
+.crew summary:hover::before, .crew summary:focus-visible::before{background:rgba(var(--blue),.95)}
+.crew summary:hover .n, .crew summary:focus-visible .n{color:#fff}
+.crew[open] summary{background:linear-gradient(90deg, rgba(var(--amber),.22), rgba(var(--amber),.03)); border-color:rgba(var(--amber),.5)}
+.crew[open] summary::before{background:rgb(var(--amber))}
+.crew[open] summary .who{color:#fff4ea; text-shadow:0 0 12px rgba(var(--amber),.55)}
+.crew[open] summary .role{color:rgba(255,196,140,.95)}
+.crew[open] summary .cnt::after{transform:rotate(90deg); color:rgb(var(--amber))}
+.missions{list-style:none; margin:4px 0 10px 21px; padding:2px 0; border-left:1px solid rgba(var(--amber),.45)}
+.crew[open] .missions{animation:unfold .38s cubic-bezier(.2,.8,.2,1)}
+.crew[open] .missions li{animation:unfold .38s cubic-bezier(.2,.8,.2,1) backwards}
+.crew[open] .missions li:nth-child(2){animation-delay:.04s} .crew[open] .missions li:nth-child(3){animation-delay:.08s}
+.crew[open] .missions li:nth-child(4){animation-delay:.12s} .crew[open] .missions li:nth-child(5){animation-delay:.16s}
+.crew[open] .missions li:nth-child(6){animation-delay:.2s}
+@keyframes unfold{from{opacity:0; transform:translateY(-5px)}}
+.mission{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px 8px 16px; position:relative;
+  text-decoration:none; color:#d3e6ff; font-size:12px; letter-spacing:.15em; text-transform:uppercase; outline:none;
+  transition:background .15s, color .15s}
+.mission::before{content:''; position:absolute; left:0; top:50%; width:9px; height:1px; background:rgba(var(--amber),.6)}
+.mission .mc{font-size:9.5px; color:rgba(255,190,130,.7); letter-spacing:.14em; white-space:nowrap}
+.mission:hover, .mission:focus-visible{background:linear-gradient(90deg, rgba(var(--amber),.2), rgba(var(--amber),.02)); color:#fff}
+.mission:hover .mc::before, .mission:focus-visible .mc::before{content:'LAUNCH \25B8  '; color:rgb(var(--amber))}
+.mission:hover .mc, .mission:focus-visible .mc{color:transparent}
+.mission:hover .mc::before, .mission:focus-visible .mc::before{color:rgb(var(--amber))}
+.panel.right .hint{margin-top:10px; font-size:9px; letter-spacing:.24em; color:var(--dim); text-align:center; animation:blink 2.8s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+
+/* ---------------------------------------------------------------------------------------------- bottom */
+/* The planet's bright limb owns the bottom of the view, so the lower instruments are dashboard screens (MFDs)
+   on a shadowed console lip rather than bare text on the glass. */
+#canopy .dash{position:absolute; left:0; right:0; bottom:0; height:190px;
+  background:linear-gradient(0deg, rgba(0,2,8,.78), rgba(0,2,8,.45) 45%, transparent)}
+.bar-bottom{bottom:var(--inB); left:max(78px, var(--inL)); right:max(78px, var(--inR)); height:132px;
+  display:grid; grid-template-columns:240px minmax(0, 1fr) auto; gap:16px; align-items:end}
+.mfd{position:relative; background:rgba(2,7,18,.72); border:1px solid rgba(var(--blue),.28); padding:20px 12px 10px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6), inset 0 0 24px rgba(var(--blue),.06)}
+.mfd::before{content:attr(data-cap); position:absolute; left:10px; top:6px; font-size:8.5px; letter-spacing:.26em; color:var(--dim)}
+.mfd::after{content:''; position:absolute; right:8px; top:8px; width:5px; height:5px; border-radius:50%; background:rgba(90,230,150,.9);
+  box-shadow:0 0 6px rgba(90,230,150,.9)}
+.schem{height:132px; padding:18px 6px 4px}
+.schem svg{width:100%; height:100%; display:block; overflow:hidden}
+#schem .orb{fill:none; stroke:rgba(120,180,255,.75); stroke-width:1}
+#schem .orb.back{stroke:rgba(120,180,255,.22); stroke-dasharray:2 3}
+#schem .orb.moon{stroke:rgba(150,190,240,.3); stroke-dasharray:1 4}
+#schem .planet{stroke:rgba(140,190,255,.35); stroke-width:.8}
+#schem .ship{fill:#fff; filter:drop-shadow(0 0 3px rgba(var(--blue),1))}
+#schem .moon{fill:rgba(200,215,235,.9)}
+#schem .arrow{fill:none; stroke:rgba(var(--amber),.85); stroke-width:1.1}
+#schem .lbl{font:8.5px var(--mono); letter-spacing:.16em; fill:var(--dim)}
+#schem .lbl.amber{fill:rgba(255,190,130,.9)}
+#schem .scan{stroke:rgba(var(--blue),.12); stroke-width:1}
+.comms{align-self:end; min-width:0; max-width:640px; justify-self:center; width:100%; height:96px; font-size:11.5px; letter-spacing:.08em;
+  display:flex; flex-direction:column; justify-content:flex-end; overflow:hidden}
+.msg{display:flex; gap:12px; white-space:nowrap; overflow:hidden; line-height:1.72; color:rgba(190,222,255,.92); transition:opacity 1.2s}
+.msg .ts{color:var(--dim); font-size:10px; flex:none}
+.msg .tx{overflow:hidden; text-overflow:ellipsis}
+.msg.new .tx{animation:type .7s steps(28, end)}
+.msg.warn .tx{color:rgb(var(--amber)); text-shadow:0 0 8px rgba(var(--amber),.45)}
+.msg.old{opacity:.45}
+@keyframes type{from{clip-path:inset(0 100% 0 0)} to{clip-path:inset(0 0 0 0)}}
+.status{display:flex; align-items:center; gap:14px; height:96px}
+.st{display:flex; flex-direction:column; align-items:flex-end; gap:3px}
+.tog{pointer-events:auto; font:400 10px var(--mono); letter-spacing:.2em; color:var(--dim); background:rgba(2,8,20,.45);
+  border:1px solid rgba(var(--blue),.3); padding:8px 11px; cursor:pointer; transition:all .2s}
+.tog:hover, .tog:focus-visible{color:#fff; border-color:rgba(var(--blue),.8); outline:none}
+.tog[aria-pressed="true"]{color:#fff; background:rgba(var(--blue),.28); border-color:rgba(140,200,255,.9); box-shadow:0 0 12px rgba(var(--blue),.4) inset}
+.help{position:absolute; right:0; bottom:-14px; font-size:8.5px; letter-spacing:.22em; color:rgba(118,168,235,.5); white-space:nowrap}
+
+/* ---------------------------------------------------------------------------------------------- target symbology */
+#reticle{position:fixed; inset:0; width:100%; height:100%; z-index:8; pointer-events:none; overflow:visible;
+  opacity:0; transition:opacity 1s ease 1s}
+body.online #reticle{opacity:1}
+body.nogl #reticle{display:none}
+#reticle .amb{stroke:rgba(var(--amber),.88); fill:none; stroke-width:1.2}
+#reticle .amb-f{fill:rgba(var(--amber),.95)}
+#reticle .blu{stroke:rgba(110,175,255,.7); fill:none; stroke-width:1}
+#reticle .blu-f{fill:rgba(150,200,255,.85)}
+#reticle .spin{animation:spin 40s linear infinite; transform-box:fill-box; transform-origin:center}
+#reticle .spin.rev{animation-duration:26s; animation-direction:reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+#reticle text{font-family:var(--mono); font-size:11px; letter-spacing:.16em; paint-order:stroke; stroke:rgba(0,3,10,.7); stroke-width:3px; stroke-linejoin:round}
+#reticle .t-big{font-family:var(--sans); font-weight:300; font-size:15px; letter-spacing:.34em}
+#reticle .t-sm{font-size:9.5px; letter-spacing:.2em}
+#reticle .lock{animation:lock .9s ease-out both}
+@keyframes lock{from{opacity:0; transform:scale(1.8)} 60%{opacity:1}}
+#reticle .transit{animation:blink 1s steps(2) infinite}
+
+/* ---------------------------------------------------------------------------------------------- boot */
+#boot{position:fixed; inset:0; z-index:50; background:#000; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:opacity 1s ease, visibility 0s linear 1s}
+body.online #boot, body.nogl #boot, body.skip #boot{opacity:0; visibility:hidden}
+.boot-in{width:min(440px, 86vw)}
+.boot-logo{font:200 clamp(36px, 7.5vw, 86px)/1 var(--sans); letter-spacing:.62em; margin-right:-.62em; color:#eef5ff; text-align:center;
+  text-shadow:0 0 30px rgba(var(--blue),.7), 0 0 80px rgba(var(--blue),.3); animation:logo 1.4s ease both}
+@keyframes logo{from{opacity:0; letter-spacing:1.1em; filter:blur(8px)}}
+.boot-sub{margin:14px 0 30px; text-align:center; font-size:10px; letter-spacing:.42em; color:var(--dim)}
+.boot-lines{list-style:none; margin:0; padding:0; font-size:11px; letter-spacing:.2em}
+.boot-lines li{display:flex; justify-content:space-between; gap:12px; padding:3px 0; color:rgba(160,200,250,.8);
+  border-bottom:1px dotted rgba(var(--blue),.18); opacity:0; animation:bootLine .3s ease forwards}
+.boot-lines li b{font-weight:400; color:#dff0ff}
+.boot-lines li:nth-child(1){animation-delay:.25s} .boot-lines li:nth-child(2){animation-delay:.4s}
+.boot-lines li:nth-child(3){animation-delay:.55s} .boot-lines li:nth-child(4){animation-delay:.7s}
+.boot-lines li:nth-child(5){animation-delay:.95s}
+.boot-lines li:nth-child(5) b{color:rgb(var(--amber))}
+@keyframes bootLine{from{opacity:0; transform:translateX(-8px)} to{opacity:1}}
+.boot-bar{margin-top:18px; height:2px; background:rgba(var(--blue),.18)}
+.boot-bar i{display:block; height:100%; width:0; background:linear-gradient(90deg, rgba(var(--blue),.9), #fff); box-shadow:0 0 10px rgba(var(--blue),.9); transition:width .2s}
+.boot-skip{margin-top:18px; text-align:center; font-size:9px; letter-spacing:.3em; color:rgba(118,168,235,.4)}
+body.returning .boot-lines li{animation-duration:.12s} body.returning .boot-lines li:nth-child(n){animation-delay:0s}
+body.returning .boot-logo{animation-duration:.4s}
+
+/* ---------------------------------------------------------------------------------------------- the jump */
+#jump{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; pointer-events:none;
+  opacity:0; transition:opacity .25s, background .5s}
+body.jumping #jump{opacity:1}
+body.flash #jump{background:#fff}
+.jp{text-align:center; padding:26px 44px; border-top:1px solid rgba(var(--amber),.6); border-bottom:1px solid rgba(var(--amber),.6);
+  background:linear-gradient(90deg, transparent, rgba(2,8,20,.7) 20%, rgba(2,8,20,.7) 80%, transparent)}
+.jp .j1{font-size:10px; letter-spacing:.42em; color:rgb(var(--amber))}
+.jp .j2{margin:12px 0; font:200 clamp(22px, 4vw, 44px)/1.1 var(--sans); letter-spacing:.3em; color:#fff; text-transform:uppercase;
+  text-shadow:0 0 24px rgba(var(--blue),.8)}
+.jp .j3{font-size:9.5px; letter-spacing:.36em; color:var(--dim)}
+.jbar{margin-top:16px; height:2px; background:rgba(var(--amber),.2)}
+.jbar i{display:block; height:100%; width:0; background:rgb(var(--amber)); box-shadow:0 0 10px rgba(var(--amber),.9)}
+body.jumping .jbar i{animation:charge 1s cubic-bezier(.5,0,.2,1) forwards}
+@keyframes charge{to{width:100%}}
+body.jumping #hud, body.jumping #reticle{opacity:0; transition:opacity .35s}
+
+/* ---------------------------------------------------------------------------------------------- smaller screens */
+@media (max-width: 1180px){
+  .panel.left{width:236px} .panel.right{width:292px}
+  .bar-top{grid-template-columns:1fr minmax(200px, 340px) 1fr}
+  .ident .mission{display:none}
+}
+@media (max-width: 960px){
+  .panel.left dl:nth-of-type(2), .panel.left h2:nth-of-type(2){display:none}
+  .bar-bottom{grid-template-columns:1fr auto} .schem{display:none}
+  .tape{display:none} .bar-top{grid-template-columns:1fr 1fr}
+}
+/* phones: ident + clock on top, the crew manifest becomes a dock along the bottom with a mission sheet above it */
+@media (max-width: 720px), (max-height: 520px) and (max-width: 1000px){
+  #canopy .corner{width:90px; height:90px}
+  .bar-top{left:max(18px, var(--inL)); right:max(18px, var(--inR)); top:max(12px, env(safe-area-inset-top))}
+  .ident .ship{font-size:14px; letter-spacing:.34em}
+  .clk .v{font-size:12px} .clk.sub{display:none}
+  .panel.left{display:none}
+  .bar-bottom{display:none}
+  .panel.right{top:auto; bottom:max(10px, env(safe-area-inset-bottom)); left:max(10px, var(--inL)); right:max(10px, var(--inR));
+    width:auto; max-height:none; overflow:visible; padding:8px; display:flex; gap:6px; flex-wrap:nowrap;
+    background:linear-gradient(0deg, rgba(2,8,20,.85), rgba(2,8,20,.55)); border:1px solid var(--line)}
+  .panel.right h2, .panel.right .hint{display:none}
+  .crew{flex:1 1 0; min-width:0; margin:0}
+  .crew summary{grid-template-columns:1fr; text-align:center; gap:3px; padding:8px 2px}
+  .crew summary .n, .crew summary .cnt{display:none}
+  .crew summary .who{font-size:11px; letter-spacing:.14em}
+  .crew summary .role{font-size:8px; letter-spacing:.12em}
+  .missions{position:fixed; left:max(10px, var(--inL)); right:max(10px, var(--inR)); bottom:calc(max(10px, env(safe-area-inset-bottom)) + 66px);
+    margin:0; padding:6px; border:1px solid rgba(var(--amber),.5); background:rgba(2,8,20,.96); max-height:52vh; overflow-y:auto}
+  .mission{padding:12px 12px 12px 18px; font-size:12px}
+}
+
+@media (prefers-reduced-motion: reduce){
+  #reticle .spin, #canopy .led, .panel.right .hint, .boot-logo, .boot-lines li, .msg.new .tx{animation:none !important; opacity:1}
+  #scene{transition:none}
+}
