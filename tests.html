@@ -158,7 +158,7 @@
       // Renderer: js/scene/*.js (ported from demo/). HUD + game menu: index.html + js/hud.js.
       // =============================================
       const SCENE_FILES = ['js/scene/gl.js', 'js/scene/kerr.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
-                           'js/scene/orbit.js', 'js/scene/flight.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
+                           'js/scene/orbit.js', 'js/scene/flight.js', 'js/scene/combat.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
       const src = {};
       for (const f of SCENE_FILES) {
         try { const r = await fetch(f); src[f] = r.ok ? await r.text() : null; } catch (e) { src[f] = null; }
@@ -220,7 +220,7 @@
         assert(near(lo, Math.asin(Math.sqrt(27)/45*Math.sqrt(1 - 2/45)), 1e-5), 'Kerr maths: a = 0 shadow radius from 45 M is 6.481°', (lo/DEG).toFixed(4) + '°');
         const c9 = K.camera(P, 0.9), cur = K.criticalCurve(c9, 90);
         let worst = 0; for (const d of cur) worst = Math.max(worst, Math.abs(K.shadowDist(K.constants(c9, d), c9)));
-        assert(cur.length > 60 && worst < 1e-6, 'Kerr maths: the HUD outline (critical curve) lies on the shader\'s shadow edge at a = 0.9', 'max |edge distance| ' + worst.toExponential(1) + ' M');
+        assert(cur.length > 60 && worst < 1e-6, 'Kerr maths: the critical curve (the HUD lock ring and SHADOW readout) lies on the shader\'s shadow edge at a = 0.9', 'max |edge distance| ' + worst.toExponential(1) + ' M');
         // handedness: the side where photons co-rotate (L > 0, looking toward -e_phi) is the FLAT side and the BLUESHIFTED one
         const t9 = K.trace(c9, (() => { const m = c9.eph.map(x => -x), h = c9.er.map(x => -x), t = 14*DEG, d = [h[0]*Math.cos(t) + m[0]*Math.sin(t), h[1]*Math.cos(t) + m[1]*Math.sin(t) - 0.08, h[2]*Math.cos(t) + m[2]*Math.sin(t)], l = Math.hypot(...d); return d.map(x => x/l); })());
         assert(t9.cross.length && t9.cross[0].g > 1, 'Kerr maths: the approaching (L > 0) side of the disc is blueshifted', t9.cross.length ? 'g = ' + t9.cross[0].g.toFixed(3) : 'no crossing');
@@ -315,6 +315,73 @@
         assert(r.radial.ok && r.radial.ecc < 0.05, 'Helm: a purely radial velocity still settles into orbit', 'e = ' + r.radial.ecc.toFixed(4));
       } catch (e) { assert(false, 'Helm: flight sandbox ran', e.message); }
       assert(/orbitStep\(\s*dt\s*\*/.test(mainSrc) && /flightStep\(\s*dt\s*\)/.test(mainSrc), 'Helm: the launch jump warps the world, not the ship', 'orbitStep(dt*...) but flightStep(dt)');
+
+      // 8c. THE WEAPONS (combat.js): fly orbit.js + flight.js + combat.js in a sandbox (no GL) and check the fight's physics.
+      //     Absolute positions move ~1.6 km a frame and a round without gravity sags 2.4 km in 2 s, so these are the traps.
+      try {
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, src['js/scene/flight.js'] || '', src['js/scene/combat.js'] || '', `
+          const SCENE = {state: 'run'}, TC = ORB.TC;
+          const step = (n, dt) => { for (let i = 0; i < n; i++) { HELM.idle = 0; orbitStep(dt); flightStep(dt); combatStep(dt); } };
+          const aimAt = t => { const d = V.norm(V.sub(t.p, HELM.p)); HELM.f = d; HELM.u = V.norm(V.sub(V.norm(HELM.p), V.mul(d, V.dot(V.norm(HELM.p), d)))); };
+          const out = {};
+          orbitResize(1600, 900); orbitStep(0); helmEnter(); step(5, 1/60); COMBAT.cineOK = false;   // (cutaways are the page's business)
+          out.armed = cmbArm() && !!HELM.ref && HELM.vcap > 0;
+          // 1. the range: a drone that just sits there holds its place beside you (co-rotating), then dies to fire along the nose
+          step(60, 1/60);
+          const dr = COMBAT.ents.find(e => e.cls === 'drone' && !e.arrive);
+          COMBAT.dir = null; for (const e of COMBAT.ents) if (e !== dr) e.alive = false;      // hold the director: one target
+          COMBAT.hot = false; dr.vcmd = [0, 0, 0];                                            // no AI: let go, like the ship
+          const rel0 = V.sub(dr.p, HELM.p); step(600, 1/60); COMBAT.hot = true;
+          // held in the co-rotating frame means the offset turned rigidly with the orbit, n0 x 120 s sim
+          out.hold = V.len(V.sub(V.sub(dr.p, HELM.p), V.rot(rel0, COMBAT.frame.N, COMBAT.frame.n0*10*TC)));
+          let hp0 = dr.hp; for (let i = 0; i < 240 && dr.alive; i++) { aimAt(dr); COMBAT.input.fire = 1; step(1, 1/60); }
+          COMBAT.input.fire = 0; out.kill = {alive: dr.alive, hp0, kills: COMBAT.score.kills};
+          // 2. a round from a coasting shooter flies straight in the inertial frame, relative to where it was fired from
+          step(90, 1/60); COMBAT.nb = 0;
+          const me = COMBAT.me, from = cmbAt(me, CMB.MUZZLES[0]), dir = me.f;
+          cmbBolt(from, V.add(me.v, V.mul(dir, CMB.GUN_SPEED/TC)), 0, 0, 2);
+          const shipV0 = me.v.slice(), p0 = from.slice(); let worst = 0;
+          for (let i = 0; i < 60; i++) { step(1, 1/60);
+            const T = (i + 1)/60*TC, ref = V.add(p0, V.mul(V.add(shipV0, V.mul(dir, CMB.GUN_SPEED/TC)), T)), g = V.mul(V.norm(p0), -ORB.planet.GM/V.dot(p0, p0));
+            const straight = V.add(ref, V.mul(g, T*T/2)), b = [COMBAT.B[0], COMBAT.B[1], COMBAT.B[2]];
+            worst = Math.max(worst, V.len(V.sub(b, straight))); }
+          out.straight = worst;
+          // 3. strafe: a sideways command is a true relative velocity (it settles, and back to ~0 when released)
+          const vr = () => V.len(V.sub(HELM.v, cmbVref(HELM.p)))*TC;
+          HELM.f = V.norm(V.cross(HELM.p, HELM.v)); HELM.input.thrust = 1; let maxS = 0;
+          for (let i = 0; i < 180; i++) { step(1, 1/60); maxS = Math.max(maxS, vr()); }
+          HELM.input.thrust = 0; step(300, 1/60); out.strafe = {max: maxS, after: vr(), cap: CMB.VCAP};
+          // 4. a minute of real fighting: fighters and a capital, all finite, nothing inside the keep-out, no one below the floor
+          COMBAT.dir = {stage: 'wing', t: 0, wave: 0}; let fin = true, minD = 1e9, minAlt = 1e12;
+          for (let i = 0; i < 60*60; i++) { if (COMBAT.pl.tgt) aimAt(COMBAT.pl.tgt); COMBAT.input.fire = COMBAT.pl.tgt ? 1 : 0; step(1, 1/60);
+            for (const e of COMBAT.ents) { if (!e.alive || e.arrive || e.wreck) continue; if (![...e.p, ...e.v, ...e.f].every(Number.isFinite)) fin = false;
+              if (!CMB_CLS[e.cls].capital) minD = Math.min(minD, V.len(V.sub(e.p, HELM.p))); minAlt = Math.min(minAlt, V.len(e.p) - ORB.planet.R); } }
+          out.fight = {fin: fin && [...HELM.p, ...HELM.v].every(Number.isFinite), minD, minAlt, stage: COMBAT.dir && COMBAT.dir.stage, wave: COMBAT.score.wave};
+          // 5. a capital's death: the chain of blasts, then the big one and its wreck
+          COMBAT.events.length = 0; const cap = cmbSpawn('frigate', V.add(HELM.p, V.mul(V.norm(HELM.v), 3000)), V.norm(HELM.v), 0);
+          cap.sh = 0; cap.hp = 0.5; cmbDamage(cap, 1, cap.p, false); step(60*6, 1/60);
+          out.capital = {boom: COMBAT.events.some(e => e.type === 'capBoom'), wrecks: COMBAT.ents.filter(e => e.wreck).length};
+          // 6. SAFE: every hostile jumps out, the helm gets its supercruise back
+          cmbSafe('test'); out.safe = {hostiles: cmbHostiles(), ref: HELM.ref, vcap: HELM.vcap};
+          // 7. hull 0: knocked out, then the emergency jump (main.js resets at the tunnel's peak) and home to STATION
+          cmbArm(); COMBAT.events.length = 0; COMBAT.pl.sh = 0; cmbHurt(1e3, V.add(HELM.p, [30, 0, 0]));
+          const down = HELM.disabled && COMBAT.pl.down >= 0; let ej = false;
+          for (let i = 0; i < 60*4 && !ej; i++) { step(1, 1/60); ej = COMBAT.events.some(e => e.type === 'ejump'); }
+          if (ej) { cmbReset(); helmStation(); }
+          out.down = {down, ejump: ej, mode: HELM.mode, disabled: HELM.disabled, active: cmbActive()};
+          return out;`].join('\n'));
+        const r = sb(document);
+        assert(r.armed, 'Weapons: arming takes the engagement frame and caps the speed', 'HELM.ref + HELM.vcap set');
+        assert(r.hold < 10, 'Weapons: an idle drone holds its place beside you (co-rotating Hill frame)', 'drift ' + r.hold.toFixed(2) + ' m in 10 s');
+        assert(!r.kill.alive && r.kill.kills >= 1, 'Weapons: firing along the nose kills a drone (swept hits in the target\'s own frame)', r.kill.alive ? 'still alive' : r.kill.kills + ' kill(s)');
+        assert(r.straight < 25, 'Weapons: a round flies on from where it was fired, gravity included (the traps: 1.6 km, 2.4 km)', 'off a free-fall line by at most ' + r.straight.toFixed(1) + ' m over 1 s');
+        assert(r.strafe.max < 1.2*r.strafe.cap && r.strafe.after < 30, 'Weapons: a sideways command is a true relative velocity (no runaway plane change)', 'peak ' + r.strafe.max.toFixed(0) + ' m/s, ' + r.strafe.after.toFixed(1) + ' m/s after release');
+        assert(r.fight.fin && r.fight.minD >= 44 && r.fight.minAlt > 5e4, 'Weapons: a minute of fighting stays finite, off your hull and above the floor', 'closest ' + r.fight.minD.toFixed(0) + ' m, wave ' + r.fight.wave + ', stage ' + r.fight.stage);
+        assert(r.capital.boom && r.capital.wrecks > 0, 'Weapons: a capital ship breaks up and leaves wreckage', r.capital.wrecks + ' wreck sections');
+        assert(r.safe.hostiles === 0 && !r.safe.ref && !r.safe.vcap, 'Weapons: SAFE sends every hostile away and gives back supercruise', r.safe.hostiles + ' left');
+        assert(r.down.down && r.down.ejump && r.down.mode === 'station' && !r.down.disabled && !r.down.active, 'Weapons: hull 0 is an emergency jump home, never game over', 'down → ejump → ' + r.down.mode);
+      } catch (e) { assert(false, 'Weapons: combat sandbox ran', e.message); }
+      assert(/cmbSafe\(\s*'launch'\s*\)/.test(mainSrc), 'Weapons: a game launch stands the weapons down first', 'SCENE.jump → cmbSafe(\'launch\')');
       assert(/function\s+helmAuto/.test(src['js/scene/flight.js'] || '') && /IDLE_AUTO/.test(src['js/scene/flight.js'] || ''), 'Always in view: an idle helm flies home to the station framing', 'helmAuto() after IDLE_AUTO s');
 
       // 9. ANTI-ALIASING: fullscreen passes only, so no MSAA on the context; the FXAA upscale does the edges.

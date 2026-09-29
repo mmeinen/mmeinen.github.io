@@ -24,8 +24,9 @@ are launched from the ship's crew manifest. No build tools, no npm, no framework
 │   ├── planet.js         MILLER + moon: deferred terrain/clouds/atmosphere (shaders = demo's, verbatim)
 │   ├── post.js           bloom, tone map, FXAA upscale + grain + launch warp
 │   ├── orbit.js          system model, the station (scripted) orbit, camera framing, telemetry (no GL)
-│   ├── flight.js         the HELM: fly the ship round MILLER (orbit assist, rails, autopilot, chase/cockpit cams)
-│   ├── ships.js          the player's MSV MEINEN + friendly flybys (mesh builder + shaders = demo's, verbatim)
+│   ├── flight.js         the HELM: fly the ship round MILLER (orbit assist, rails, autopilot, chase/hull/cockpit cams)
+│   ├── combat.js         GUNS & TARGETS: weapons, hostiles, AI, the engagement director, FX pools, cutaways (no GL)
+│   ├── ships.js          the ship pass: MSV MEINEN, flybys, the fight's hulls + FX (mesh builder + shaders = demo's)
 │   └── main.js           boot, frame loop, adaptive render scale, input
 ├── js/hud.js             HUD behaviour: menu, telemetry, reticles, tape, plot, log, boot, jump, audio
 ├── minesweeper.html      Minesweeper game (uses js/*.js)
@@ -57,7 +58,8 @@ are launched from the ship's crew manifest. No build tools, no npm, no framework
 - All pages link back to `index.html`
 - Game pages use `<canvas>` elements
 - Color scheme: `rgba(60,140,255,*)` for blue HUD, `rgba(255,160,80,*)` for warnings
-- Landing page layers: `#scene` canvas 1, `#canopy` 4, `#reticle` 8, `#hud` 10, `#boot` 50, `#jump` 60
+- Landing page layers: `#scene` canvas 1, `#canopy` 4, `#reticle` 8, `#letterbox`/`#dmgv` 9, `#hud` 10, `#ctitle` 11,
+  `#boot` 50, `#jump` 60
 
 ## Adding a Game Link
 Add `<li><a class="mission" href="…"><span class="mt">Title</span><span class="mc">M·NN</span></a></li>` to the crew
@@ -101,8 +103,51 @@ after `FS_BH_SHADE`'s helpers at program creation; the demo stays Schwarzschild.
   axisymmetric, so shading rotates by the planet's *current* azimuth; the tile scheduler (above) re-bakes what the
   spin or the camera's drift (> 0.02 M, MILLER's inclined orbit, ~20 min) has made stale.
 - **Frame**: `bhShade` → `comp` (the sky) → `systemPass` (base hit pass + scissored terran/rock passes + clouds &
-  atmosphere) → optional `flyRender` (MSAA ship pass, only while a formation is on screen) → `postProcess`
-  (bloom + tone map at render scale, then FXAA/grain/warp to the canvas).
+  atmosphere) → optional `flyRender` (MSAA ship pass, only while something it draws is on screen) → `postProcess`
+  (bloom + tone map at render scale, then FXAA/grain/warp to the canvas). The ship pass CLEARS its MSAA target and
+  composites the resolved rect premultiplied (hulls α 1, glows 0, smoke between): nothing it draws is ever behind a
+  planet pixel (a fight stays within ~30 km; the surface is ≥ 50 km away), so the old priming copy + hit-buffer depth
+  was pure cost — a full-screen fight now measures the same as unarmed flight.
+- **GUNS & TARGETS (`combat.js`, Sep 29 2026; user: "I want to shoot... lookin' like an iMAX film made by Christopher
+  Nolan")**. Opt-in at the helm: G / WEAPONS / Space / right mouse arm; Space or RMB fire (Space only when not
+  activating a focused button/link/summary), R torpedo (lock builds in a 14° cone). Director: THE RANGE (drones, first
+  engagement only) → CONTACT (wasps that shoot back) → a capital (frigate, then cruisers: arrival cutaway, flak,
+  launches fighters, chain-of-blasts death + kill shot) → lull (hull +35) → harder waves. Hull 0 = tumble + wide shot +
+  **emergency jump** (main.js `ejumpStep`: the launch tunnel, landing at STATION under the white). G/H/autopilot/launch
+  stand down (`cmbSafe`). Traps, each found by measurement:
+  - **Frame**: MILLER-relative float64 m, SIM velocities (×TC), real gravity on everything; tuning in REAL units. Arming
+    captures the Hill frame (N, n0): every assisted craft, the player via `HELM.ref`, flies v → n0 N×p + vcmd. The helm's
+    own law (horizontal from the ship's velocity) turns a sideways command into a runaway plane change (240 m/s → 1.1
+    km/s of drift). flight.js knows nothing of combat: hooks `HELM.ref/vcap/kick/disabled`.
+  - **Step order**: MOTION first (existing things fly this frame, hits resolve), then DECISIONS at frame end (spawns
+    born at end-of-frame positions). Spawn-then-integrate put every round a frame's orbit (1.6 km) ahead of its gun;
+    ships waiting to warp in must fly unseen or the orbit carries you 30 km away. Hits: swept segments in the TARGET's
+    frame, hit points re-based on its end position. Lead/torpedoes: inertial (MILLER-frame) velocities.
+  - **Cutaway cameras ride co-moving anchors** (the ship, or a ballistic anchor released with a dying hull): a point
+    fixed in MILLER's frame is 1.6 km behind the fight a frame later. Never under reduced motion, on the dock layout,
+    with a crew open, or during a jump; Escape / a click cuts them short; `#hud` stays usable under the bars.
+  - Rounds and particles live in Float64Array pools (no per-round allocation: GC hitches read as missed vsyncs).
+  - Nolan look: `LOOK.film` (post.js: halation, print grade, 24 fps grain; gate weave only in cutaways — the SVG HUD
+    does not weave), exposure dip after a capital flash, hull-conducted sound + score in hud.js `AUDIO.combat` (tick,
+    Shepard tone, BRAAM, silence at the flash then organ). Photosensitivity: muzzle flashes small and dim; `LOOK.flash`
+    only for rare capital deaths; reduced motion gets no shake/flash/cutaway/tunnel.
+  - Hull camera (V: chase → hull → cockpit): rigid on the spine; its shake moves ship + camera together. +~4 ms.
+  - tests.html 8c flies orbit + flight + combat in a sandbox (hold, kill, straight rounds, strafe, AI minute, capital
+    death, SAFE, emergency jump).
+- **Bloom prefilter (Sep 28 2026)**: the bloom chain's first downsample is `FS_BLOOM_PRE`, a soft knee (knee 1.0 on
+  max(r,g,b)) so only highlights bloom; the tone pass weights bloom 0.24. The demo's thresholdless bloom (still in
+  `demo/`) added ~70% of a blurred frame back: the shadow read 47/255 instead of ~12 and a ship before the ocean glint
+  lost its dark hull (174 vs 18). Costs nothing measurable. Guard any threshold with `max(l, 1e-4)`: black is 0/0.
+- **HUD symbology** (`hud.js` `reticles()`): the `#reticle` SVG sits UNDER the HUD, so its labels keep out of the HUD's
+  boxes (rects of the panels, bar contents, helm readouts, touch pad; read at the top of `HUD.frame()` when dirty, never
+  inside `instruments()`). GARGANTUA's block tries slots round the ring (right/left up/down, below, above; phones
+  above/below) with hysteresis, else shows only the name inside the shadow; PROGRADE slides along its column; MILLER I,
+  contact and limb labels hide rather than overlap. The Kerr shadow's traced outline is not drawn (it beaded the photon
+  ring): `shadowOutline()` only centres the lock ring and feeds SHADOW.
+- **Dock layout**: phones AND portrait touch tablets (`(orientation: portrait) and (max-width: 1100px) and
+  (pointer: coarse)`; `hud.js` `DOCK` must use the identical query) put the crew manifest along the bottom, reduce the
+  bottom bar to TAKE HELM / TELESCOPE / AUDIO above it, and show the flight pad only at the helm (`body.helm`), hidden
+  while a crew's mission sheet is open (`body.crew-open`).
 - **MILLER I** is art-directed: it transits in front of the hole every 5 min (first at 45 s) — the dark silhouette
   from `black_hole.jpg`. Flybys (`ships.js`) co-move with the ship: positions are relative to the *current* eye,
   because in the hole's frame MILLER moves at 0.15 c.
@@ -259,7 +304,7 @@ energy at entry, for every preset. That single check catches nearly all coupling
 ## Testing
 No test framework. `tests.html` checks the landing page (every game still in the menu and resolving, file:// safety,
 Kerr lensing maths via kerr.js, shader parity with demo/, lean base pass, the tile scheduler, render-scale controller, the
-helm flown in a sandbox: settles, floor, ceiling, energy, autopilot) and Pong behaviour.
+helm flown in a sandbox: settles, floor, ceiling, energy, autopilot; the weapons in a sandbox) and Pong behaviour.
 It fetches files, so it needs a local server or Chrome's `--allow-file-access-from-files` (the headless harness).
 ```bash
 python3 -m http.server 8000

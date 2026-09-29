@@ -24,17 +24,27 @@
 
 const HELM = {
   mode: 'station', view: 'chase', assist: true, track: false,
-  p: null, v: null, f: null, u: null,             // ship: position/velocity rel. MILLER (m, m/s sim), nose, dorsal
+  p: null, v: null, f: null, u: null, ub: null,   // ship: position/velocity rel. MILLER (m, m/s sim), nose, dorsal (+ banked)
   w: [0, 0, 0],                                   // body rates: pitch, yaw, roll (rad/s real)
   vcmd: [0, 0, 0], hdir: null,                    // commanded velocity relative to the circular orbit; last good tangent
   input: {pitch: 0, yaw: 0, roll: 0, thrust: 0, boost: 0, hold: 0},
-  lag: null, camK: 0, chaseDist: 95, idle: 0, auto: null, shake: 0,
+  lag: null, camK: 0, chaseDist: 95, idle: 0, auto: null, shake: 0, shk: null,
   heat: 0, alt: 0, vmax: 0, thrustNow: 0, bank: 0, warn: '', events: [],
+  // Hooks the weapons (combat.js) drive, so this file never has to know about them. ref = the engagement's Hill frame
+  // {N, n0}: the assist then flies v -> n0 N x p + vcmd (rigid co-rotation), so offsets hold on all three axes and a
+  // sideways command is a true relative velocity (the law below takes its horizontal from the ship's own velocity: a
+  // sideways command is a plane change, which ran away to 1.1 km/s of drift in a 2 s strafe). vcap = a speed cap
+  // (sim m/s) instead of supercruise; kick = a camera jolt (decays); disabled = knocked out, tumbling at `tumble`.
+  ref: null, vcap: 0, kick: 0, disabled: false, tumble: [0, 0, 0],
   // tuning (sim units unless marked real)
-  K_V: 0.02, BOOST: 4, TAU_THRUST: 0.6, TAU_COAST: 1.0, TAU_HOLD: 0.25, TAU_OA: 0.5,     // taus in real seconds
+  K_V: 0.02, BOOST: 4, VCAP_BOOST: 2.2, TAU_THRUST: 0.6, TAU_COAST: 1.0, TAU_HOLD: 0.25, TAU_OA: 0.5,     // taus in real seconds
   FLOOR: 5.0e4, SOFT: 7.0e4, ATMO: 8.4e4, CEIL: 1.2e8,
   RATE_PY: 60*DEG, RATE_R: 120*DEG, TAU_RATE: 0.12, IDLE_AUTO: 150, FOV: 58*DEG, LEN: 46,
+  // the HULL camera: bolted to the dorsal spine behind the survey dish (ship metres: +x, +y dorsal, +z bow), looking
+  // along the hull a little nose-down -- the Interstellar shot: the ship holds still in frame and the world moves
+  HULL_CAM: [0, 4.9, -13.5], HULL_PITCH: 6*DEG, HULL_FOV: 64*DEG,
 };
+const HELM_VIEWS = ['chase', 'hull', 'cockpit'];
 
 // ------------------------------------------------------------------------------------------ small helpers
 const QV = {
@@ -67,7 +77,7 @@ function helmEnter(){
 // Fly home: pick the station phase nearest to us (and our altitude, within the station's range), then blend.
 function helmAuto(reason){
   const H = HELM, o = ORB;
-  if (H.mode !== 'helm') return false;
+  if (H.mode !== 'helm' || H.disabled) return false;                                   // knocked out: nothing answers the helm
   const P = o.bodies[1].pos, s = o.ship, pl = o.planet, n = V.norm(H.p);
   // the station orbit plane: spanned by up0 and u2 (orbit.js); its phase theta measured from up0 toward u2
   const t = V.norm(V.mul(P, -1)), up0 = V.norm(V.sub([0, 1, 0], V.mul(t, t[1]))), side = V.cross(t, up0);
@@ -81,7 +91,11 @@ function helmAuto(reason){
   H.events.push({type: 'auto', why: H.auto.why});
   return true;
 }
-function helmToggleView(){ const H = HELM; if (typeof FLY !== 'undefined' && FLY.off) return H.view; H.view = H.view === 'chase' ? 'cockpit' : 'chase'; H.events.push({type: 'view', view: H.view}); return H.view; }
+// V: chase -> hull -> cockpit (with no ship pass there is no hull to see: cockpit only)
+function helmToggleView(){ const H = HELM; if (typeof FLY !== 'undefined' && FLY.off) return H.view;
+  H.view = HELM_VIEWS[(HELM_VIEWS.indexOf(H.view) + 1) % HELM_VIEWS.length]; H.events.push({type: 'view', view: H.view}); return H.view; }
+// Straight back to station keeping, no blend (the emergency jump arrives there under cover of its white flash)
+function helmStation(){ const H = HELM; H.mode = 'station'; H.auto = null; H.camK = 0; H.disabled = false; H.kick = 0; H.shk = null; H.events.push({type: 'station'}); }
 function helmToggleAssist(){ const H = HELM; H.assist = !H.assist; H.events.push({type: 'assist', on: H.assist}); return H.assist; }
 function helmToggleTrack(){ const H = HELM; H.track = !H.track; H.events.push({type: 'track', on: H.track}); return H.track; }
 
@@ -94,26 +108,26 @@ function flightStep(dt){
   const upOld = V.norm(H.p);
   // walk away and the autopilot brings the ship home (main.js zeroes idle on any input; the HUD counts down the last 10 s)
   if (H.mode === 'helm' && (H.idle += dt) > H.IDLE_AUTO) helmAuto('idle');
-  // ---- attitude (real time): rates chase the stick, the nose tracks the hole if asked
-  const kr = 1 - Math.exp(-dt/H.TAU_RATE);
-  const want = [In.pitch*H.RATE_PY, In.yaw*H.RATE_PY, In.roll*H.RATE_R];
+  // ---- attitude (real time): rates chase the stick, the nose tracks the hole if asked; knocked out, the ship tumbles
+  const kr = 1 - Math.exp(-dt/(H.disabled ? 0.8 : H.TAU_RATE));
+  const want = H.disabled ? H.tumble : [In.pitch*H.RATE_PY, In.yaw*H.RATE_PY, In.roll*H.RATE_R];
   for (let i = 0; i < 3; i++) H.w[i] += (want[i] - H.w[i])*kr;
   let f = H.f, u = H.u, r = V.cross(f, u);
   if (H.w[0]) { f = V.rot(f, r, H.w[0]*dt); u = V.rot(u, r, H.w[0]*dt); }              // pitch: nose up for +
   if (H.w[1]) { f = V.rot(f, u, H.w[1]*dt); }                                          // yaw: nose left for +
   if (H.w[2]) { u = V.rot(u, f, H.w[2]*dt); }                                           // roll: right wing down for +
-  if (H.track && H.mode === 'helm') {                                                   // T: keep Gargantua on the nose
+  if (H.track && H.mode === 'helm' && !H.disabled) {                                    // T: keep Gargantua on the nose
     const toHole = V.norm(V.mul(V.add(P, H.p), -1)), ax = V.cross(f, toHole), s = V.len(ax);
     if (s > 1e-6) { const ang = Math.min(Math.atan2(s, V.dot(f, toHole)), 1.2*dt); f = V.rot(f, V.mul(ax, 1/s), ang); u = V.rot(u, V.mul(ax, 1/s), ang); }
   }
   // ---- translation (sim time)
   const alt0 = V.len(H.p) - R;
-  H.vmax = H.K_V*Math.max(alt0, 5e4)*(In.boost ? H.BOOST : 1);
-  const thr = H.mode === 'helm' ? In.thrust : 0;
+  H.vmax = H.vcap ? H.vcap*(In.boost ? H.VCAP_BOOST : 1) : H.K_V*Math.max(alt0, 5e4)*(In.boost ? H.BOOST : 1);
+  const live = H.mode === 'helm' && !H.disabled, thr = live ? In.thrust : 0, hold = live && In.hold;
   H.thrustNow = thr;
   if (H.mode === 'helm') {
-    const tau = In.hold ? H.TAU_HOLD : thr ? H.TAU_THRUST : H.TAU_COAST, k = 1 - Math.exp(-dt/tau);
-    const target = In.hold ? [0, 0, 0] : V.mul(f, thr*H.vmax*(thr < 0 ? 0.35 : 1));
+    const tau = hold ? H.TAU_HOLD : thr ? H.TAU_THRUST : H.TAU_COAST, k = 1 - Math.exp(-dt/tau);
+    const target = hold ? [0, 0, 0] : V.mul(f, thr*H.vmax*(thr < 0 ? 0.35 : 1));
     H.vcmd = V.add(H.vcmd, V.mul(V.sub(target, H.vcmd), k));
   } else H.vcmd = V.mul(H.vcmd, Math.exp(-dt/0.5));
   // rails on the command: no pushing down through the soft floor, no climbing past the ceiling
@@ -129,8 +143,9 @@ function flightStep(dt){
       const vh = V.sub(v, V.mul(up, V.dot(v, up))), hl = V.len(vh);
       if (hl > 1) H.hdir = V.mul(vh, 1/hl);
       else if (!H.hdir || Math.abs(V.dot(H.hdir, up)) > 0.5) H.hdir = V.norm(V.sub(f, V.mul(up, V.dot(f, up))));
-      const hd = V.norm(V.sub(H.hdir, V.mul(up, V.dot(H.hdir, up))));
-      let vdes = V.add(V.mul(hd, Math.sqrt(GM/rr)), H.vcmd);
+      let vdes;
+      if (H.ref) vdes = V.add(V.mul(V.cross(H.ref.N, p), H.ref.n0), H.vcmd);          // armed: co-rotate with the fight
+      else { const hd = V.norm(V.sub(H.hdir, V.mul(up, V.dot(H.hdir, up)))); vdes = V.add(V.mul(hd, Math.sqrt(GM/rr)), H.vcmd); }
       if (alt < H.SOFT) vdes = V.add(vdes, V.mul(up, 900*clamp((H.SOFT - alt)/(H.SOFT - H.FLOOR), 0, 1.5)));   // auto pull-up
       if (rr > H.CEIL) vdes = V.sub(vdes, V.mul(up, H.vmax*0.3*clamp((rr - H.CEIL)/(0.05*H.CEIL), 0, 1)));      // and back in from the ceiling
       let ad = V.mul(V.sub(vdes, v), 1/tauOA); const l = V.len(ad); if (l > aMax) ad = V.mul(ad, aMax/l);
@@ -168,8 +183,17 @@ function flightStep(dt){
   const rho = alt < H.ATMO ? Math.exp(-(alt - H.FLOOR)/9e3) : 0, sp = V.len(H.v);
   H.heat += (clamp(rho*Math.pow(sp/7000, 3)*2.4, 0, 1) - H.heat)*(1 - Math.exp(-dt/0.3));
   H.warn = alt < H.ATMO ? 'PLASMA' : (alt < H.SOFT && V.dot(H.v, upNew) < 0 ? 'PULL UP' : (V.len(H.p) > H.CEIL*0.97 ? 'HILL LIMIT' : ''));
-  H.bank += ((H.mode === 'helm' ? -H.w[1]*0.45 : 0) - H.bank)*(1 - Math.exp(-dt/0.35));
+  H.bank += ((H.mode === 'helm' && !H.disabled ? -H.w[1]*0.45 : 0) - H.bank)*(1 - Math.exp(-dt/0.35));
   H.shake = Math.max(H.heat*0.9, In.boost && thr > 0 ? 0.35 : 0);
+  H.kick *= Math.exp(-dt/0.35);
+  // One small rotation carries the shake (engine, plasma) and the jolts (hits, the guns: kick). The hull camera applies it
+  // to the ship and itself together, so the hull holds still in frame and the world shakes, as a bolted-on camera sees it.
+  H.shk = null;
+  if (H.shake > 0 || H.kick > 1e-3) {
+    const t = o.tReal, s = H.shake*0.004, q = Math.min(H.kick, 1.5)*0.02;
+    const ax = [Math.sin(t*37)*s + Math.sin(t*27.3 + 0.3)*q, Math.sin(t*41 + 1)*s + Math.sin(t*23.9 + 1.9)*q, Math.sin(t*33 + 2)*s + Math.sin(t*31.7 + 4.1)*q];
+    const a = V.len(ax); if (a > 1e-7) H.shk = {ax: V.mul(ax, 1/a), ang: a};
+  }
   // ---- autopilot blend toward the station state (orbitStep keeps it current)
   let eyeShip = V.add(P, H.p), fS = H.f, uS = H.u, blend = 0;
   if (H.mode === 'auto') {
@@ -187,20 +211,32 @@ function flightStep(dt){
   // ---- camera: chase rig (offset in the ship's LAGGED frame, only the attitude lags) or cockpit, blended in and out
   const kl = 1 - Math.exp(-dt/0.18);
   H.lag.f = QV.slerp(H.lag.f, fS, kl); H.lag.u = QV.slerp(H.lag.u, uS, kl); [H.lag.f, H.lag.u] = QV.ortho(H.lag.f, H.lag.u);
-  const chase = H.view === 'chase';
+  const chase = H.view === 'chase', hullV = H.view === 'hull' && H.mode === 'helm';
   H.camK += ((H.mode === 'helm' && chase ? 1 : 0) - H.camK)*(1 - Math.exp(-dt/0.45));
   if (H.mode === 'auto') H.camK *= 1 - blend;
-  const d = H.chaseDist, lf = H.lag.f, lu = H.lag.u;
-  const eyeChase = V.add(eyeShip, V.add(V.mul(lf, -d), V.mul(lu, d*0.24)));
-  const look = V.add(eyeShip, V.mul(lf, d*1.6));
-  let cf = V.norm(V.sub(look, eyeChase)), cu = lu;
-  [cf, cu] = QV.ortho(cf, cu);
-  const k = smooth01(H.camK);
-  const eye = V.add(eyeShip, V.mul(V.sub(eyeChase, eyeShip), k));
-  let bf = QV.slerp(fS, cf, k), bu = QV.slerp(uS, cu, k); [bf, bu] = QV.ortho(bf, bu);
-  if (H.shake > 0) { const t = o.tReal, s = H.shake*0.004; bf = V.norm(V.add(bf, [Math.sin(t*37)*s, Math.sin(t*41 + 1)*s, Math.sin(t*33 + 2)*s])); [bf, bu] = QV.ortho(bf, bu); }
+  H.ub = H.bank ? V.rot(uS, fS, H.bank) : uS;                                           // the attitude the ship is DRAWN with
+  let eye, bf, bu;
+  if (hullV) {
+    // the hull camera is a cut, never a blend (a camera is bolted on or it is not): rigid on the drawn attitude
+    let sf = fS, su = H.ub;
+    if (H.shk) { sf = V.rot(sf, H.shk.ax, H.shk.ang); su = V.rot(su, H.shk.ax, H.shk.ang); }
+    const m = H.HULL_CAM, sx = V.cross(su, sf);                                          // ship +x (ships.js: r = u x f)
+    eye = V.add(eyeShip, V.add(V.add(V.mul(sx, m[0]), V.mul(su, m[1])), V.mul(sf, m[2])));
+    const cr = V.cross(sf, su);
+    bf = V.rot(sf, cr, -H.HULL_PITCH); bu = V.rot(su, cr, -H.HULL_PITCH); [bf, bu] = QV.ortho(bf, bu);
+  } else {
+    const d = H.chaseDist, lf = H.lag.f, lu = H.lag.u;
+    const eyeChase = V.add(eyeShip, V.add(V.mul(lf, -d), V.mul(lu, d*0.24)));
+    const look = V.add(eyeShip, V.mul(lf, d*1.6));
+    let cf = V.norm(V.sub(look, eyeChase)), cu = lu;
+    [cf, cu] = QV.ortho(cf, cu);
+    const k = smooth01(H.camK);
+    eye = V.add(eyeShip, V.mul(V.sub(eyeChase, eyeShip), k));
+    bf = QV.slerp(fS, cf, k); bu = QV.slerp(uS, cu, k); [bf, bu] = QV.ortho(bf, bu);
+    if (H.shk) { bf = V.rot(bf, H.shk.ax, H.shk.ang); bu = V.rot(bu, H.shk.ax, H.shk.ang); [bf, bu] = QV.ortho(bf, bu); }
+  }
   const br = V.norm(V.cross(bf, bu));
-  let fov = H.FOV + (In.boost && thr > 0 ? 9*DEG : 0);
+  let fov = (hullV ? H.HULL_FOV : H.FOV) + (In.boost && thr > 0 ? 9*DEG : 0);
   if (H.mode === 'auto') fov = fov + (o.view.fov - fov)*blend;                      // o.view is still the station view here
   if (o.zoom > 1) fov = 2*Math.atan(Math.tan(fov/2)/o.zoom);
   H.fovNow = H.fovNow ? H.fovNow + (fov - H.fovNow)*(1 - Math.exp(-dt/0.25)) : fov;
@@ -229,8 +265,12 @@ function flightStep(dt){
 // A ship pose the renderer draws (ships.js): world position, axes, engine glow, visual bank. null in STATION.
 function helmShip(){
   const H = HELM;
-  // never from inside the hull (the cockpit view, or the first moments of pulling out to the chase view)
-  if (H.mode === 'station' || !ORB.hud.shipPos || V.len(V.sub(ORB.view.eye, ORB.hud.shipPos)) < 40) return null;
+  if (H.mode === 'station' || !ORB.hud.shipPos) return null;
+  // never from inside the hull (the cockpit view, or the first moments of pulling out to the chase view); the hull
+  // camera sits outside it on the spine, 14 m from the centre
+  const hullV = H.view === 'hull' && H.mode === 'helm';
+  if (!hullV && V.len(V.sub(ORB.view.eye, ORB.hud.shipPos)) < 40) return null;
   let u = H.u, f = H.f; if (H.bank) u = V.rot(u, f, H.bank);
-  return {pos: ORB.hud.shipPos, f, u, glow: clamp(Math.abs(H.thrustNow) + (H.input.boost ? 0.6 : 0), 0, 1.6), heat: H.heat, boost: !!H.input.boost};
+  if (hullV && H.shk) { f = V.rot(f, H.shk.ax, H.shk.ang); u = V.rot(u, H.shk.ax, H.shk.ang); }      // shaken with its camera
+  return {pos: ORB.hud.shipPos, f, u, glow: clamp(Math.abs(H.thrustNow) + (H.input.boost ? 0.6 : 0), 0, 1.6), heat: H.heat, boost: !!H.input.boost, hull: hullV};
 }

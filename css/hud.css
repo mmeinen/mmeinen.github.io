@@ -32,7 +32,7 @@ body.nogl #scene{display:none}
   background:
     radial-gradient(circle at 50% 33%, #000 0 6.2vmin, rgba(255,244,228,.95) 6.5vmin, rgba(255,196,130,.42) 8vmin, rgba(160,110,70,.14) 13vmin, transparent 20vmin),
     radial-gradient(ellipse 58vmin 2.4vmin at 50% 34%, rgba(255,226,190,.7), rgba(255,170,100,.12) 60%, transparent 72%),
-    radial-gradient(ellipse 150% 70% at 50% 128%, #0b1c2e 0 52%, rgba(120,170,230,.55) 53%, rgba(255,190,130,.18) 55%, transparent 60%),
+    radial-gradient(ellipse 150% 70% at 50% 112%, #0b1c2e 0 52%, rgba(120,170,230,.55) 53%, rgba(255,190,130,.18) 55%, transparent 60%),
     radial-gradient(1px 1px at 17% 22%, #cfe0ff, transparent), radial-gradient(1px 1px at 81% 14%, #ffe6c8, transparent),
     radial-gradient(1px 1px at 66% 47%, #d8e6ff, transparent), radial-gradient(1px 1px at 29% 61%, #fff, transparent),
     radial-gradient(1.5px 1.5px at 90% 40%, #cfe0ff, transparent), radial-gradient(1px 1px at 8% 44%, #ffd9b0, transparent),
@@ -74,12 +74,13 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
 /* top: ident · heading tape · clocks */
 .bar-top{top:var(--inT); left:max(78px, var(--inL)); right:max(78px, var(--inR)); height:52px;
   display:grid; grid-template-columns:1fr minmax(260px, 480px) 1fr; align-items:start; gap:18px}
+.ident{justify-self:start}                     /* as wide as its text: hud.js keeps the target labels off it */
 .ident .ship{font-family:var(--sans); font-weight:300; font-size:19px; letter-spacing:.42em; color:#eef5ff;
   text-shadow:0 0 18px rgba(var(--blue),.65); white-space:nowrap; display:flex; align-items:center}
 .ident .ship b{font-weight:300; color:rgba(150,200,255,.95); margin-left:.42em}
 .ident .chev{width:7px; height:7px; margin-right:14px; background:rgb(var(--amber)); transform:rotate(45deg);
   box-shadow:0 0 8px rgba(var(--amber),.9); animation:led 3s ease-in-out infinite}
-.ident .mission{margin-top:5px; font-size:9.5px; letter-spacing:.24em; color:var(--dim); white-space:nowrap}
+.ident .callsign{margin:5px 0 0 21px; font-size:9.5px; letter-spacing:.24em; color:var(--dim); white-space:nowrap}   /* under the name */
 .tape{height:40px; position:relative;
   -webkit-mask-image:linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); mask-image:linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent)}
 .tape svg{width:100%; height:38px; overflow:hidden; display:block}
@@ -102,7 +103,7 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
 .panel h2::after{content:''; position:absolute; left:0; bottom:-2px; width:26px; height:3px; background:rgba(var(--blue),.85)}
 .panel h2 i{font-style:normal; font-size:9px; color:rgba(3,10,24,.95); background:rgba(var(--blue),.85); padding:2px 4px; letter-spacing:.08em}
 .panel h2 em{font-style:normal; margin-left:auto; font-size:9px; letter-spacing:.2em; color:var(--dim)}
-.panel dl{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin:0 0 18px; font-size:12px}
+.panel dl{display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:6px 14px; margin:0 0 18px; font-size:12px}
 .panel dt{color:var(--dim); font-size:10px; letter-spacing:.16em; align-self:baseline}
 .panel dd{margin:0; text-align:right; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:.06em; white-space:nowrap}
 .panel dd.warn{color:rgb(var(--amber))}
@@ -115,7 +116,7 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
 /* ---------------------------------------------------------------------------------------------- crew manifest */
 .panel.right{top:112px; right:var(--inR); width:318px; padding:14px 14px 10px; pointer-events:auto;
   background:linear-gradient(270deg, rgba(2,8,20,.74), rgba(2,8,20,.5) 75%, rgba(2,8,20,.2));
-  border-right:1px solid var(--line); max-height:calc(100vh - 230px); overflow-y:auto; scrollbar-width:thin;
+  border-right:1px solid var(--line); max-height:calc(100vh - 250px); overflow-y:auto; scrollbar-width:thin;
   scrollbar-color:rgba(var(--blue),.4) transparent}
 .panel.right::-webkit-scrollbar{width:5px}
 .panel.right::-webkit-scrollbar-thumb{background:rgba(var(--blue),.4)}
@@ -162,7 +163,7 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
    on a shadowed console lip rather than bare text on the glass. */
 #canopy .dash{position:absolute; left:0; right:0; bottom:0; height:190px;
   background:linear-gradient(0deg, rgba(0,2,8,.78), rgba(0,2,8,.45) 45%, transparent)}
-.bar-bottom{bottom:var(--inB); left:max(78px, var(--inL)); right:max(78px, var(--inR)); height:132px;
+.bar-bottom{bottom:calc(var(--inB) + 14px); left:max(78px, var(--inL)); right:max(78px, var(--inR)); height:132px;   /* the key help sits under it */
   display:grid; grid-template-columns:240px minmax(0, 1fr) auto; gap:16px; align-items:end}
 .mfd{position:relative; background:rgba(2,7,18,.72); border:1px solid rgba(var(--blue),.28); padding:20px 12px 10px;
   box-shadow:0 0 0 1px rgba(0,0,0,.6), inset 0 0 24px rgba(var(--blue),.06)}
@@ -173,7 +174,7 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
 .schem svg{width:100%; height:100%; display:block; overflow:hidden}
 #schem .orb{fill:none; stroke:rgba(120,180,255,.75); stroke-width:1}
 #schem .orb.back{stroke:rgba(120,180,255,.22); stroke-dasharray:2 3}
-#schem .orb.moon{stroke:rgba(150,190,240,.3); stroke-dasharray:1 4}
+#schem .orb.orb-moon{stroke:rgba(150,190,240,.3); stroke-dasharray:1 4}
 #schem .planet{stroke:rgba(140,190,255,.35); stroke-width:.8}
 #schem .ship{fill:#fff; filter:drop-shadow(0 0 3px rgba(var(--blue),1))}
 #schem .moon{fill:rgba(200,215,235,.9)}
@@ -196,22 +197,22 @@ body.online #hud, body.nogl #hud, body.skip #hud{opacity:1}
   border:1px solid rgba(var(--blue),.3); padding:8px 11px; cursor:pointer; transition:all .2s}
 .tog:hover, .tog:focus-visible{color:#fff; border-color:rgba(var(--blue),.8); outline:none}
 .tog[aria-pressed="true"]{color:#fff; background:rgba(var(--blue),.28); border-color:rgba(140,200,255,.9); box-shadow:0 0 12px rgba(var(--blue),.4) inset}
-.help{position:absolute; right:0; bottom:-14px; font-size:8.5px; letter-spacing:.22em; color:rgba(118,168,235,.5); white-space:nowrap}
+.help{position:absolute; right:0; bottom:-17px; font-size:9px; letter-spacing:.22em; color:rgba(118,168,235,.62); white-space:nowrap}
 
 /* ---------------------------------------------------------------------------------------------- target symbology */
 #reticle{position:fixed; inset:0; width:100%; height:100%; z-index:8; pointer-events:none; overflow:visible;
   opacity:0; transition:opacity 1s ease 1s}
 body.online #reticle{opacity:1}
 body.nogl #reticle{display:none}
-#reticle .amb{stroke:rgba(var(--amber),.88); fill:none; stroke-width:1.2}
+#reticle .amb{stroke:rgba(var(--amber),.66); fill:none; stroke-width:1}    /* light: the lock ring crosses the disc */
 #reticle .amb-f{fill:rgba(var(--amber),.95)}
 #reticle .blu{stroke:rgba(110,175,255,.7); fill:none; stroke-width:1}
 #reticle .blu-f{fill:rgba(150,200,255,.85)}
-#reticle .edge{stroke-width:1.1; stroke-dasharray:3 4; opacity:.8}        /* the Kerr shadow's traced edge */
 #reticle .spin{animation:spin 40s linear infinite; transform-box:fill-box; transform-origin:center}
 #reticle .spin.rev{animation-duration:26s; animation-direction:reverse}
 @keyframes spin{to{transform:rotate(360deg)}}
-#reticle text{font-family:var(--mono); font-size:11px; letter-spacing:.16em; paint-order:stroke; stroke:rgba(0,3,10,.7); stroke-width:3px; stroke-linejoin:round}
+/* a thin dark halo keeps labels legible over bright cloud without outlining them */
+#reticle text{font-family:var(--mono); font-size:11px; letter-spacing:.16em; paint-order:stroke; stroke:rgba(0,4,12,.55); stroke-width:2px; stroke-linejoin:round}
 #reticle .t-big{font-family:var(--sans); font-weight:300; font-size:15px; letter-spacing:.34em}
 #reticle .t-sm{font-size:9.5px; letter-spacing:.2em}
 #reticle .lock{animation:lock .9s ease-out both}
@@ -223,8 +224,11 @@ body.nogl #reticle{display:none}
   cursor:pointer; transition:opacity 1s ease, visibility 0s linear 1s}
 body.online #boot, body.nogl #boot, body.skip #boot{opacity:0; visibility:hidden}
 .boot-in{width:min(440px, 86vw)}
-.boot-logo{font:200 clamp(36px, 7.5vw, 86px)/1 var(--sans); letter-spacing:.62em; margin-right:-.62em; color:#eef5ff; text-align:center;
-  text-shadow:0 0 30px rgba(var(--blue),.7), 0 0 80px rgba(var(--blue),.3); animation:logo 1.4s ease both}
+/* as wide as the screen (it is wider than .boot-in), centred; the last letter carries no tracking, so the glyphs
+   stay centred while the tracking animates */
+.boot-logo{font:200 clamp(36px, 7.5vw, 86px)/1 var(--sans); letter-spacing:.62em; margin-inline:calc(50% - 50vw); color:#eef5ff;
+  text-align:center; white-space:nowrap; text-shadow:0 0 30px rgba(var(--blue),.7), 0 0 80px rgba(var(--blue),.3); animation:logo 1.4s ease both}
+.boot-logo span{letter-spacing:0}
 @keyframes logo{from{opacity:0; letter-spacing:1.1em; filter:blur(8px)}}
 .boot-sub{margin:14px 0 30px; text-align:center; font-size:10px; letter-spacing:.42em; color:var(--dim)}
 .boot-lines{list-style:none; margin:0; padding:0; font-size:11px; letter-spacing:.2em}
@@ -247,8 +251,7 @@ body.returning .boot-logo{animation-duration:.4s}
   opacity:0; transition:opacity .25s, background .5s}
 body.jumping #jump{opacity:1}
 body.flash #jump{background:#fff}
-.jp{text-align:center; padding:26px 44px; border-top:1px solid rgba(var(--amber),.6); border-bottom:1px solid rgba(var(--amber),.6);
-  background:linear-gradient(90deg, transparent, rgba(2,8,20,.7) 20%, rgba(2,8,20,.7) 80%, transparent)}
+.jp{text-align:center; padding:34px 72px; background:radial-gradient(closest-side, rgba(2,8,20,.78), rgba(2,8,20,.5) 62%, transparent)}
 .jp .j1{font-size:10px; letter-spacing:.42em; color:rgb(var(--amber))}
 .jp .j2{margin:12px 0; font:200 clamp(22px, 4vw, 44px)/1.1 var(--sans); letter-spacing:.3em; color:#fff; text-transform:uppercase;
   text-shadow:0 0 24px rgba(var(--blue),.8)}
@@ -276,56 +279,126 @@ body.chase #canopy .glass, body.chase #canopy .corner, body.chase #canopy .edge{
 .hwarn.hot{color:#ff7a5c; text-shadow:0 0 12px rgba(255,90,60,.9); animation:blink .6s steps(2) infinite}
 .hauto{position:absolute; left:50%; top:96px; transform:translateX(-50%); font-size:11px; letter-spacing:.3em; color:rgb(var(--amber)); white-space:nowrap}
 .hcard{position:absolute; left:50%; bottom:170px; transform:translateX(-50%); display:grid; grid-template-columns:auto auto auto auto; gap:6px 14px;
-  padding:14px 18px; background:rgba(2,8,20,.82); border:1px solid rgba(var(--blue),.5); font-size:10.5px; letter-spacing:.14em; color:var(--ink);
+  padding:14px 18px; background:rgba(2,8,20,.92); border:1px solid rgba(var(--blue),.5); font-size:10.5px; letter-spacing:.14em; color:var(--ink);
   opacity:0; visibility:hidden; transition:opacity .5s, visibility 0s linear .5s; pointer-events:auto; cursor:pointer}
 .hcard.show{opacity:1; visibility:visible; transition:opacity .5s}
 .hcard b{grid-column:1/-1; font-weight:400; letter-spacing:.3em; color:rgba(122,182,255,.95); margin-bottom:4px}
 .hcard span{color:rgb(var(--amber)); text-align:right}
 .hcard em{grid-column:1/-1; font-style:normal; color:var(--dim); margin-top:6px; letter-spacing:.2em}
+.hcard b.w{margin:8px 0 2px; color:rgba(255,150,110,.95)}
 .tog.helm{color:rgb(var(--amber)); border-color:rgba(var(--amber),.55)}
 .tog.helm[aria-pressed="true"]{color:#fff; background:rgba(var(--amber),.3); border-color:rgba(var(--amber),.9); box-shadow:0 0 12px rgba(var(--amber),.4) inset}
-#touchPad{display:none}
-body.nogl #bHelm{display:none}
+/* Touch screens: the flight pad appears only at the helm (AUTO included: a press takes the controls back), above the
+   SYSTEMS screen -- or, on the dock layout below, above the button row -- and steps aside while a crew's missions are open */
+#touchPad{display:none; --padB:calc(var(--inB) + 124px); --padR:max(12px, var(--inR))}
+body.nogl #bHelm, body.nogl .gl, body.nogl #help{display:none}                     /* nothing to fly, zoom or measure */
 @media (pointer: coarse){
-  body.online #touchPad{display:flex; position:absolute; right:max(12px, var(--inR)); bottom:calc(max(10px, env(safe-area-inset-bottom)) + 150px);
-    flex-direction:column; gap:8px; pointer-events:auto}
+  body.online.helm:not(.crew-open) #touchPad{display:grid; grid-template-columns:repeat(2, 76px); gap:8px; position:absolute;
+    right:var(--padR); bottom:var(--padB); pointer-events:auto}
   .tp{font:400 10px var(--mono); letter-spacing:.2em; color:#dff0ff; background:rgba(2,8,20,.62); border:1px solid rgba(var(--blue),.5);
-    width:86px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none}
+    padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none}
   .tp.on{background:rgba(var(--blue),.4); border-color:#bfe1ff}
   .hbox{min-width:100px} .hbox.spd{right:calc(50% + 70px)} .hbox.alt{left:calc(50% + 70px)} .hcard{display:none}
 }
+
+/* ---------------------------------------------------------------------------------------------- weapons (combat.js) */
+/* The WEAPONS toggle shows at the helm only (on the phone dock it takes TELESCOPE's place). Armed, the fight's readouts
+   sit under REL and ALT, the tally under the autopilot line, and the flight deck steps back so the picture can breathe. */
+.tog.wpn{display:none; color:rgb(var(--amber)); border-color:rgba(var(--amber),.55)}
+body.helm .tog.wpn{display:inline-block}
+.tog.wpn[aria-pressed="true"]{color:#fff; background:rgba(255,90,60,.32); border-color:rgba(255,130,100,.95); box-shadow:0 0 12px rgba(255,90,60,.45) inset}
+.hbox.cmb{top:calc(50% + 64px); transform:none; display:none; min-width:150px; gap:4px}
+body.armed .hbox.cmb{display:flex}
+.hbox.cmb.def{right:calc(50% + 150px)} .hbox.cmb.wpn{left:calc(50% + 150px)}
+.hbox .bar{display:block; width:auto; align-self:stretch; height:4px; margin:1px 0 4px; background:rgba(var(--blue),.16); box-shadow:none; position:relative; overflow:hidden}   /* not the thrust bar (.hbox i) */
+.hbox .bar::after{content:''; position:absolute; left:0; top:0; bottom:0; width:var(--v, 100%); background:rgba(130,195,255,.95); box-shadow:0 0 8px rgba(var(--blue),.9)}
+.hbox .bar.hull::after, .hbox .bar.heat::after{background:rgba(255,190,130,.95); box-shadow:0 0 8px rgba(var(--amber),.8)}
+.hbox .bar.low::after{background:#ff6a4a; box-shadow:0 0 10px rgba(255,90,60,.9)}
+.hbox .bar.over::after{background:#ff5a3c; animation:blink .3s steps(2) infinite}
+.hbox .k b{font-weight:400; color:#ff7a5c; margin-left:6px; letter-spacing:.2em}
+.hbox .pips{display:flex; gap:5px; height:9px; margin-top:2px}
+.hbox .pips i{width:15px; height:8px; border:1px solid rgba(var(--amber),.6)}
+.hbox .pips i.on{background:rgba(var(--amber),.9); box-shadow:0 0 6px rgba(var(--amber),.8)}
+.cscore{position:absolute; left:50%; top:120px; transform:translateX(-50%); display:none; font-size:10.5px; letter-spacing:.34em; color:var(--ink); white-space:nowrap}
+body.armed .cscore{display:block}
+body.armed #telemetry{opacity:.3; transition:opacity .8s}
+body.armed #crew{opacity:.5; transition:opacity .8s}
+body.armed #crew:hover, body.armed #crew:focus-within{opacity:1}
+#reticle .pip{stroke:rgba(215,235,255,.92); fill:none; stroke-width:1.3}
+#reticle .pip.on{stroke:rgba(255,140,100,.98)}
+#reticle .hot{stroke:rgba(255,125,85,.88); fill:none; stroke-width:1.2}
+#reticle .hot-f{fill:rgba(255,160,120,.96)}
+#reticle .lock{stroke:rgba(255,120,80,.95); fill:none; stroke-width:1.8}
+#reticle .hitm{stroke:#fff; stroke-width:2.2; fill:none}
+#reticle .hpb{fill:rgba(255,125,85,.25)} #reticle .hpf{fill:rgba(255,150,110,.95)} #reticle .shf{fill:rgba(140,200,255,.95)}
+/* the cutaways: 2.39:1 bars slide in over the picture; the HUD steps back but stays there and usable (the manifest!) */
+#letterbox i{position:fixed; left:0; right:0; height:0; background:#000; z-index:9; pointer-events:none; transition:height .9s cubic-bezier(.6,0,.2,1)}
+#letterbox i:first-child{top:0} #letterbox i:last-child{bottom:0}
+body.cine #letterbox i{height:max(0px, calc((100vh - 100vw/2.39)/2))}
+body.cine #hud{opacity:.2; transition:opacity .6s} body.cine #hud:hover, body.cine #hud:focus-within{opacity:1}
+body.cine #reticle{opacity:0; transition:opacity .3s}
+/* title cards: plain white, thin, very wide, no glow */
+#ctitle{position:fixed; left:50%; top:37%; transform:translate(-50%,-50%); z-index:11; text-align:center; pointer-events:none; opacity:0; width:92vw}
+#ctitle .t{font:200 clamp(26px, 5.2vw, 72px)/1.1 var(--sans); letter-spacing:.55em; margin-right:-.55em; color:#f3f3f1}
+#ctitle .s{margin-top:16px; font-size:clamp(9px, 1.1vw, 12.5px); letter-spacing:.42em; color:rgba(232,232,228,.72)}
+#ctitle.show{animation:ctitle 4.6s ease forwards}
+@keyframes ctitle{0%{opacity:0; transform:translate(-50%,-50%) scale(1.04)} 15%{opacity:1; transform:translate(-50%,-50%)} 78%{opacity:1} 100%{opacity:0; transform:translate(-50%,-50%)}}
+body.nogl #letterbox, body.nogl #ctitle, body.nogl #dmgv{display:none}
+/* hit: the edges flash red (JS drives the opacity); hull critical pulses them; a heavy hit shudders the HUD */
+#dmgv{position:fixed; inset:0; z-index:9; pointer-events:none; opacity:0; background:radial-gradient(ellipse 80% 75% at 50% 50%, transparent 55%, rgba(200,30,10,.55) 100%)}
+body.crit #dmgv{animation:crit 1.1s ease-in-out infinite}
+@keyframes crit{50%{opacity:.45}}
+body.glitch #hud{animation:glitch .18s steps(3) 1}
+@keyframes glitch{33%{transform:translate(3px,-1px); opacity:.85} 66%{transform:translate(-2px,1px)}}
+@media (pointer: coarse){
+  .tp.fire{background:rgba(120,30,20,.55); border-color:rgba(255,120,90,.7)}
+  .hbox.cmb.def{right:calc(50% + 70px)} .hbox.cmb.wpn{left:calc(50% + 70px)} .hbox.cmb{min-width:100px}
+}
+body:not(.armed) .tp[data-in="fire"], body:not(.armed) .tp[data-in="torp"]{opacity:.45}
 
 /* ---------------------------------------------------------------------------------------------- smaller screens */
 @media (max-width: 1180px){
   .panel.left{width:236px} .panel.right{width:292px}
   .bar-top{grid-template-columns:1fr minmax(200px, 340px) 1fr}
-  .ident .mission{display:none}
+  .ident .callsign{display:none}
+  .bar-bottom{grid-template-columns:minmax(0, 1fr) auto} .schem{display:none}     /* the ship log gets the room */
 }
 @media (max-width: 960px){
   .panel.left dl:nth-of-type(2), .panel.left h2:nth-of-type(2){display:none}
-  .bar-bottom{grid-template-columns:1fr auto} .schem{display:none}
   .tape{display:none} .bar-top{grid-template-columns:1fr 1fr}
 }
-/* phones: ident + clock on top, the crew manifest becomes a dock along the bottom with a mission sheet above it */
-@media (max-width: 720px), (max-height: 520px) and (max-width: 1000px){
-  #canopy .corner{width:90px; height:90px}
-  .bar-top{left:max(18px, var(--inL)); right:max(18px, var(--inR)); top:max(12px, env(safe-area-inset-top))}
+/* Phones, and touch tablets held upright (their side panels would cover the black hole): ident + clock on top, the crew
+   manifest a dock along the bottom with a mission sheet above it, and the bottom bar reduced to its buttons, in a row
+   above the dock. hud.js DOCK uses the same query. */
+@media (max-width: 720px), (max-height: 520px) and (max-width: 1000px), (orientation: portrait) and (max-width: 1100px) and (pointer: coarse){
+  :root{--dockB:max(10px, env(safe-area-inset-bottom)); --dockRow:clamp(40px, 6.4vw, 56px)}
+  #canopy .corner{width:clamp(60px, 12vw, 120px); height:clamp(60px, 12vw, 120px)}
+  #canopy .corner.bl, #canopy .corner.br{display:none}                          /* the dock is the console here */
+  .bar-top{left:max(22px, var(--inL)); right:max(22px, var(--inR)); top:max(16px, env(safe-area-inset-top))}
   .ident .ship{font-size:14px; letter-spacing:.34em}
   .clk .v{font-size:12px} .clk.sub{display:none}
   .panel.left{display:none}
-  .bar-bottom{display:none}
-  .panel.right{top:auto; bottom:max(10px, env(safe-area-inset-bottom)); left:max(10px, var(--inL)); right:max(10px, var(--inR));
+  .bar-bottom{display:flex; left:auto; right:max(10px, var(--inR)); bottom:calc(var(--dockB) + var(--dockRow) + 24px); height:auto}
+  .bar-bottom .schem, .bar-bottom .comms, .bar-bottom .help, .status .st{display:none}
+  .status{height:auto; gap:6px; padding:0; background:none; border:0; box-shadow:none}
+  .status::before, .status::after{content:none}
+  .tog{padding:11px 12px; background:rgba(2,8,20,.62)}
+  body.crew-open .bar-bottom{visibility:hidden}
+  body.helm #bScope{display:none}                                                  /* WEAPONS takes its place in the row */
+  #touchPad{--padB:calc(var(--dockB) + var(--dockRow) + 68px); --padR:max(10px, var(--inR))}
+  .panel.right{top:auto; bottom:var(--dockB); left:max(10px, var(--inL)); right:max(10px, var(--inR));
     width:auto; max-height:none; overflow:visible; padding:8px; display:flex; gap:6px; flex-wrap:nowrap;
     background:linear-gradient(0deg, rgba(2,8,20,.85), rgba(2,8,20,.55)); border:1px solid var(--line)}
   .panel.right h2, .panel.right .hint{display:none}
   .crew{flex:1 1 0; min-width:0; margin:0}
-  .crew summary{grid-template-columns:1fr; text-align:center; gap:3px; padding:8px 2px}
+  .crew summary{grid-template-columns:1fr; align-content:center; text-align:center; gap:3px; padding:0 2px; height:var(--dockRow)}
   .crew summary .n, .crew summary .cnt{display:none}
-  .crew summary .who{font-size:11px; letter-spacing:.14em}
-  .crew summary .role{font-size:8px; letter-spacing:.12em}
-  .missions{position:fixed; left:max(10px, var(--inL)); right:max(10px, var(--inR)); bottom:calc(max(10px, env(safe-area-inset-bottom)) + 66px);
+  .crew summary .who{font-size:clamp(11px, 2.2vw, 17px); letter-spacing:.14em}
+  .crew summary .role{font-size:clamp(8px, 1.4vw, 11px); letter-spacing:.12em}
+  .missions{position:fixed; left:max(10px, var(--inL)); right:max(10px, var(--inR)); bottom:calc(var(--dockB) + var(--dockRow) + 24px);
     margin:0; padding:6px; border:1px solid rgba(var(--amber),.5); background:rgba(2,8,20,.96); max-height:52vh; overflow-y:auto}
   .mission{padding:12px 12px 12px 18px; font-size:12px}
+  .hbox .v{font-size:14px}                                                       /* the speed box cleared the bezel by 5 px */
 }
 
 @media (prefers-reduced-motion: reduce){

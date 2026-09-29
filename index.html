@@ -28,7 +28,7 @@
     <header class="bar-top">
       <div class="ident">
         <div class="ship"><span class="chev" aria-hidden="true"></span>MEINEN <b>SPACE</b></div>
-        <div class="mission">MSV MEINEN &middot; DEEP SURVEY &middot; GARGANTUA SYSTEM</div>
+        <div class="callsign">MSV MEINEN &middot; DEEP SURVEY &middot; GARGANTUA SYSTEM</div>
       </div>
       <div class="tape" aria-hidden="true"><svg id="tape" viewBox="-240 0 480 38" preserveAspectRatio="xMidYMin meet"></svg></div>
       <div class="clocks" aria-hidden="true">
@@ -113,10 +113,11 @@
       <div class="comms mfd" data-cap="SHIP LOG" id="comms" role="log" aria-live="polite" aria-label="Ship log"></div>
       <div class="status mfd" data-cap="SYSTEMS">
         <div class="st"><span class="k">TIME</span><span class="v">&times;12</span></div>
-        <div class="st"><span class="k">RES</span><span class="v" id="sRes">&mdash;</span></div>
-        <div class="st"><span class="k">FPS</span><span class="v" id="sFps">&mdash;</span></div>
+        <div class="st gl"><span class="k">RES</span><span class="v" id="sRes">&mdash;</span></div>
+        <div class="st gl"><span class="k">FPS</span><span class="v" id="sFps">&mdash;</span></div>
         <button type="button" id="bHelm" class="tog helm" aria-pressed="false" title="Fly the ship yourself (F)">TAKE HELM</button>
-        <button type="button" id="bScope" class="tog" aria-pressed="false" title="Telescope (Z)">TELESCOPE</button>
+        <button type="button" id="bWpn" class="tog wpn gl" aria-pressed="false" title="Weapons hot / safe (G)">WEAPONS</button>
+        <button type="button" id="bScope" class="tog gl" aria-pressed="false" title="Telescope (Z)">TELESCOPE</button>
         <button type="button" id="bAudio" class="tog" aria-pressed="false" title="Cockpit sound">AUDIO</button>
       </div>
       <div class="help" id="help" aria-hidden="true">F &middot; TAKE THE HELM &nbsp; DRAG &middot; LOOK &nbsp; SCROLL &middot; ALTITUDE &nbsp; Z &middot; TELESCOPE &nbsp; [ ] &middot; SPIN</div>
@@ -126,13 +127,19 @@
     <div id="helmHud" aria-hidden="true">
       <div class="hbox spd"><span class="k">REL</span><span class="v" id="hRel">&mdash;</span><i id="hThr"></i></div>
       <div class="hbox alt"><span class="k">ALT</span><span class="v" id="hAlt">&mdash;</span><span class="k2" id="hVs"></span></div>
+      <!-- weapons (js/scene/combat.js): shields and hull under REL, guns and torpedoes under ALT, the tally up top -->
+      <div class="hbox cmb def"><span class="k">SHIELD</span><i class="bar" id="cSh"></i><span class="k">HULL</span><i class="bar hull" id="cHull"></i></div>
+      <div class="hbox cmb wpn"><span class="k">GUNS <b id="cHot"></b></span><i class="bar heat" id="cHeat"></i><span class="k">TORPEDOES</span><span class="pips" id="cTorp"></span></div>
+      <div class="cscore" id="cScore"></div>
       <div class="hwarn" id="hWarn"></div>
       <div class="hauto" id="hAuto"></div>
       <div class="hcard" id="hCard">
         <b>AT THE HELM</b>
         <span>W / S</span>THRUST &middot; REVERSE<span>DRAG &middot; ARROWS</span>STEER<span>A / D &middot; Q / E</span>YAW &middot; ROLL
-        <span>SHIFT</span>BOOST<span>X</span>HOLD ORBIT<span>V</span>CHASE / COCKPIT<span>T</span>TRACK GARGANTUA
+        <span>SHIFT</span>BOOST<span>X</span>HOLD ORBIT<span>V</span>CHASE / HULL / COCKPIT<span>T</span>TRACK GARGANTUA
         <span>O</span>ORBIT ASSIST<span>H &middot; ESC</span>AUTOPILOT HOME
+        <b class="w">WEAPONS</b>
+        <span>G</span>WEAPONS HOT / SAFE<span>SPACE &middot; RIGHT CLICK</span>FIRE<span>R</span>TORPEDO (HOLD A LOCK)
         <em>LET GO AND THE ASSIST SETTLES YOU INTO ORBIT</em>
       </div>
     </div>
@@ -141,13 +148,18 @@
       <button type="button" class="tp" data-in="boost">BOOST</button>
       <button type="button" class="tp" data-in="reverse">RETRO</button>
       <button type="button" class="tp" data-in="hold">HOLD</button>
-      <button type="button" class="tp" data-in="home">HOME</button>
+      <button type="button" class="tp fire" data-in="fire">FIRE</button>
+      <button type="button" class="tp" data-in="torp">TORP</button>
     </div>
   </div>
+  <!-- the film: 2.39:1 bars for the cutaways (under the HUD, which stays usable), stark title cards, the hurt vignette -->
+  <div id="letterbox" aria-hidden="true"><i></i><i></i></div>
+  <div id="dmgv" aria-hidden="true"></div>
+  <div id="ctitle" aria-live="polite"><div class="t"></div><div class="s"></div></div>
 
   <div id="boot" aria-hidden="true">
     <div class="boot-in">
-      <div class="boot-logo">MEINEN</div>
+      <div class="boot-logo">MEINE<span>N</span></div>
       <div class="boot-sub">MSV MEINEN &middot; FLIGHT DECK</div>
       <ol class="boot-lines">
         <li><span>POWER BUS</span><b>NOMINAL</b></li>
@@ -172,6 +184,7 @@
   <script src="js/scene/post.js"></script>
   <script src="js/scene/orbit.js"></script>
   <script src="js/scene/flight.js"></script>
+  <script src="js/scene/combat.js"></script>
   <script src="js/scene/ships.js"></script>
   <script src="js/hud.js"></script>
   <script src="js/scene/main.js"></script>
