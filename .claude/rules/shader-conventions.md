@@ -48,7 +48,14 @@ the analytic parts use the spin the near-hole tiles were baked at. It must never
 - Attribute cost before optimising (monkey-patch pass functions, pin `SCENE.setScale`, A/B in one page load).
   Measured dead ends: cutting iteration caps; an early-out for sky hidden behind the planet.
 
-## Depth for ships
-Ships render into a 4x MSAA RGBA16F target whose depth is primed from the planet hit buffer with LOGARITHMIC depth
-(`logDepth`, 0.1 m .. 1e8 km); a linear 24-bit buffer cannot separate a fighter from a planet 700 km away. Additive
-sprites must fade to zero inside their quads. Kitbash faces orient away from a reference point inside the solid.
+## Depth for ships (landing page)
+Ships render into a rect-sized 4x MSAA RGBA16F target that is CLEARED (nothing within ~30 km can be behind a planet
+pixel), with LOGARITHMIC depth written per fragment (`logDepth`, 0.1 m .. 1e8 km): a linear 24-bit buffer cannot hold a
+spine 1 m away and a capital 5 km away. Additive sprites and plumes must fade to zero inside their quads. Faces orient
+away from a reference point inside the solid AND wind with their normal (shipkit.js), so hulls are back-face culled.
+The hull programs are split by material bucket; keep new materials in the right bucket (`MAT_BUCKET`). demo/ still primes
+its ship depth from the planet hit buffer. Every additive pass (plumes, shield shells, fighter trails, sprites, beams)
+writes `gl_FragDepth = logDepth(...)` and tests LEQUAL without depth writes. Shield shells ray-trace their exact ellipsoid
+inside an inflated proxy (near and far passes). Hulls have no early-Z (they write depth), so never build faces that
+proud plates will cover: leave that loft band open (null). The live environment cube captures only MILLER and its moon;
+the disc's reflection stays analytic (`envSky`).

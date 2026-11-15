@@ -31,7 +31,7 @@ const ORB = {
   look: {yaw: 0, pitch: 0, idle: 99},
   zoom: 1, zoomTarget: 1, warp: 0,
   tReal: 0, tSim: 0, W: 1, H: 1,
-  view: null, camM: null, bodies: null, hud: {},           // outputs of orbitStep()
+  view: null, camM: null, bodies: null, hud: {}, stBasis: null,   // outputs of orbitStep()
 };
 
 (function derive(){
@@ -75,6 +75,9 @@ function orbitStep(dt){
   const e = V.add(V.mul(up0, ct), V.mul(u2, st));               // local vertical
   const pro = V.add(V.mul(up0, -st), V.mul(u2, ct));            // prograde
   const eye = V.add(P, V.mul(e, rs));
+  // the station frame: it turns with the hole's direction (MILLER's orbital rate), and in it the eye's orbit is an exact
+  // circle -- so the flybys (ships.js) fly in it too, or they drift ~10 km behind the camera in a pass
+  o.stBasis = [t, up0, side];
   // --- MILLER I
   const phi = 2*Math.PI*(o.tReal - m.first)/m.period;
   const w1 = V.add(V.mul(t, Math.cos(m.gamma)), V.mul(up0, Math.sin(m.gamma)));

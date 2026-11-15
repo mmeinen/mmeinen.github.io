@@ -121,14 +121,17 @@ function render(now){
   bhShade(T.compFb, T.w, T.h, v.b, Math.tan(v.fov/2), tSec, ORB.camM);
   let img = systemPass(T, v, ORB.bodies, tSec, 1, 0.4);         // 0.4: the demo's sky gain beside a planet
   if (flyVisible()) {                                            // the MSAA ship pass only runs while one is in view
+    const tq = SCENE.tq; if (tq) gl.beginQuery(tq.ext.TIME_ELAPSED_EXT, tq.q);   // (SCENE.shipTimes)
     // a fault in the fight must not take the flight deck with it: stand combat down and carry on without it
     try { img = flyRender(img, tSec); } catch (e) { if (!cmbActive()) throw e; combatFault(e); glReset(); }
+    if (tq) gl.endQuery(tq.ext.TIME_ELAPSED_EXT);
   }
   // the jump's tunnel, or a faint smear while boosting at the helm
   LOOK.warp = Math.max(ORB.warp, HELM.mode === 'helm' && HELM.input.boost && HELM.thrustNow > 0 ? 0.07 : 0);
   postProcess(img, cw, ch, tSec, LOOK);
 }
-function glReset(){ gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST); gl.depthMask(true); gl.bindVertexArray(vao); }
+function glReset(){ gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.CULL_FACE);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.colorMask(true, true, true, true); gl.bindVertexArray(vao); }
 
 // ------------------------------------------------------------------------------------------ the fight (combat.js)
 // Its step runs after the helm's; its events go to the HUD (log, titles, sound); a cutaway then takes the camera.
@@ -214,6 +217,7 @@ function frameBody(now){
   for (const ev of HELM.events.splice(0)) HUD.poke('helm:' + ev.type, ev);
   const contact = flyStep(dt);
   if (contact) HUD.poke('contact', contact);
+  for (const ev of FLY.events.splice(0)) HUD.poke('flyby:' + ev.type, ev);
   combatFrame(dt);
   lookStep(dt, flash);
   // Gargantua's spin drifts, and MILLER's inclined orbit slowly carries the camera away from the bake point: the
@@ -241,7 +245,7 @@ function bootStep(){
       bhStartBake(ORB.camM);
       bootBaking = true;
     }
-    const done = bhBakeStep(SMALL ? 16 : 48);
+    const done = bhBakeStep(SMALL ? 16 : 48) & shipPrebuildStep();   // (both, every frame: the ships build one class at a time)
     SCENE.bake = BH.bake.next/BH.bake.total;
     HUD.bootStatus(SCENE.bake);
     if (!done) { requestAnimationFrame(bootStep); return; }
@@ -255,7 +259,7 @@ function bootStep(){
 function boot(){
   if (!GLX.ok || QS.has('nogl')) { sceneFail(GLX.why || 'disabled (?nogl)'); return; }
   cv.addEventListener('webglcontextlost', e => { e.preventDefault(); sceneFail('the graphics context was lost'); });
-  try { orbitCheck(); bhPrograms(); planetPrograms(); postPrograms(); shipPrograms(); }
+  try { orbitCheck(); bhPrograms(); planetPrograms(); postPrograms(); FLY.dbg = +QS.get('shipdbg') || 0; shipPrograms(FLY.dbg); }
   catch (e) { sceneFail(e.message); return; }
   requestAnimationFrame(bootStep);
 }
@@ -421,7 +425,8 @@ SCENE.unjump = () => { jump = null; ORB.warp = 0; LOOK.flash = 0; };     // a na
 // headless automation (tests / benchmarks): step the world, render synchronously, read the pixels back
 SCENE.advance = sec => { for (let t = 0; t < sec; t += 0.05) { const d = Math.min(0.05, sec - t);
   if (fireTest != null) COMBAT.input.fire = COMBAT.hot ? fireTest : 0;
-  orbitStep(d); flightStep(d); combatFrame(d); lookStep(d, 0); } };
+  orbitStep(d); flightStep(d); const c = flyStep(d); if (c) HUD.poke('contact', c); for (const ev of FLY.events.splice(0)) HUD.poke('flyby:' + ev.type, ev);
+  combatFrame(d); lookStep(d, 0); } };   // (frameBody's order: orbit, helm, flybys, the fight)
 // the helm, for the HUD buttons and headless tests
 SCENE.helm = () => { if (HELM.mode !== 'helm') { helmEnter(); return true; } helmAuto('manual'); return false; };   // AUTO can be taken back
 SCENE.input = o => { Object.assign(HELM.input, o); HELM.idle = 0; stickHold = !!o && Object.keys(o).length > 0; };
@@ -433,7 +438,27 @@ SCENE.renderNow = () => { render(performance.now()); return cv.toDataURL('image/
 SCENE.bench = n => { const px = new Uint8Array(4); render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   const t0 = performance.now(); for (let i = 0; i < n; i++) render(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   return +((performance.now() - t0)/n).toFixed(2); };
+// GPU ms of the ship pass alone (EXT_disjoint_timer_query_webgl2): a Promise of the median over n frames, or null.
+// (A query's result only becomes available after control returns to the event loop, so each frame waits for its own.)
+SCENE.shipTimes = async n => {
+  const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2'); if (!ext) return null;
+  const q = gl.createQuery(), ms = [];
+  try {
+    for (let i = 0; i < n; i++) {
+      SCENE.tq = {ext, q}; render(performance.now()); SCENE.tq = null;
+      for (let k = 0; k < 400 && !gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE); k++) await new Promise(r => setTimeout(r, 2));
+      if (gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE) && !gl.getParameter(ext.GPU_DISJOINT_EXT)) ms.push(gl.getQueryParameter(q, gl.QUERY_RESULT)/1e6);
+    }
+  } finally { SCENE.tq = null; gl.deleteQuery(q); }
+  ms.sort((a, b) => a - b); return ms.length ? +ms[ms.length >> 1].toFixed(3) : null;
+};
 SCENE.setScale = s => { renderScale = s; resize(); rsWarm = 1e9; };      // pin the scale (benchmarks)
+// cost attribution: rebuild the ship programs without parts of the hull shader (shipProgramList: 1 environment, 2 surface
+// detail, 4 point lights, 8 shadows -- the pass is skipped too); ?shipdbg=bits does the same at boot
+SCENE.shipDbg = bits => { for (const [name] of shipProgramList()) if (P[name]) gl.deleteProgram(P[name].p); shipPrograms(bits); finishPrograms(); FLY.dbg = bits; return bits; };
+// look development: pose one ship before the camera (yaw 0 = nose to camera, PI = the chase view's stern; metres; opts:
+// team 1 = Dominion livery, glow, damage, dx/dy offsets), or SCENE.hangar(null) to clear
+SCENE.hangar = (cls, yaw = 0.6, pitch = 0.2, dist = 80, o = {}) => { FLY.hangar = cls ? Object.assign({cls, yaw, pitch, dist}, o) : null; return !!FLY.hangar; };
 // jump straight to spin a, fully baked (tests / screenshots); the director then holds it
 SCENE.setSpin = a => { bhStartBake(ORB.camM, a); while (!bhBakeStep(64)) {} BH.spin.hold = 1e9; return bhSpin(); };
 SCENE.gpu = () => { const d = gl && gl.getExtension('WEBGL_debug_renderer_info'); return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : '?'; };

@@ -24,9 +24,10 @@ are launched from the ship's crew manifest. No build tools, no npm, no framework
 │   ├── planet.js         MILLER + moon: deferred terrain/clouds/atmosphere (shaders = demo's, verbatim)
 │   ├── post.js           bloom, tone map, FXAA upscale + grain + launch warp
 │   ├── orbit.js          system model, the station (scripted) orbit, camera framing, telemetry (no GL)
+│   ├── shipkit.js        the ships as data: mesh builder, designs, SHIP_KIT hardpoints, materials, liveries (no GL)
 │   ├── flight.js         the HELM: fly the ship round MILLER (orbit assist, rails, autopilot, chase/hull/cockpit cams)
 │   ├── combat.js         GUNS & TARGETS: weapons, hostiles, AI, the engagement director, FX pools, cutaways (no GL)
-│   ├── ships.js          the ship pass: MSV MEINEN, flybys, the fight's hulls + FX (mesh builder + shaders = demo's)
+│   ├── ships.js          the ship pass: PBR hull programs, shadow atlas, AO volumes, plumes, parts, decals, flybys, FX
 │   └── main.js           boot, frame loop, adaptive render scale, input
 ├── js/hud.js             HUD behaviour: menu, telemetry, reticles, tape, plot, log, boot, jump, audio
 ├── minesweeper.html      Minesweeper game (uses js/*.js)
@@ -36,6 +37,10 @@ are launched from the ship's crew manifest. No build tools, no npm, no framework
 │   └── md5-min.js
 ├── pool/                 "Pool Splash Lab" — 2D FLIP fluid sim (self-contained)
 │   └── index.html        Solver + body coupling + optimiser + renderer, one file
+├── defense/              "PLANET DEFENSE" — command BASTION over MILLER (Dad's M·07); the flight deck's renderer, shared
+│   ├── index.html        HUD markup, title/end/help screens; loads ../js/scene/* (not main.js/hud.js/combat.js)
+│   ├── css/defense.css   the command deck HUD
+│   └── js/               kit (designs, before ships.js), war (the sim), view (camera + ships.js interface), audio, ui, main
 ├── demo/                 "COLLIDE" — a self-playing real-time film, WebGL2 (Dad's "Demo" menu entry)
 │   ├── index.html        Markup, CSS, script tags (classic scripts: they load from file://)
 │   └── js/               core, post, galaxy, deep, gargantua, ships, battle, film, main (load order)
@@ -134,6 +139,56 @@ after `FS_BH_SHADE`'s helpers at program creation; the demo stays Schwarzschild.
   - Hull camera (V: chase → hull → cockpit): rigid on the spine; its shake moves ship + camera together. +~4 ms.
   - tests.html 8c flies orbit + flight + combat in a sandbox (hold, kill, straight rounds, strafe, AI minute, capital
     death, SAFE, emergency jump).
+- **SHIPS (Sep 30 2026; user: "Make the ships 200x cooler")**. The ships are data in `shipkit.js` and drawn by `ships.js`
+  (forked from demo/, which keeps its old copy). Rules, each found by measurement:
+  - **One hardpoint table**: `SHIP_KIT[cls]` (hit, muzzles, guns, turrets {pivot, tip}, pods, hangar, engines {p, r, part},
+    plume, nav, strobes, rcs, beacons, torp, vents, hullCam, parts, livery, panel). combat.js (`CMB.MUZZLES`, `CMB_CLS`) and
+    flight.js (`HULL_CAM`) read it; tests.html 8d checks muzzles on tips, engines at nozzles, hull-cam clearance, port = +x.
+  - **Winding follows the normal** (`Mesh.quad/tri` flip both), so hulls are drawn with `CULL_FACE` (hull view -30%).
+    Primitives: `lathe` (smooth, a profile's travel direction decides which side faces out), `loft`, `bevelBox` (its bevel
+    is clamped: a bevel wider than the box folds it inside out).
+  - **Hull shader** = one source, 3 programs by material bucket (`MAT_BUCKET`: paint / metal+glass / emissive): GGX + UE4
+    k + EnvBRDFApprox, the disc as an extended key, an ANALYTIC environment (MILLER with terminator + limb, the disc's glow
+    and band). Environment lobes must keep their energy as roughness widens them, or matte ceramic reflects the disc
+    from everywhere (it was 61% of the hull's brightness).
+  - **Shadow atlas** (2048^2 DEPTH16, <= 4 tiles for the hulls largest on screen, world-space ortho, every instance casts)
+    and **AO volumes** (R8 3D per class, baked at boot from 64 depth views in the atlas). Rows are uploaded after the tiles
+    are assigned and before they render. Samplers: shadow unit 3, lettering 4, AO 5, live environment cube 6.
+  - **Parts** (dish, gimballed bells, turrets): instance rows carry a quaternion + pivot (i5.w 1 = modelled round its own
+    origin); they share their ship's shadow tile; turrets are trained by combat.js (`cmbTurn2`, fire only when on target).
+  - **Plumes** raymarch a cone inside a view-facing quad that also covers it end-on (the chase camera's view); seen end-on
+    a plume stacks its whole length, so its sum is soft-saturated. Wreck sections are full hulls clipped to z-slabs
+    (`#w` rows: back faces drawn, molten cut, dark inside); arrivals stretch from the nose (i6.y).
+  - Harness: `SCENE.shipTimes(n)` (async GPU ms of the ship pass; timer results only arrive after yielding),
+    `SCENE.hangar(cls, yaw, pitch, dist, {team})`, `SCENE.shipDbg(bits)` / `?shipdbg=` (1 env, 2 detail, 4 point lights,
+    8 shadows, 16 AO; 32/64 show AO/shadow; 128 no plumes/shells; 256 no live env). Known: the kill shot's fbm fireball
+    sprites cost ~14 ms (pre-existing).
+- **Finishing the ships (Sep 30 2026, second session)** -- each rule found by measurement:
+  - **Flybys at STATION fly in the station frame** (`ORB.stBasis` = [t, up0, side], turning with the hole's direction):
+    the scripted eye is an exact Kepler circle only in that frame, so formations free-falling in MILLER's frame slid ~5 km
+    behind the camera in 18 s (Coriolis + the missing Ω×r). `flyStep` applies the frame's incremental rotation Q at
+    STATION (tracking the basis every frame; entering STATION subtracts w×p), and steps MOTION before SPAWN (spawned
+    then integrated, a formation was born a frame of orbit, 1.5-4 km, ahead). They jump out (`flyJump`, `FLY_JUMP`): a
+    forward stretch from the tail (i6.y/i6.z = the tail, turret rows too), then `cmbWarpFx` (keeps the pass alive).
+    `SCENE.advance` steps orbit, helm, flybys, fight -- frameBody's order (the flybys' FX are born a frame back because
+    the fight's step then flies every particle on).
+  - **Capitals are stations of armoured sections** (`armSec`: keel, flank, recessed belt, ledge + trench, shoulder,
+    deck) with belt plates in staggered strakes (`beltPlates`), trench conduits and ribs, stepped `tier`s, barbettes,
+    `onShoulder` fittings. `Mesh.loft` orients each band by its SECTION'S WINDING (a centroid test turned concave
+    notches inside out, invisible to the winding test) and ear-clips caps; a null band stays open, so the belt under
+    the plates is never shaded twice (FS_HULL writes gl_FragDepth: no early-Z, overdraw costs 1:1). `SHIP_KIT.plating`
+    (negative plate size in the row) switches FS_HULL to armour plating: 2:1 panels split by hash, metre-wide seams that
+    fade when sub-pixel (pixel-wide dark seams read as masonry), windows only on `att.w` 5 surfaces.
+  - **Shield shells**: `shellFit` fits an ellipsoid round each shielded class at build (hull, part swing, turret reach;
+    masts above `shield.yMax` pierce it). Ripples sit where the round's segment ENTERS the shell (the hit test uses the
+    smaller hit ellipsoid), 4 slots, re-flared within 15°/0.2 s (14 Hz fire). Drawn as an inflated proxy with an exact
+    ray-ellipsoid hit in the FS (near pass + far pass); the player's only in the chase view and cutaways.
+  - **Fighter trails** (`CMB_TRAIL`): points dropped at 45 Hz at their fractional time along e.po→e.p must then be flown
+    on for the rest of the frame (left where dropped, the trail lagged a frame of orbit: 1.6 km); gas left at rest in
+    the fight's frame (vref + 15% of the craft's own motion); a dead fighter's trail is orphaned and fades.
+  - **Live reflections** (`ENV`): a 64² cube of MILLER + MILLER I (systemPass over a black sky, one face a frame, all six
+    after a gap or a camera jump), sampled by roughness; the disc stays the analytic `envSky` lobe (a 64² capture blurs
+    the photon ring ~9× and isn't calibrated to the key light). +0.15 ms. Any GL refusal falls back to analytic.
 - **Bloom prefilter (Sep 28 2026)**: the bloom chain's first downsample is `FS_BLOOM_PRE`, a soft knee (knee 1.0 on
   max(r,g,b)) so only highlights bloom; the tone pass weights bloom 0.24. The demo's thresholdless bloom (still in
   `demo/`) added ~70% of a blurred frame back: the shadow read 47/255 instead of ~12 and a ship before the ocean glint
@@ -154,6 +209,38 @@ after `FS_BH_SHADE`'s helpers at program creation; the demo stays Schwarzschild.
 - An early-out for sky pixels behind the planet was tried and measured no faster (A/B, one page): don't redo it.
 - Cost on the Intel UHD (headless, 1600×900, full scale): ~9 ms at 1,500 km, ~13–17 ms at 700 km; the planet
   passes dominate at low orbit. Headless timings drift ±2× with machine load — A/B within one page load only.
+
+## PLANET DEFENSE (`defense/`, Sep 30 2026; user: "another game mode... managing a space defense system... upgrade the
+station, buy fighter planes, standalone planetary defense guns, rail guns, missiles... super epic")
+A tower-defence strategy game on the flight deck's renderer. BASTION (station, rotating ring) guards the drop corridor
+below it; Dominion bombers dive through it into MILLER's planetary shield (AEGIS %). 16 build slots (SENTINEL autocannon,
+HYDRA missiles, LONGBOW railgun: capitals/dropships only, AEGIS shield bubble; Mk I-III, sell 60%), HAWK squadrons,
+BASTION upgrades (armor, shields, PD, heavy batteries, hangar, reactor, sensors, NOVA cannon, PLANETARY LANCE: Q/E
+abilities), 20 waves + endless, RECRUIT/VETERAN/ADMIRAL, save/continue (localStorage `meinen.defense.*`).
+- **Shared renderer, own page**: loads `../js/scene/{gl,kerr,gargantua,planet,post,orbit,shipkit}.js`, `js/kit.js`,
+  `flight.js` (HELM stays 'station'), `ships.js`. **kit.js must load before ships.js** (ships.js freezes LIVERIES into
+  SHIP_LIV/u_liv at load). combat.js is NOT loaded: `defense/js/view.js` implements the fight interface ships.js draws
+  through by the same names (`COMBAT {t, rm, hot, pl, flash}`, `cmbActive/cmbDrawList/cmbShields/cmbFxRows/
+  cmbTrailRows/cmbLights`); tests.html 8f fails if ships.js starts calling another cmb* function. Two ships.js hooks exist
+  for it (landing page never sets them): fight entries may carry `heat`/`pulse` (i7.x radiators, i7.z coils), shield
+  entries a `scale` (the Sovereign = cruiser ×1.6, AEGIS fields = unit `bubble` shell × radius).
+- **The SECTOR frame** (war.js): metres round BASTION, +Y up (away from MILLER), +Z prograde, +X the orbit normal (≈ toward
+  Gargantua on the dawn-dusk orbit). Co-rotating, NO gravity (tidal/Coriolis are tens of metres at 12 km), so nothing
+  here has the landing fight's 1.6 km/frame trap. view.js: `sectUpdate()` after orbitStep (axes from ORB.hud.up/pro,
+  origin = orbitStep's eye), `toM()` sector -> MILLER-relative, camera written into ORB.view last. MILLER's centre is
+  `[0, -(R+h), 0]` (the LANCE fires from its surface; breach flashes are sprites on its visible hemisphere).
+- war.js keeps combat.js's step order (motion, then decisions) and pools (Float64Array bolts 15 floats, FX 18 = combat's
+  layout so the sprite mapping is shared). Platforms turn their hulls toward targets (`wFace`), turrets fine-aim in their
+  MOUNT frame (`MOUNT_Q` up/down/port/stbd). Balance was tuned with a Node sandbox fighting whole campaigns with a
+  scripted player (VETERAN: winnable if you keep investing; ADMIRAL: falls ~wave 11): enemy hull/shields ×(1 + 0.04/wave),
+  bombers jink under fire, cruisers' hangars empty (4 launches, the Sovereign 6) and capitals withdraw after 160 s (boss
+  240 s) -- endless launches and unkillable capitals made waves never end. Turret cooldowns clamp at -dt: an idle gun that
+  banked its cooldown dumped hundreds of rounds at first contact (and hid a huge DPS bonus from the balance).
+- Camera (view.js `CAM`): orbit/pan/zoom a focus in the sector; cutaways on events (arrival, kill, Nova, Lance, Sunder,
+  defeat, victory) and a cinema director (C, or 40 s idle in a wave); any input cuts back. Headless: pause a scenario
+  ~1.8 s after 'run' before driving it, or the boot card's fade timer never fires; `SCENE.advance(sec)` steps world + war.
+- Perf (Intel UHD headless, 1600x900 full scale): title 17 ms, a cruiser wave ~26 ms (ship pass ~8 ms) -- the render-scale
+  controller (copied from main.js, same rules) absorbs it.
 
 ## Adaptive render scale (owned by JS)
 The heavy passes render at `renderScale`; the FXAA pass resolves them up to the canvas (`updateRenderScale` in
@@ -302,9 +389,10 @@ Invariant to check after any change: peak splash energy must stay below the jump
 energy at entry, for every preset. That single check catches nearly all coupling regressions.
 
 ## Testing
-No test framework. `tests.html` checks the landing page (every game still in the menu and resolving, file:// safety,
+No test framework. `tests.html` checks Planet Defense (8f: script order, the fight interface, designs, war sandboxes) and the landing page (every game still in the menu and resolving, file:// safety,
 Kerr lensing maths via kerr.js, shader parity with demo/, lean base pass, the tile scheduler, render-scale controller, the
-helm flown in a sandbox: settles, floor, ceiling, energy, autopilot; the weapons in a sandbox) and Pong behaviour.
+helm flown in a sandbox: settles, floor, ceiling, energy, autopilot; the weapons in a sandbox; the ship kit: winding, concave
+lofts, hardpoints, shields, budgets; flybys at STATION) and Pong behaviour.
 It fetches files, so it needs a local server or Chrome's `--allow-file-access-from-files` (the headless harness).
 ```bash
 python3 -m http.server 8000

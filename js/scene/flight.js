@@ -42,7 +42,7 @@ const HELM = {
   RATE_PY: 60*DEG, RATE_R: 120*DEG, TAU_RATE: 0.12, IDLE_AUTO: 150, FOV: 58*DEG, LEN: 46,
   // the HULL camera: bolted to the dorsal spine behind the survey dish (ship metres: +x, +y dorsal, +z bow), looking
   // along the hull a little nose-down -- the Interstellar shot: the ship holds still in frame and the world moves
-  HULL_CAM: [0, 4.9, -13.5], HULL_PITCH: 6*DEG, HULL_FOV: 64*DEG,
+  HULL_CAM: SHIP_KIT.meinen.hullCam, HULL_PITCH: 6*DEG, HULL_FOV: 64*DEG,
 };
 const HELM_VIEWS = ['chase', 'hull', 'cockpit'];
 

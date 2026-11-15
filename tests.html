@@ -158,7 +158,7 @@
       // Renderer: js/scene/*.js (ported from demo/). HUD + game menu: index.html + js/hud.js.
       // =============================================
       const SCENE_FILES = ['js/scene/gl.js', 'js/scene/kerr.js', 'js/scene/gargantua.js', 'js/scene/planet.js', 'js/scene/post.js',
-                           'js/scene/orbit.js', 'js/scene/flight.js', 'js/scene/combat.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
+                           'js/scene/orbit.js', 'js/scene/shipkit.js', 'js/scene/flight.js', 'js/scene/combat.js', 'js/scene/ships.js', 'js/hud.js', 'js/scene/main.js'];
       const src = {};
       for (const f of SCENE_FILES) {
         try { const r = await fetch(f); src[f] = r.ok ? await r.text() : null; } catch (e) { src[f] = null; }
@@ -166,13 +166,14 @@
       }
       const mainSrc = src['js/scene/main.js'] || '', bhSrc = src['js/scene/gargantua.js'] || '',
             plSrc = src['js/scene/planet.js'] || '', glSrc = src['js/scene/gl.js'] || '',
-            orbSrc = src['js/scene/orbit.js'] || '', postSrc = src['js/scene/post.js'] || '', kerrSrc = src['js/scene/kerr.js'] || '';
+            orbSrc = src['js/scene/orbit.js'] || '', postSrc = src['js/scene/post.js'] || '', kerrSrc = src['js/scene/kerr.js'] || '',
+            kitSrc = src['js/scene/shipkit.js'] || '';
       const doc = new DOMParser().parseFromString(text, 'text/html');
 
       // 1. THE MENU. Every game that was reachable from the old planet menu must still be one click away, as a
       //    plain link in the static HTML (so it works with no JavaScript and no WebGL).
       const GAMES = ['minesweeper.html', 'freecell/index.html', 'pong.html', 'erosion/index.html', 'pool/index.html',
-        'demo/index.html', 'beatrix_game/index.html', 'Isle%20of%20Wandering/index.html', 'fps/index.html',
+        'demo/index.html', 'defense/index.html', 'crafter/index.html', 'beatrix_game/index.html', 'Isle%20of%20Wandering/index.html', 'fps/index.html',
         'edmund_game/index.html', 'tower_defense/index.html', 'castle_siege/index.html', 'castle_pov/index.html',
         'cat_invasion/index.html', 'island_world/index.html', 'Turtle%20Race/turtle-racing.html'];
       const links = [...doc.querySelectorAll('#crew a.mission')].map(a => a.getAttribute('href'));
@@ -278,7 +279,7 @@
 
       // 8b. THE HELM (flight.js): fly the real orbit.js + flight.js in a sandbox (no GL) and check the promises.
       try {
-        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, src['js/scene/flight.js'] || '', `
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, kitSrc, src['js/scene/flight.js'] || '', `
           const SCENE = {state: 'run'};
           const step = (n, dt) => { for (let i = 0; i < n; i++) { HELM.idle = 0; orbitStep(dt); flightStep(dt); } };
           const out = {};
@@ -319,7 +320,7 @@
       // 8c. THE WEAPONS (combat.js): fly orbit.js + flight.js + combat.js in a sandbox (no GL) and check the fight's physics.
       //     Absolute positions move ~1.6 km a frame and a round without gravity sags 2.4 km in 2 s, so these are the traps.
       try {
-        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, src['js/scene/flight.js'] || '', src['js/scene/combat.js'] || '', `
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, kitSrc, src['js/scene/flight.js'] || '', src['js/scene/combat.js'] || '', `
           const SCENE = {state: 'run'}, TC = ORB.TC;
           const step = (n, dt) => { for (let i = 0; i < n; i++) { HELM.idle = 0; orbitStep(dt); flightStep(dt); combatStep(dt); } };
           const aimAt = t => { const d = V.norm(V.sub(t.p, HELM.p)); HELM.f = d; HELM.u = V.norm(V.sub(V.norm(HELM.p), V.mul(d, V.dot(V.norm(HELM.p), d)))); };
@@ -357,12 +358,25 @@
             for (const e of COMBAT.ents) { if (!e.alive || e.arrive || e.wreck) continue; if (![...e.p, ...e.v, ...e.f].every(Number.isFinite)) fin = false;
               if (!CMB_CLS[e.cls].capital) minD = Math.min(minD, V.len(V.sub(e.p, HELM.p))); minAlt = Math.min(minAlt, V.len(e.p) - ORB.planet.R); } }
           out.fight = {fin: fin && [...HELM.p, ...HELM.v].every(Number.isFinite), minD, minAlt, stage: COMBAT.dir && COMBAT.dir.stage, wave: COMBAT.score.wave};
+          // fighter trails: attached to the engine, hanging behind in the fight's frame (not left a frame of orbit behind)
+          { let near = 1e9, span = 0, seen = 0; cmbSpawn('wasp', V.add(HELM.p, V.mul(V.norm(HELM.v), 1500)), V.mul(V.norm(HELM.v), -1), 0);
+            for (let i = 0; i < 600 && !seen; i++) { step(1, 1/60);
+              for (const e of COMBAT.ents) { if (!e.tr || !e.alive || !CMB_CLS[e.cls].fighter) continue; const tr = e.tr, T = CMB_TRAIL, eng = cmbAt(e, SHIP_KIT.wasp.engines[0].p);
+                const nw = (tr.head - 1 + T.n) % T.n, pts = []; for (let j = 1; j <= T.n; j++) { const k = (tr.head - j + T.n) % T.n; if (COMBAT.t - tr.T[k] <= T.life) pts.push([tr.P[k*6], tr.P[k*6+1], tr.P[k*6+2]]); }
+                if (pts.length < 20) continue; seen = 1; near = V.len(V.sub(pts[0], eng)); for (const p of pts) span = Math.max(span, V.len(V.sub(p, eng))); break; } }
+            out.trail = {seen, near, span, rows: cmbTrailRows(new Float32Array(16*512), HELM.p)}; }
           // 5. a capital's death: the chain of blasts, then the big one and its wreck
           COMBAT.events.length = 0; const cap = cmbSpawn('frigate', V.add(HELM.p, V.mul(V.norm(HELM.v), 3000)), V.norm(HELM.v), 0);
           cap.sh = 0; cap.hp = 0.5; cmbDamage(cap, 1, cap.p, false); step(60*6, 1/60);
           out.capital = {boom: COMBAT.events.some(e => e.type === 'capBoom'), wrecks: COMBAT.ents.filter(e => e.wreck).length};
+          // 5b. shields: a round from the capital's port side ripples its shell on that side, at the shell (not the hit ellipsoid)
+          { const cap2 = cmbSpawn('frigate', V.add(HELM.p, V.mul(V.norm(HELM.v), 2500)), V.norm(HELM.v), 0), x = V.cross(cap2.u, cap2.f);
+            cmbDamage(cap2, 1, cap2.p, false, [V.mul(x, 400), V.mul(x, 10)]); const q = cap2.shR && cap2.shR[0];
+            const P2 = COMBAT.pl; P2.sh = CMB.SHIELD; P2.shR = []; const mx = V.cross(COMBAT.me.u, COMBAT.me.f); cmbHurt(2, COMBAT.me.p, 'guns', [V.mul(mx, -300), V.mul(mx, -2)]);
+            const qm = P2.shR && P2.shR[P2.shR.length - 1];
+            out.shield = {cap: q ? q.d[0] : null, me: qm ? qm.d[0] : null, shells: cmbShields().length}; cap2.alive = false; }
           // 6. SAFE: every hostile jumps out, the helm gets its supercruise back
-          cmbSafe('test'); out.safe = {hostiles: cmbHostiles(), ref: HELM.ref, vcap: HELM.vcap};
+          cmbSafe('test'); out.safe = {hostiles: cmbHostiles(), ref: HELM.ref, vcap: HELM.vcap, trails: COMBAT.trails.length};
           // 7. hull 0: knocked out, then the emergency jump (main.js resets at the tunnel's peak) and home to STATION
           cmbArm(); COMBAT.events.length = 0; COMBAT.pl.sh = 0; cmbHurt(1e3, V.add(HELM.p, [30, 0, 0]));
           const down = HELM.disabled && COMBAT.pl.down >= 0; let ej = false;
@@ -377,12 +391,196 @@
         assert(r.straight < 25, 'Weapons: a round flies on from where it was fired, gravity included (the traps: 1.6 km, 2.4 km)', 'off a free-fall line by at most ' + r.straight.toFixed(1) + ' m over 1 s');
         assert(r.strafe.max < 1.2*r.strafe.cap && r.strafe.after < 30, 'Weapons: a sideways command is a true relative velocity (no runaway plane change)', 'peak ' + r.strafe.max.toFixed(0) + ' m/s, ' + r.strafe.after.toFixed(1) + ' m/s after release');
         assert(r.fight.fin && r.fight.minD >= 44 && r.fight.minAlt > 5e4, 'Weapons: a minute of fighting stays finite, off your hull and above the floor', 'closest ' + r.fight.minD.toFixed(0) + ' m, wave ' + r.fight.wave + ', stage ' + r.fight.stage);
+        assert(r.trail.seen && r.trail.near < 15 && r.trail.span < 400 && r.trail.rows > 10, 'Weapons: a fighter trail hangs behind it in the frame of the fight', r.trail.seen ? 'newest point ' + r.trail.near.toFixed(1) + ' m from the engine, trail ' + r.trail.span.toFixed(0) + ' m long, ' + r.trail.rows + ' segments' : 'no fighter trail seen');
         assert(r.capital.boom && r.capital.wrecks > 0, 'Weapons: a capital ship breaks up and leaves wreckage', r.capital.wrecks + ' wreck sections');
-        assert(r.safe.hostiles === 0 && !r.safe.ref && !r.safe.vcap, 'Weapons: SAFE sends every hostile away and gives back supercruise', r.safe.hostiles + ' left');
+        assert(r.shield.cap > 0.9 && r.shield.me < -0.9 && r.shield.shells >= 2, 'Weapons: a round ripples the shield shell where it came in (capital and your own)', 'port hit x ' + (r.shield.cap || 0).toFixed(2) + ', starboard hit x ' + (r.shield.me || 0).toFixed(2) + ', ' + r.shield.shells + ' shells lit');
+        assert(r.safe.hostiles === 0 && !r.safe.ref && !r.safe.vcap && r.safe.trails === 0, 'Weapons: SAFE sends every hostile away and gives back supercruise', r.safe.hostiles + ' left');
         assert(r.down.down && r.down.ejump && r.down.mode === 'station' && !r.down.disabled && !r.down.active, 'Weapons: hull 0 is an emergency jump home, never game over', 'down → ejump → ' + r.down.mode);
       } catch (e) { assert(false, 'Weapons: combat sandbox ran', e.message); }
       assert(/cmbSafe\(\s*'launch'\s*\)/.test(mainSrc), 'Weapons: a game launch stands the weapons down first', 'SCENE.jump → cmbSafe(\'launch\')');
       assert(/function\s+helmAuto/.test(src['js/scene/flight.js'] || '') && /IDLE_AUTO/.test(src['js/scene/flight.js'] || ''), 'Always in view: an idle helm flies home to the station framing', 'helmAuto() after IDLE_AUTO s');
+
+      // 8d. THE SHIPS (shipkit.js): every design builds in a sandbox (no GL), its faces are wound the way its normals point
+      //     (the ship pass culls back faces), and every hardpoint combat.js and flight.js use sits on its hull -- one table.
+      try {
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, kitSrc, src['js/scene/flight.js'] || '', src['js/scene/combat.js'] || '', `
+          const out = {cls: {}}, S = SHIP_VSTRIDE;
+          const near = (cls, p) => { const b = shipKitBuild(cls); let d = 1e9; for (let k = 0; k < b.verts; k++) d = Math.min(d, Math.hypot(b.vb[k*S] - p[0], b.vb[k*S+1] - p[1], b.vb[k*S+2] - p[2])); return d; };
+          // distance from p to the triangle abc (closest point, Ericson's regions)
+          const triDist = (p, a, b, c) => {
+            const ab = V.sub(b, a), ac = V.sub(c, a), ap = V.sub(p, a), d1 = V.dot(ab, ap), d2 = V.dot(ac, ap);
+            if (d1 <= 0 && d2 <= 0) return V.len(ap);
+            const bp = V.sub(p, b), d3 = V.dot(ab, bp), d4 = V.dot(ac, bp); if (d3 >= 0 && d4 <= d3) return V.len(bp);
+            const vc = d1*d4 - d3*d2; if (vc <= 0 && d1 >= 0 && d3 <= 0) return V.len(V.sub(p, V.add(a, V.mul(ab, d1/(d1 - d3)))));
+            const cp = V.sub(p, c), d5 = V.dot(ab, cp), d6 = V.dot(ac, cp); if (d6 >= 0 && d5 <= d6) return V.len(cp);
+            const vb = d5*d2 - d1*d6; if (vb <= 0 && d2 >= 0 && d6 <= 0) return V.len(V.sub(p, V.add(a, V.mul(ac, d2/(d2 - d6)))));
+            const va = d3*d6 - d5*d4; if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3)/((d4 - d3) + (d5 - d6)); return V.len(V.sub(p, V.add(b, V.mul(V.sub(c, b), w)))); }
+            const dn = 1/(va + vb + vc), v = vb*dn, w = vc*dn; return V.len(V.sub(p, V.add(a, V.add(V.mul(ab, v), V.mul(ac, w)))));
+          };
+          for (const cls of Object.keys(SHIP_CLASSES)) {
+            const b = shipKitBuild(cls), vb = b.vb, ib = b.ib; let finite = true, wind = 0, bad = 0;
+            for (let i = 0; i < vb.length; i++) if (!Number.isFinite(vb[i])) { finite = false; break; }
+            for (let t = 0; t < ib.length; t += 3) {
+              if (ib[t] >= b.verts || ib[t+1] >= b.verts || ib[t+2] >= b.verts) { bad++; continue; }
+              const A = ib[t]*S, B = ib[t+1]*S, C = ib[t+2]*S;
+              const g = V.cross([vb[B] - vb[A], vb[B+1] - vb[A+1], vb[B+2] - vb[A+2]], [vb[C] - vb[A], vb[C+1] - vb[A+1], vb[C+2] - vb[A+2]]);
+              const nn = [vb[A+3] + vb[B+3] + vb[C+3], vb[A+4] + vb[B+4] + vb[C+4], vb[A+5] + vb[B+5] + vb[C+5]];
+              if (V.len(g) > 1e-9 && V.dot(g, nn) <= 0) wind++;
+            }
+            // the hit ellipsoid against the hull's own box: generous (fighters are small targets) but never absurd
+            const h = SHIP_KIT[cls].hit, fit = SHIP_KIT[cls].part ? [1, 1, 1] : [0, 1, 2].map(i => h[i]/Math.max((b.max[i] - b.min[i])/2, 1e-6));   // (parts: no hit shell)
+            out.cls[cls] = {finite, wind, bad, tris: b.tris, fit: fit.map(x => +x.toFixed(2))};
+          }
+          const K = SHIP_KIT.meinen, mb = shipKitBuild('meinen');
+          out.muzzles = K.muzzles.map(p => near('meinen', p));
+          out.engines = Object.keys(SHIP_KIT).flatMap(c => (SHIP_KIT[c].engines || []).map(E => near(E.part || c, E.p)/Math.max(1, E.r)));
+          let cam = 1e9;                                                        // (the hull and its parts at rest)
+          for (const g of ['meinen', ...(K.parts || [])].map(shipKitBuild))
+            for (let t = 0; t < g.ib.length; t += 3) { const P = i => [g.vb[g.ib[t+i]*S], g.vb[g.ib[t+i]*S+1], g.vb[g.ib[t+i]*S+2]]; const dd = triDist(K.hullCam, P(0), P(1), P(2)); if (Number.isFinite(dd)) cam = Math.min(cam, dd); }   // (skip zero-area triangles)
+          out.cam = cam; out.port = K.nav.port[0] > 0 && K.nav.stbd[0] < 0;
+          out.shared = CMB.MUZZLES === K.muzzles && CMB.EXT === K.hit && HELM.HULL_CAM === K.hullCam && CMB_CLS.wasp.guns === SHIP_KIT.wasp.guns && CMB_CLS.cruiser.hangar === SHIP_KIT.cruiser.hangar;
+          out.order = SHIP_ORDER.slice().sort().join() === Object.keys(SHIP_CLASSES).sort().join();
+          // a loft of a concave (notched) armour section: every side face must face out of the polygon (a centroid test turned
+          // the notch inside out, and the winding test cannot see it: the winding follows the flipped normal)
+          { const sec = armSec(0, 20, -10, 10), lm = new Mesh().loft([sec, Object.assign({}, sec, {z: 10})], armMats({belt: MAT.HULL}), 1, 0, [false, false]).build(), P = sec.pts;
+            const inPoly = (x, y) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > y) !== (P[j][1] > y) && x < (P[j][0] - P[i][0])*(y - P[i][1])/(P[j][1] - P[i][1]) + P[i][0]) c = !c; return c; };
+            let bad = 0; for (let t = 0; t < lm.ib.length; t += 3) { const v = [0, 1, 2].map(i => lm.ib[t+i]*S), cx = v.reduce((a, o) => a + lm.vb[o], 0)/3, cy = v.reduce((a, o) => a + lm.vb[o+1], 0)/3;
+              if (inPoly(cx + lm.vb[v[0]+3]*0.05, cy + lm.vb[v[0]+4]*0.05)) bad++; }
+            out.loft = {bad, tris: lm.tris}; }
+          // hardpoints nothing else checks: turret pivots on their barbettes, turret tips at the barrels, pods / hangars / beacons on the hull
+          const surf = (cls, p) => { const g = shipKitBuild(cls); let d = 1e9; for (let t = 0; t < g.ib.length; t += 3) { const Q = i => [g.vb[g.ib[t+i]*S], g.vb[g.ib[t+i]*S+1], g.vb[g.ib[t+i]*S+2]]; const dd = triDist(p, Q(0), Q(1), Q(2)); if (Number.isFinite(dd)) d = Math.min(d, dd); } return d; };
+          out.hard = [];
+          for (const c of ['frigate', 'cruiser']) { const k = SHIP_KIT[c];
+            for (const T of k.turrets) { out.hard.push([c + ' turret pivot', near(c, T.pivot), 1]); out.hard.push([c + ' turret tip', near(k.turretCls, V.sub(T.tip, T.pivot)), 3]); }
+            for (const q of k.pods || []) out.hard.push([c + ' pod', surf(c, q), 1]);
+            for (const q of k.hangar || []) out.hard.push([c + ' hangar', surf(c, q), 3]);
+            for (const q of k.beacons || []) out.hard.push([c + ' beacon', surf(c, q), 4]); }
+          out.budget = {frigate: shipKitBuild('frigate').tris, cruiser: shipKitBuild('cruiser').tris};
+          // shield shells enclose their hulls and parts (masts above shield.yMax may pierce them)
+          out.shell = ['meinen', 'frigate', 'cruiser'].map(c => { const Sh = shipKitBuild(c).shell, yMax = SHIP_KIT[c].shield.yMax; let worst = 0;
+            for (const g of [c, ...(SHIP_KIT[c].parts || [])].map(shipKitBuild)) for (let v = 0; v < g.verts; v++) { const y = g.vb[v*S+1]; if (y > yMax) continue;
+              worst = Math.max(worst, ((g.vb[v*S] - Sh.c[0])/Sh.r[0])**2 + ((y - Sh.c[1])/Sh.r[1])**2 + ((g.vb[v*S+2] - Sh.c[2])/Sh.r[2])**2); }
+            return [c, Math.sqrt(worst)]; });
+          return out;`].join('\n'));
+        const r = sb(document), C = Object.entries(r.cls);
+        assert(C.length >= 7 && C.every(([, c]) => c.finite && !c.bad), 'Ships: every design builds with finite geometry and valid indices', C.map(([k, c]) => k + ' ' + c.tris).join(', ') + ' triangles');
+        assert(C.every(([, c]) => c.wind === 0), 'Ships: every face is wound the way its normal points (back faces are culled)', C.filter(([, c]) => c.wind).map(([k, c]) => k + ': ' + c.wind + ' reversed').join(', ') || 'all counter-clockwise from outside');
+        assert(C.every(([, c]) => c.fit.every(x => x > 0.5 && x < 2.5)), 'Ships: each hit ellipsoid fits its hull (0.5-2.5x the hull box)', C.map(([k, c]) => k + ' ' + c.fit.join('/')).join(', '));
+        assert(r.muzzles.every(d => d < 0.3), 'Ships: the MEINEN\'s muzzles sit on its coilgun tips', r.muzzles.map(d => d.toFixed(2) + ' m').join(', '));
+        assert(r.engines.every(d => d < 1.15), 'Ships: every engine hardpoint sits at a nozzle (within its exit)', 'worst ' + Math.max(...r.engines).toFixed(2) + ' nozzle radii');
+        assert(r.cam >= 0.6, 'Ships: the hull camera clears the hull', r.cam.toFixed(2) + ' m to the nearest face');
+        assert(r.port, 'Ships: the red nav light is to port (+x), green to starboard', '+x = up x forward');
+        assert(r.shared && r.order, 'Ships: combat.js and flight.js read their hardpoints from shipkit.js (one table), and every class is pre-built at boot', r.shared ? 'shared' : 'COPIES DRIFTED');
+        assert(r.loft.bad === 0 && r.loft.tris > 0, 'Ships: a loft of a concave (notched) section faces out everywhere', r.loft.bad + ' of ' + r.loft.tris + ' faces inward');
+        const hb = r.hard.filter(([, d, tol]) => !(d <= tol));
+        assert(r.hard.length >= 12 && !hb.length, 'Ships: capital turrets, barrel tips, pods, hangars and beacons sit on their hulls',
+          hb.length ? hb.map(([n, d]) => n + ' ' + d.toFixed(1) + ' m off').join(', ') : r.hard.length + ' hardpoints, worst ' + Math.max(...r.hard.map(([, d]) => d)).toFixed(2) + ' m');
+        assert(r.shell.every(([, w]) => w <= 1), 'Ships: each shield shell encloses its hull and parts', r.shell.map(([c, w]) => c + ' ' + (w*100).toFixed(0) + '%').join(', ') + ' of the shell');
+        assert(r.budget.frigate <= 10000 && r.budget.cruiser <= 15000, 'Ships: capital triangle budgets (frigate ≤ 10k, cruiser ≤ 15k)', 'frigate ' + r.budget.frigate + ', cruiser ' + r.budget.cruiser);
+      } catch (e) { assert(false, 'Ships: ship kit sandbox ran', e.message); }
+
+      // 8e. THE FLYBYS (ships.js, no GL): at STATION a friendly formation must actually pass through the view (they fell
+      //     freely in MILLER's frame while the scripted eye's frame turns with the hole, and slid 5 km behind the camera),
+      //     then jump out; a helm -> autopilot -> station round trip must not teleport them.
+      try {
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, kitSrc, src['js/scene/flight.js'] || '', src['js/scene/combat.js'] || '', src['js/scene/ships.js'] || '', `
+          const SCENE = {state: 'run'}, out = {};
+          const step = dt => { orbitStep(dt); flightStep(dt); flyStep(dt); combatStep(dt); };   // main.js's order
+          orbitResize(1600, 900); orbitStep(0); flyEnd(); FLY.t = 0; FLY.n = 0; FLY.next = 0.1;
+          // 1. a pass at STATION: in frame soon after the spawn and for most of it, then the jump
+          let born = -1, first = -1, inF = 0, frames = 0, jump = false, fx = 0, flash = 0;
+          for (let i = 0; i < 60*60 && !(jump && !FLY.ships.length); i++) { const was = FLY.ships.filter(s => !s.gone); step(1/60);
+            for (const s of was) if (s.gone) { let d = 1e9; for (let k = 0; k < COMBAT.nf; k++) { const o = k*CMB_FS; if (COMBAT.F[o+8] === 7) d = Math.min(d, Math.hypot(COMBAT.F[o] - s.p[0], COMBAT.F[o+1] - s.p[1], COMBAT.F[o+2] - s.p[2])); } flash = Math.max(flash, d); }
+            if (FLY.ships.length && born < 0) born = FLY.t;
+            if (FLY.ships.length && FLY.jumpAt == null) { frames++; if (flyOnScreen(flyPos(FLY.ships[0]), 0)) { inF++; if (first < 0) first = FLY.t - born; } }
+            if (FLY.events.some(e => e.type === 'jump')) jump = true; FLY.events.length = 0; fx = Math.max(fx, COMBAT.nf); }
+          out.pass = {born, first, frac: frames ? inF/frames : 0, jump, gone: !FLY.ships.length, fx, flash};
+          // 2. spawned at the helm, then the autopilot home: the formation's path stays continuous through both switches
+          helmEnter(); flyEnd(); FLY.next = FLY.t; step(1/60);
+          let worst = 0, prev = FLY.ships[0] && FLY.ships[0].p.slice(), pv = FLY.ships[0] && FLY.ships[0].v.slice(), modes = new Set();
+          for (let i = 0; i < 60*20 && FLY.ships.length; i++) {
+            if (i === 120) helmAuto('test');
+            step(1/60); modes.add(HELM.mode); const s = FLY.ships[0]; if (!s || s.gone) break;
+            worst = Math.max(worst, V.len(V.sub(V.sub(s.p, prev), V.mul(V.add(s.v, pv), 0.5/60*ORB.TC)))); prev = s.p.slice(); pv = s.v.slice(); }
+          out.trip = {worst, modes: [...modes].join('>')};
+          return out;`].join('\n'));
+        const r = sb(document);
+        assert(r.pass.born >= 0 && r.pass.first >= 0 && r.pass.first < 6 && r.pass.frac > 0.6, 'Flybys: at STATION a friendly formation passes through the view',
+          r.pass.first < 0 ? 'never in frame' : 'in frame ' + r.pass.first.toFixed(1) + ' s after spawning, ' + (r.pass.frac*100).toFixed(0) + '% of its pass');
+        assert(r.pass.jump && r.pass.gone && r.pass.fx > 0 && r.pass.flash < 50, 'Flybys: the formation jumps out (warp flash and streak where each hull was) and is gone', r.pass.jump ? 'jumped, ' + r.pass.fx + ' FX, flash within ' + r.pass.flash.toFixed(1) + ' m of the hull' : 'no jump');
+        assert(r.trip.worst < 100 && r.trip.modes.includes('station'), 'Flybys: helm → autopilot → station keeps the formation on its path (no teleport)',
+          'largest off-path step ' + r.trip.worst.toFixed(1) + ' m (' + r.trip.modes + ')');
+      } catch (e) { assert(false, 'Flybys: sandbox ran', e.message); }
+
+      // 8f. PLANET DEFENSE (defense/, Dad's M·07): its own page on the flight deck's renderer. It loads js/scene/* unchanged
+      //     but not combat.js: defense/js/view.js implements the fight interface ships.js draws through, by the same names.
+      try {
+        const dHtml = await (await fetch('defense/index.html')).text(), dDoc = new DOMParser().parseFromString(dHtml, 'text/html');
+        const dTags = [...dDoc.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
+        const DEF_FILES = ['../js/scene/gl.js', '../js/scene/kerr.js', '../js/scene/gargantua.js', '../js/scene/planet.js', '../js/scene/post.js', '../js/scene/orbit.js',
+          '../js/scene/shipkit.js', 'js/kit.js', '../js/scene/flight.js', '../js/scene/ships.js', 'js/war.js', 'js/view.js', 'js/audio.js', 'js/ui.js', 'js/main.js'];
+        assert(dTags.join() === DEF_FILES.join() && ![...dDoc.querySelectorAll('script')].some(s => s.type === 'module'),
+          'Planet Defense: classic scripts in dependency order (kit.js before ships.js, which freezes the liveries)', dTags.join(' → '));
+        const dSrc = {};
+        for (const f of ['kit', 'war', 'view', 'audio', 'ui', 'main']) dSrc[f] = await (await fetch('defense/js/' + f + '.js')).text();
+        assert(!/\bfetch\s*\(|XMLHttpRequest|\bimport\s*\(/.test(Object.values(dSrc).join('\n')), 'Planet Defense: page scripts never fetch local files', 'file:// safe');
+        const shipSrc = src['js/scene/ships.js'] || '', called = [...new Set((shipSrc.match(/\bcmb[A-Z]\w*(?=\s*\()/g) || []))];
+        const needed = called.filter(n => !['cmbFx', 'cmbWarpFx'].includes(n));        // (those two only in flyJump: the flybys, never run there)
+        const missing = needed.filter(n => !new RegExp('function\\s+' + n + '\\s*\\(').test(dSrc.view));
+        assert(missing.length === 0 && /const\s+COMBAT\s*=/.test(dSrc.view), 'Planet Defense: view.js implements every combat.js function ships.js calls',
+          missing.length ? 'MISSING: ' + missing.join(', ') : needed.join(', '));
+        const sb = new Function('document', [glSrc, kerrSrc, bhSrc, plSrc, orbSrc, kitSrc, dSrc.kit, src['js/scene/flight.js'] || '', dSrc.war, `
+          const out = {cls: {}}, S = SHIP_VSTRIDE;
+          for (const cls of DEF_ORDER.concat(['bubble'])) { const b = shipKitBuild(cls), vb = b.vb, ib = b.ib; let fin = true, wind = 0;
+            for (let i = 0; i < vb.length; i++) if (!Number.isFinite(vb[i])) { fin = false; break; }
+            for (let t = 0; t < ib.length; t += 3) { const A = ib[t]*S, B = ib[t+1]*S, C = ib[t+2]*S;
+              const g = V.cross([vb[B] - vb[A], vb[B+1] - vb[A+1], vb[B+2] - vb[A+2]], [vb[C] - vb[A], vb[C+1] - vb[A+1], vb[C+2] - vb[A+2]]);
+              if (V.len(g) > 1e-9 && V.dot(g, [vb[A+3] + vb[B+3] + vb[C+3], vb[A+4] + vb[B+4] + vb[C+4], vb[A+5] + vb[B+5] + vb[C+5]]) <= 0) wind++; }
+            out.cls[cls] = {fin, wind, tris: b.tris}; }
+          orbitStep(0);
+          const run = (sec, dt) => { for (let t = 0; t < sec; t += dt) warStep(dt); };
+          const fin = () => WAR.ents.every(e => [...e.p, ...e.v, ...e.f, ...e.u].every(Number.isFinite));
+          // 1. no defences: wave 1's bombers dive through the corridor and AEGIS falls
+          warNew('veteran', null, 11); warLaunch(false); let ok = true;
+          for (let i = 0; i < 30*170 && WAR.phase === 'wave'; i++) { warStep(1/30); if (i % 60 === 0 && !fin()) ok = false; }
+          out.bare = {aegis: WAR.aegis, breaches: WAR.stats.breaches, phase: WAR.phase, ok};
+          // 2. defended: two corridor Sentinels, a Hydra, a squadron -- wave 1 held, kills paid, nothing breaks through
+          warNew('veteran', null, 12); warBuild(10, 'sentinel'); warBuild(12, 'sentinel'); warBuild(4, 'hydra'); WAR.cr += 350; warBuySquadron(); run(3, 1/30); warLaunch(false);
+          for (let i = 0; i < 30*170 && WAR.phase === 'wave'; i++) warStep(1/30);
+          out.held = {phase: WAR.phase, wave: WAR.wave, kills: WAR.stats.kills, breaches: WAR.stats.breaches, earned: WAR.stats.earned, hawks: WAR.ents.filter(e => e.cls === 'hawk').length, ok: fin()};
+          // 3. a Longbow kills a frigate (railguns ignore small craft); the capital leaves wreckage
+          WAR.cr = 1e5; warBuild(0, 'longbow'); run(3, 1/30); WAR.phase = 'wave';
+          const fr = wSpawn('frigate', [4200, 400, 1200], [-1, 0, 0], 0); fr.ai = {mode: 'approach', t: 0, stand: [4000, 500, 1200]};
+          for (let i = 0; i < 30*120 && fr.dying < 0; i++) warStep(1/30); run(6, 1/30);
+          out.rail = {dead: fr.dying >= 0, wrecks: WAR.ents.filter(e => e.wreck).length};
+          // 4. save and resume: the slots, marks, upgrades and credits come back
+          WAR.phase = 'build'; warRefit(WAR.slots[10].e); warUpgrade('shield'); const sv = warSave(), js = JSON.parse(JSON.stringify(sv));
+          warNew('veteran', js, 13); run(1, 1/30);
+          out.save = {slots: WAR.slots.filter(s => s.e).map(s => s.e.cls + s.e.mk).sort().join(), was: sv.slots.map(s => s[1] + s[2]).sort().join(), shield: WAR.up.shield, cr: Math.round(WAR.cr) === sv.cr};
+          return out;`].join('\n'));
+        const r = sb(document), C = Object.entries(r.cls);
+        assert(C.length >= 25 && C.every(([, c]) => c.fin && c.wind === 0), 'Planet Defense: every new design builds finite and wound the way its normals point',
+          C.filter(([, c]) => !c.fin || c.wind).map(([k, c]) => k + ': ' + c.wind + ' reversed').join(', ') || C.length + ' classes, station ' + r.cls.bastion.tris + ' + ring ' + r.cls.bastionRing.tris + ' triangles');
+        assert(r.bare.ok && r.bare.breaches > 0 && r.bare.aegis < 100, 'Planet Defense: undefended, the bombers dive through the corridor and AEGIS falls', r.bare.breaches + ' breaches, AEGIS ' + r.bare.aegis.toFixed(0) + '%');
+        assert(r.held.ok && r.held.phase === 'build' && r.held.wave === 1 && r.held.kills > 0 && r.held.breaches === 0 && r.held.hawks === 3,
+          'Planet Defense: two Sentinels, a Hydra and a squadron hold wave 1', r.held.kills + ' kills, ' + r.held.breaches + ' breaches, ' + r.held.earned + ' credits earned, Hawks docked ' + r.held.hawks);
+        assert(r.rail.dead && r.rail.wrecks > 0, 'Planet Defense: a Longbow kills a frigate, which breaks up into wreckage', r.rail.dead ? r.rail.wrecks + ' wreck sections' : 'frigate survived');
+        assert(r.save.slots === r.save.was && r.save.shield === 1 && r.save.cr, 'Planet Defense: a saved war resumes with its platforms, marks, upgrades and credits', r.save.slots);
+      } catch (e) { assert(false, 'Planet Defense: sandbox ran', e.message); }
+      // every program of the ship pass compiles and links (a throwaway WebGL2 context; skipped without one)
+      try {
+        const cx = document.createElement('canvas').getContext('webgl2');
+        if (cx) {
+          const list = new Function('document', [glSrc, kitSrc, src['js/scene/ships.js'] || '', 'return shipProgramList();'].join('\n'))(document), bad = [];
+          for (const [name, vs, fs] of list) {
+            const mk = (t, s) => { const o = cx.createShader(t); cx.shaderSource(o, s); cx.compileShader(o); return o; };
+            const p = cx.createProgram(), v = mk(cx.VERTEX_SHADER, vs), f = mk(cx.FRAGMENT_SHADER, fs);
+            cx.attachShader(p, v); cx.attachShader(p, f); cx.linkProgram(p);
+            if (!cx.getProgramParameter(p, cx.LINK_STATUS)) bad.push(name + ': ' + ((cx.getShaderInfoLog(f) || '') + (cx.getShaderInfoLog(v) || '') + (cx.getProgramInfoLog(p) || '')).slice(0, 160));
+          }
+          assert(bad.length === 0, 'Ships: every ship-pass program compiles and links', bad.length ? bad.join(' | ').replace(/</g, '&lt;') : list.length + ' programs');
+        }
+      } catch (e) { assert(false, 'Ships: ship programs compiled', e.message); }
 
       // 9. ANTI-ALIASING: fullscreen passes only, so no MSAA on the context; the FXAA upscale does the edges.
       assert(/getContext\(\s*['"]webgl2['"]\s*,\s*\{[^}]*antialias\s*:\s*false/.test(glSrc), 'Render pipeline: WebGL2 context requests antialias:false',

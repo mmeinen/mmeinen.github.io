@@ -23,23 +23,23 @@ const CMB = {
   VCAP: 240,                                            // m/s real while armed (shift x2.2); supercruise would be 168 km/s
   GUN_RATE: 14, GUN_SPEED: 2200, GUN_LIFE: 1.3, GUN_DMG: 1, GUN_SPREAD: 0.16*DEG, GUN_GIMBAL: 4*DEG,
   GUN_HEAT: 0.05, GUN_COOL: 0.42, GUN_RESET: 0.35,      // ~3.5 s of fire overheats; locked out until it cools to 35%
-  MUZZLES: [[-1.6, -1.45, 18.3], [1.6, -1.45, 18.3]],   // the chin coilguns' tips (ships.js SHIP_CLASSES.meinen)
+  MUZZLES: SHIP_KIT.meinen.muzzles,                     // the chin coilguns' tips (every hardpoint lives in shipkit.js)
   TORP_MAX: 4, TORP_RELOAD: 9, TORP_SPEED: 950, TORP_ACC: 340, TORP_TURN: 3.2, TORP_LIFE: 7, TORP_DMG: 34, TORP_FUSE: 16,
   SEEK: 26*DEG, LOCK_CONE: 14*DEG, LOCK_KEEP: 22*DEG,   // auto-targeting cone; lock builds inside 14 deg, holds to 22
-  SHIELD: 150, HULL: 100, REGEN: 16, REGEN_DELAY: 1.8, EXT: [13, 5, 22],
+  SHIELD: 150, HULL: 100, REGEN: 16, REGEN_DELAY: 1.8, EXT: SHIP_KIT.meinen.hit,
   NB: 1024, NFX: 4096,                                  // pool sizes: rounds, particles
 };
-// hit ellipsoid half extents (m), hull and shield, cruise speed (m/s real), turn rate (rad/s real), assist tau (s) and
-// acceleration (m/s^2), lock time (s), explosion size (m)
+// hit ellipsoid half extents (m, from shipkit.js), hull and shield, cruise speed (m/s real), turn rate (rad/s real), assist
+// tau (s) and acceleration (m/s^2), lock time (s), explosion size (m). Guns, turrets (barrel tips), pods and hangars are
+// the kit's hardpoints.
 const CMB_CLS = {
-  drone:   {mesh: 'drone', name: 'TARGET DRONE', ext: [5, 4.5, 6], hp: 3, sh: 0, spd: 26, turn: 0.6, tau: 0.8, acc: 40, lock: 0.45, boom: 16},
-  wasp:    {mesh: 'wasp', name: 'WASP', ext: [6, 5.5, 6], hp: 5, sh: 0, spd: 215, turn: 1.3, tau: 0.3, acc: 260, lock: 1.0, boom: 24, fighter: true,
-            guns: [[-2.4, 0, 3.4], [2.4, 0, 3.4]], burst: 6, rate: 10, speed: 1800, spread: 1.1*DEG, dmg: 2, range: 1400, rest: 2.1},
-  frigate: {mesh: 'frigate', name: 'FRIGATE', ext: [50, 30, 120], hp: 80, sh: 40, spd: 40, turn: 0.1, tau: 2, acc: 15, lock: 0.6, boom: 130, capital: true,
-            turrets: [[0, 22, 36]], flak: 0.35, pods: [[-52, 0, -40], [52, 0, -40]]},
-  cruiser: {mesh: 'cruiser', name: 'CRUISER', ext: [90, 70, 380], hp: 170, sh: 90, spd: 28, turn: 0.06, tau: 3, acc: 10, lock: 0.6, boom: 320, capital: true,
-            turrets: [0, 1, 2, 3].flatMap(k => [[-48, 70, -121 + k*95], [48, 70, -121 + k*95]]), flak: 0.13,
-            hangar: [[-88, -15, 30], [88, -15, 30]], launch: 17},
+  drone:   {mesh: 'drone', name: 'TARGET DRONE', ext: SHIP_KIT.drone.hit, hp: 3, sh: 0, spd: 26, turn: 0.6, tau: 0.8, acc: 40, lock: 0.45, boom: 16},
+  wasp:    {mesh: 'wasp', name: 'WASP', ext: SHIP_KIT.wasp.hit, hp: 5, sh: 0, spd: 215, turn: 1.3, tau: 0.3, acc: 260, lock: 1.0, boom: 24, fighter: true,
+            guns: SHIP_KIT.wasp.guns, burst: 6, rate: 10, speed: 1800, spread: 1.1*DEG, dmg: 2, range: 1400, rest: 2.1},
+  frigate: {mesh: 'frigate', name: 'FRIGATE', ext: SHIP_KIT.frigate.hit, hp: 80, sh: 40, spd: 40, turn: 0.1, tau: 2, acc: 15, lock: 0.6, boom: 130, capital: true,
+            turrets: SHIP_KIT.frigate.turrets, flak: 0.35, pods: SHIP_KIT.frigate.pods},
+  cruiser: {mesh: 'cruiser', name: 'CRUISER', ext: SHIP_KIT.cruiser.hit, hp: 170, sh: 90, spd: 28, turn: 0.06, tau: 3, acc: 10, lock: 0.6, boom: 320, capital: true,
+            turrets: SHIP_KIT.cruiser.turrets, flak: 0.13, hangar: SHIP_KIT.cruiser.hangar, launch: 17},
 };
 const CMB_FLAK = {speed: 1400, life: 5, fuse: 45, dmg: 5, direct: 10, spread: 3*DEG};        // capital turrets: proximity-fused
 const CMB_MSL = {speed: 330, acc: 120, turn: 1.3, life: 12, fuse: 22, dmg: 18, ext: [3, 3, 5]};   // frigate missiles (shootable)
@@ -53,7 +53,7 @@ const CMB_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', '
 // arrival direction), 8 ember. Sizes in metres.
 const CMB_BS = 12, CMB_FS = 18;
 const COMBAT = {
-  hot: false, t: 0, frame: null, ents: [], torps: [], shards: [], events: [], shot: null, dir: null,
+  hot: false, t: 0, frame: null, ents: [], torps: [], shards: [], trails: [], events: [], shot: null, dir: null,
   B: new Float64Array(CMB.NB*CMB_BS), nb: 0, F: new Float64Array(CMB.NFX*CMB_FS), nf: 0,
   me: {p: [0, 0, 0], v: [0, 0, 0], po: null, f: [0, 0, 1], u: [0, 1, 0]},   // the player's ship, synced from HELM each step
   pl: null, input: {fire: 0, torp: 0}, score: {kills: 0, wave: 0}, engaged: 0, idN: 1,
@@ -100,6 +100,11 @@ function cmbFly(e, h, tau, acc){
   const a0 = A(e.p, e.v), vh = [e.v[0] + a0[0]*h/2, e.v[1] + a0[1]*h/2, e.v[2] + a0[2]*h/2];
   e.p = [e.p[0] + vh[0]*h, e.p[1] + vh[1]*h, e.p[2] + vh[2]*h];
   const a1 = A(e.p, vh); e.v = [vh[0] + a1[0]*h/2, vh[1] + a1[1]*h/2, vh[2] + a1[2]*h/2];
+}
+// a turret's local vector v trained to (yaw about +y, then pitch up): as ships.js draws it (qYaw * qPitch(-pitch))
+function cmbTurn2(v, yaw, pitch){
+  const cp = Math.cos(pitch), sp = Math.sin(pitch), y1 = v[1]*cp + v[2]*sp, z1 = -v[1]*sp + v[2]*cp, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  return [v[0]*cy + z1*sy, y1, -v[0]*sy + z1*cy];
 }
 // ballistic: gravity only
 function cmbCoast(e, h){
@@ -201,6 +206,80 @@ function cmbWarpFx(p, v, size, dir, out){
   cmbFx(7, p, v, 0.9, Math.max(size, 12), 0, out ? [1.6, 2.0, 2.8] : [2, 2.4, 3], dir);
 }
 
+// ------------------------------------------------------------------------------------------ fighter trails
+// Every fighter trails a thin ion wake: points dropped at a fixed 45 Hz at their fractional time along the frame's path
+// (e.po -> e.p) and flown on for the rest of the frame (a point left where it was dropped lags a frame of orbit), each left nearly at rest in the fight's co-rotating frame (vref, plus 15% of the craft's own motion
+// relative to it: e.v lags the nose in a turn, and the full velocity would spray the gas sideways), coasting under gravity
+// like everything else. 48 points, 0.9 s; a dead fighter's trail is orphaned to COMBAT.trails and fades out.
+const CMB_TRAIL = {n: 48, rate: 45, life: 0.9};
+function cmbTrails(e, dt, h){
+  const T = CMB_TRAIL, C = COMBAT;
+  let tr = e.tr; if (!tr) tr = e.tr = {P: new Float64Array(T.n*6), T: new Float64Array(T.n).fill(-99), head: 0, acc: 0, e};
+  cmbCoastPool(tr.P, T.n, 6, h);
+  const q = cmbAt(e, SHIP_KIT[CMB_CLS[e.cls].mesh].engines[0].p), off = [q[0] - e.p[0], q[1] - e.p[1], q[2] - e.p[2]];   // the engine's exit
+  tr.acc += dt;
+  while (tr.acc >= 1/T.rate) {
+    tr.acc -= 1/T.rate;
+    const k = dt > 0 ? 1 - tr.acc/dt : 1, p = [e.po[0] + (e.p[0] - e.po[0])*k + off[0], e.po[1] + (e.p[1] - e.po[1])*k + off[1], e.po[2] + (e.p[2] - e.po[2])*k + off[2]];
+    const vr = C.frame ? cmbVref(p) : e.v, o = tr.head*6, late = tr.acc*ORB.TC;       // (it has flown `late` sim s since: 1.6 km a frame at 7.9 km/s)
+    for (let i = 0; i < 3; i++) { const v = vr[i] + 0.15*(e.v[i] - vr[i]); tr.P[o+3+i] = v; tr.P[o+i] = p[i] + v*late; }
+    tr.T[tr.head] = C.t - tr.acc; tr.head = (tr.head + 1) % T.n;
+  }
+}
+// segment rows (16 floats: a km + width km, b km + width km, colour + alpha at a, alpha at b) for every trail, camera-relative
+function cmbTrailRows(D, eye){
+  const C = COMBAT, T = CMB_TRAIL, cap = D.length/16; let n = 0;
+  // (no allocation per point: a wave's worth of trails is thousands of points a frame, and GC hitches read as missed vsyncs)
+  const one = tr => {
+    let px = 0, py = 0, pz = 0, pw = 0.5, pa = 0, have = false;
+    if (tr.e && tr.e.alive) { const q = cmbAt(tr.e, SHIP_KIT[CMB_CLS[tr.e.cls].mesh].engines[0].p); px = q[0]; py = q[1]; pz = q[2]; have = true; }   // the head: from the engine
+    for (let j = 1; j <= T.n; j++) {
+      const i = (tr.head - j + T.n) % T.n, age = C.t - tr.T[i]; if (age > T.life || age < 0) break;
+      const k = clamp(age/T.life, 0, 1), w = 0.5 + 1.8*k, a = (1 - k)*(1 - k)*(1 - k)*smooth01(age/0.1)*0.4;   // (0 inside the plume)
+      const x = tr.P[i*6], y = tr.P[i*6+1], z = tr.P[i*6+2];
+      if (have && n < cap && pa + a >= 0.01) { const o = n++*16;
+        D[o] = (px - eye[0])*1e-3; D[o+1] = (py - eye[1])*1e-3; D[o+2] = (pz - eye[2])*1e-3; D[o+3] = pw*1e-3;
+        D[o+4] = (x - eye[0])*1e-3; D[o+5] = (y - eye[1])*1e-3; D[o+6] = (z - eye[2])*1e-3; D[o+7] = w*1e-3;
+        D[o+8] = 1.0; D[o+9] = 0.42; D[o+10] = 0.13; D[o+11] = pa; D[o+12] = a; D[o+13] = 0; D[o+14] = 0; D[o+15] = 0; }
+      px = x; py = y; pz = z; pw = w; pa = a; have = true;
+    }
+  };
+  for (const tr of C.trails) one(tr);
+  for (const e of C.ents) if (e.tr && e.alive) one(e.tr);
+  return n;
+}
+
+// ------------------------------------------------------------------------------------------ shields
+// A shielded hull (the MEINEN, the capitals) wears a shell fitted round it (shipkit.js shellFit); ships.js draws the ripples
+// where rounds struck it. Each ship keeps up to 4 ripples {d: unit-sphere direction in the shell's own frame, t0: born,
+// fl: last flared}. The ripple sits where the round's path ENTERED the shell -- the hit test itself uses the smaller hit
+// ellipsoid, and on an 800 m hull that point is metres to tens of metres inside -- or, for a proximity burst, straight in
+// from the burst. A hit within 15 deg of a ripple younger than 0.2 s re-flares it (14 Hz fire must not cycle the slots);
+// otherwise the oldest goes.
+function cmbShellDir(S, f, u, a, b){
+  const x = V.cross(u, f), loc = p => [(V.dot(p, x) - S.c[0])/S.r[0], (V.dot(p, u) - S.c[1])/S.r[1], (V.dot(p, f) - S.c[2])/S.r[2]], A = loc(a);
+  if (b) { const B = loc(b), d = V.sub(B, A), qa = V.dot(d, d), qb = 2*V.dot(A, d), qc = V.dot(A, A) - 1, D = qb*qb - 4*qa*qc;
+    if (qa > 1e-12 && D >= 0) { const t = (-qb - Math.sqrt(D))/(2*qa); if (t >= 0 && t <= 1) return V.norm(V.add(A, V.mul(d, t))); }
+    return V.norm(B); }
+  return V.norm(A);
+}
+// a, b: the round's segment relative to the ship's centre (m, MILLER axes), b null for a burst at a
+function cmbShieldHit(o, R, cls, a, b){
+  const S = shipKitBuild(cls).shell; if (!S) return;
+  const d = cmbShellDir(S, o.f, o.u, a, b), t = COMBAT.t, near = Math.cos(15*DEG);
+  for (const q of R) if (t - q.t0 < 0.2 && V.dot(q.d, d) > near) { q.fl = t; return; }
+  let k = R.length; if (k >= 4) { k = 0; for (let i = 1; i < R.length; i++) if (R[i].t0 < R[k].t0) k = i; }
+  R[k] = {d, t0: t, fl: t};
+}
+// the shells to draw: {cls, p (MILLER m), f, u, R (ripples), down (collapse time or null), k (shield left, 0..1), team}
+function cmbShields(){
+  const C = COMBAT, t = C.t, out = [], busy = (R, down) => (R && R.some(q => t - q.fl < 1.2)) || (down != null && t - down < 0.9);
+  if (C.hot && C.pl && busy(C.pl.shR, C.pl.shDown)) out.push({player: true, cls: 'meinen', p: C.me.p, f: C.me.f, u: C.me.u, R: C.pl.shR || [], down: C.pl.shDown, k: C.pl.sh/CMB.SHIELD, team: 0});
+  for (const e of C.ents) if (e.alive && !e.wreck && !e.arrive && busy(e.shR, e.shDown))
+    out.push({cls: CMB_CLS[e.cls].mesh, p: e.p, f: e.f, u: e.u, R: e.shR || [], down: e.shDown, k: e.sh/(CMB_CLS[e.cls].sh || 1), team: 1});
+  return out;
+}
+
 // ------------------------------------------------------------------------------------------ the player
 function cmbFreshPlayer(){
   return {sh: CMB.SHIELD, hull: CMB.HULL, heat: 0, over: false, torps: CMB.TORP_MAX, reload: 0, lastHit: -99, down: -1, crit: false,
@@ -210,17 +289,18 @@ function cmbSync(){
   const C = COMBAT, H = HELM, me = C.me;
   me.po = C.prevP || H.p; me.p = H.p; me.v = H.v; me.f = H.f; me.u = H.ub || H.u;
 }
-// the player takes a hit: shields first, then hull; nothing lands while a cutaway holds the screen or after hull 0
-function cmbHurt(amt, at, src){
+// the player takes a hit: shields first, then hull; nothing lands while a cutaway holds the screen or after hull 0.
+// seg: the round's segment relative to the ship (cmbShieldHit), for the ripple
+function cmbHurt(amt, at, src, seg){
   const C = COMBAT, P = C.pl, me = C.me;
   if (!P || P.down >= 0 || C.shot || !C.hot) return;
   P.lastHit = C.t;
   const n = V.norm(V.sub(at, me.p));
   if (P.sh > 0) {
     P.sh = Math.max(0, P.sh - amt);
-    cmbFx(5, V.add(me.p, V.mul(n, Math.min(18, cmbDist(at, me.p)))), me.v, 0.45, 14, 0, [0.3, 0.8, 1.6], n);   // the shield flares where it was struck
+    cmbShieldHit(me, P.shR || (P.shR = []), 'meinen', seg ? seg[0] : V.sub(at, me.p), seg && seg[1]);   // the shell ripples where it was struck
     cmbKick(0.3); cmbEv('hurt', {amt, shield: true, dir: n, src});
-    if (P.sh <= 0) cmbEv('shieldsDown');
+    if (P.sh <= 0) { P.shDown = C.t; cmbEv('shieldsDown'); }
     return;
   }
   P.hull = Math.max(0, P.hull - amt);
@@ -259,7 +339,7 @@ function cmbArm(){
   const vr = cmbVref(H.p), dv = V.sub(H.v, vr), dl = V.len(dv); if (dl > cap) H.v = V.add(vr, V.mul(dv, cap/dl));
   cmbCineCancel();
   C.pl = cmbFreshPlayer(); C.score = {kills: 0, wave: 0}; C.prevP = null; C.engaged++;
-  C.ents = C.ents.filter(e => e.wreck); C.torps = []; C.nb = 0;
+  C.ents = C.ents.filter(e => e.wreck); C.torps = []; C.trails = []; C.nb = 0;
   C.dir = C.engaged === 1 ? {stage: 'range', t: 0, wave: 0} : {stage: 'lull', t: 0, lull: 2.2, next: 'wing', wave: 0};
   cmbSync();
   cmbEv('arm', {first: C.engaged === 1});
@@ -277,7 +357,7 @@ function cmbSafe(why){
     if (!e.arrive && e.dying < 0) cmbWarpFx(e.p, e.v, CMB_CLS[e.cls].ext[2], V.mul(e.f, -1), true);
     e.alive = false;
   }
-  C.ents = C.ents.filter(e => e.alive); C.torps = []; C.nb = 0;
+  C.ents = C.ents.filter(e => e.alive); C.torps = []; C.trails = []; C.nb = 0;
   C.dir = null; if (C.pl) { C.pl.tgt = null; C.pl.locked = false; }
   cmbEv('safe', {why, kills: C.score.kills, wave: C.score.wave}); cmbEv('music', {cue: 'safe'});
   return true;
@@ -286,18 +366,18 @@ function cmbSafe(why){
 function cmbReset(){
   const C = COMBAT;
   if (C.hot) { C.hot = false; HELM.ref = null; HELM.vcap = 0; }
-  HELM.disabled = false; C.ents = []; C.torps = []; C.shards = []; C.nb = 0; C.nf = 0; C.shot = null; C.shotAt = null; C.dir = null;
+  HELM.disabled = false; C.ents = []; C.torps = []; C.shards = []; C.trails = []; C.nb = 0; C.nf = 0; C.shot = null; C.shotAt = null; C.dir = null;
   C.input.fire = 0; C.input.torp = 0; C.flash = 0; C.muzzle = null; C.prevP = null;
   if (C.pl) { C.pl.tgt = null; C.pl.locked = false; C.pl.down = -1; }
 }
-function cmbActive(){ const C = COMBAT; return C.hot || C.ents.length > 0 || C.torps.length > 0 || C.shards.length > 0 || C.nb > 0 || C.nf > 0 || !!C.shot || !!C.shotAt; }
+function cmbActive(){ const C = COMBAT; return C.hot || C.ents.length > 0 || C.torps.length > 0 || C.shards.length > 0 || C.trails.length > 0 || C.nb > 0 || C.nf > 0 || !!C.shot || !!C.shotAt; }
 
 // ------------------------------------------------------------------------------------------ spawning
 function cmbSpawn(cls, p, f, arrive){
   const C = COMBAT, c = CMB_CLS[cls], up = V.norm(p);
   const e = {id: C.idN++, cls, team: 1, p, v: cmbVref(p), po: p, f, u: V.norm(V.sub(up, V.mul(f, V.dot(up, f)))), vcmd: [0, 0, 0],
     hp: c.hp, sh: c.sh, alive: true, dying: -1, arrive: arrive || 0, damage: 0, glow: 0.25, scale: 1, cool: 1 + C.rnd()*2, burst: 0, bt: 0, gi: 0,
-    ai: {mode: 'attack', t: 0, dir: null}, seed: C.rnd(), tur: (c.turrets || []).map(q => ({p: q, cool: 1 + C.rnd()*3})), hitT: -9, wreck: false, spin: null};
+    ai: {mode: 'attack', t: 0, dir: null}, seed: C.rnd(), tur: (c.turrets || []).map(q => ({pivot: q.pivot, off: V.sub(q.tip, q.pivot), yaw: 0, pitch: 0.1, cool: 1 + C.rnd()*3})), hitT: -9, wreck: false, spin: null};
   if (c.fighter) e.v = V.add(e.v, V.mul(f, c.spd/ORB.TC));
   C.ents.push(e);
   return e;
@@ -455,12 +535,23 @@ function cmbCapitalAI(e, c, dt){
   cmbTurn(e, V.norm(face), c.turn*dt, 0, dt);
   if (C.shot || !C.pl || C.pl.down >= 0) return;
   const d = cmbDist(me.p, e.p);
-  for (const T of e.tur) {                                                                // flak: proximity-fused heavy rounds
+  // flak: the turrets train on your lead point (0.9 rad/s, never down through the deck) and fire only when on it, from
+  // their barrels; proximity-fused heavy rounds
+  const rx = V.cross(e.u, e.f);
+  for (const T of e.tur) {
     T.cool -= dt;
-    if (T.cool > 0 || d > 7000) continue;
-    T.cool = (0.6 + R()*0.9)/c.flak;
-    const from = cmbAt(e, T.p), L = cmbLead(from, e.v, me.p, me.v, CMB_FLAK.speed);
-    if (L) { cmbBolt(from, V.add(e.v, V.mul(cmbJitter(L.dir, CMB_FLAK.spread), CMB_FLAK.speed/TC)), 1, 2, CMB_FLAK.life); cmbFx(1, from, e.v, 0.08, 7, 0, [3, 1.6, 0.6]); }
+    const L = d < 7500 ? cmbLead(cmbAt(e, T.pivot), e.v, me.p, me.v, CMB_FLAK.speed) : null;
+    if (L) {
+      const lx = V.dot(L.dir, rx), ly = V.dot(L.dir, e.u), lz = V.dot(L.dir, e.f), ty = Math.atan2(lx, lz), tp0 = Math.atan2(ly, Math.hypot(lx, lz)), tp = clamp(tp0, -0.14, 1.3);
+      const dy = Math.atan2(Math.sin(ty - T.yaw), Math.cos(ty - T.yaw)), mx = 0.9*dt;
+      T.yaw += clamp(dy, -mx, mx); T.pitch += clamp(tp - T.pitch, -mx, mx);
+      if (T.cool <= 0 && Math.abs(dy) < 0.05 && Math.abs(tp0 - T.pitch) < 0.05) {
+        T.cool = (0.6 + R()*0.9)/c.flak;
+        const from = cmbAt(e, V.add(T.pivot, cmbTurn2(T.off, T.yaw, T.pitch))), b = cmbTurn2([0, 0, 1], T.yaw, T.pitch);
+        const bw = V.norm(V.add(V.add(V.mul(rx, b[0]), V.mul(e.u, b[1])), V.mul(e.f, b[2])));
+        cmbBolt(from, V.add(e.v, V.mul(cmbJitter(bw, CMB_FLAK.spread), CMB_FLAK.speed/TC)), 1, 2, CMB_FLAK.life); cmbFx(1, from, e.v, 0.08, 7, 0, [3, 1.6, 0.6]);
+      }
+    } else T.cool = Math.max(T.cool, 0.3);
   }
   if (c.pods && d < 6500 && (A.mt = (A.mt == null ? 4 : A.mt) - dt) <= 0) {              // frigate: a missile pair
     A.mt = 8 + R()*4;
@@ -473,6 +564,7 @@ function cmbCapitalAI(e, c, dt){
       const p = cmbAt(e, q), out = V.norm(V.sub(p, e.p)), w = cmbSpawn('wasp', p, out, 0);
       w.v = V.add(e.v, V.mul(out, 90/TC)); w.ai.mode = 'extend'; w.ai.t = 1.5; w.ai.dir = out;
     }
+    A.launchT = C.t;                                                                       // (the hangar mouths flare)
     cmbEv('launch');
   }
 }
@@ -491,10 +583,14 @@ function cmbDying(e, c, dt){
     const big = ext[2];
     cmbBoom(e.p, e.v, big*0.9, {ring: true, sparks: 240, smoke: 10, flash: 3.4, shards: 24, shardK: 0.8});
     for (let k = 0; k < 6; k++) cmbBoom(cmbAt(e, [(R()*2 - 1)*ext[0], (R()*2 - 1)*ext[1], (R()*2 - 1)*ext[2]]), e.v, big*0.3, {sparks: 30, smoke: 2, quiet: true});
-    for (let k = 0; k < 3; k++) {                                                          // hull sections, burning, tumbling apart
-      const q = cmbAt(e, [(R()*2 - 1)*ext[0]*0.5, (R()*2 - 1)*ext[1]*0.5, (k - 1)*ext[2]*0.55]);
-      const w = {id: C.idN++, cls: e.cls, team: 1, p: q, v: V.add(e.v, V.mul(cmbRandDir(), (18 + R()*22)/ORB.TC)), po: q, f: e.f, u: e.u, vcmd: [0, 0, 0],
-        hp: 1e9, sh: 0, alive: true, dying: -1, arrive: 0, damage: 1, glow: 0, scale: 0.55 - k*0.1, wreck: true, t0: C.t, spin: V.mul(cmbRandDir(), 0.1 + R()*0.18), ai: {}, tur: [], seed: R()};
+    // the hull breaks into three full-size sections along jagged cuts (slabs of its length, ships.js clips and burns the
+    // edges), each flying apart and tumbling about its own middle
+    const zs = [-ext[2]*1.2, -ext[2]*0.3 + (R() - 0.5)*ext[2]*0.2, ext[2]*0.35 + (R() - 0.5)*ext[2]*0.2, ext[2]*1.2];
+    for (let k = 0; k < 3; k++) {
+      const zc = (Math.max(zs[k], -ext[2]) + Math.min(zs[k + 1], ext[2]))/2, q = cmbAt(e, [0, 0, zc]), away = V.norm(V.add(V.mul(e.f, (k - 1)*1.4), V.mul(cmbRandDir(), 0.6)));
+      const w = {id: C.idN++, cls: e.cls, team: 1, p: q, v: V.add(e.v, V.mul(away, (10 + R()*14)/ORB.TC)), po: q, f: e.f, u: e.u, vcmd: [0, 0, 0],
+        hp: 1e9, sh: 0, alive: true, dying: -1, arrive: 0, damage: 1, glow: 0, scale: 1, wreck: true, t0: C.t, spin: V.mul(cmbRandDir(), 0.04 + R()*0.07), ai: {}, tur: [], seed: R(),
+        clip: [zs[k], zs[k + 1]], zc};
       C.ents.push(w);
     }
     e.alive = false; C.flash = Math.max(C.flash, 1);
@@ -505,16 +601,15 @@ function cmbDying(e, c, dt){
 }
 
 // ------------------------------------------------------------------------------------------ damage
-function cmbDamage(e, dmg, at, byTorp){
+function cmbDamage(e, dmg, at, byTorp, seg){
   const C = COMBAT, c = CMB_CLS[e.cls];
   if (!e.alive || e.dying >= 0 || e.wreck || e.arrive) return;
   e.hitT = C.t;
   if (e.sh > 0) {
     e.sh = Math.max(0, e.sh - dmg*(byTorp ? 1.5 : 1));
-    const n = V.norm(V.sub(at, e.p));
-    cmbFx(5, at, e.v, 0.5, Math.max(12, c.ext[2]*0.14), 0, [1.6, 0.8, 0.25], n);
+    cmbShieldHit(e, e.shR || (e.shR = []), c.mesh, seg ? seg[0] : V.sub(at, e.p), seg && seg[1]);
     cmbEv('hit', {shield: true, cls: e.cls});
-    if (e.sh <= 0) cmbEv('capShields', {name: c.name});
+    if (e.sh <= 0) { e.shDown = C.t; cmbEv('capShields', {name: c.name}); }
     return;
   }
   e.hp -= dmg*(byTorp && c.capital ? 2 : 1);
@@ -592,7 +687,7 @@ function cmbTorpedo(){
   if (!P || P.down >= 0 || C.shot) return;
   if (P.torps <= 0) { cmbEv('torpEmpty'); return; }
   P.torps--;
-  const p = cmbAt(me, [0, -2.6, 3]), down = V.mul(V.norm(me.p), -1);
+  const p = cmbAt(me, SHIP_KIT.meinen.torp), down = V.mul(V.norm(me.p), -1);
   C.torps.push({team: 0, p, po: p, v: V.add(me.v, V.add(V.mul(down, 14/TC), V.mul(me.f, 40/TC))), f: me.f, u: me.u, target: P.locked ? P.tgt : null,
     t: 0, ign: 0.35, spd: 40, trail: 0, vcmd: [0, 0, 0], hp: 1, ext: CMB_MSL.ext});
   cmbEv('torp', {guided: !!P.locked});
@@ -669,7 +764,9 @@ function cmbBolts(dt, h){
           if (t >= 0 && t < ht) { ht = t; hitE = m; }
         }
         if (hitE) {
-          if (hitE.cls) cmbDamage(hitE, CMB.GUN_DMG, relHit(o, hitE.p, hitE.po, ht), false); else { hitE.hp = 0; cmbEv('hit', {shield: false, cls: 'missile'}); }
+          if (hitE.cls) cmbDamage(hitE, CMB.GUN_DMG, relHit(o, hitE.p, hitE.po, ht), false,
+            [[B[o+6] - hitE.po[0], B[o+7] - hitE.po[1], B[o+8] - hitE.po[2]], [B[o] - hitE.p[0], B[o+1] - hitE.p[1], B[o+2] - hitE.p[2]]]);
+          else { hitE.hp = 0; cmbEv('hit', {shield: false, cls: 'missile'}); }
           dead = true;
         }
       } else if (C.pl && C.pl.down < 0 && C.hot) {                                          // theirs: you
@@ -678,7 +775,7 @@ function cmbBolts(dt, h){
         if (t >= 0) {
           const at = relHit(o, me.p, me.po, t);
           if (kind === 2) cmbBoom(at, me.v, 9, {sparks: 14, smoke: 1, quiet: true});
-          cmbHurt(kind === 2 ? CMB_FLAK.direct : CMB_CLS.wasp.dmg, at, kind === 2 ? 'flak' : 'guns'); dead = true;
+          cmbHurt(kind === 2 ? CMB_FLAK.direct : CMB_CLS.wasp.dmg, at, kind === 2 ? 'flak' : 'guns', [[ax, ay, az], [bx, by, bz]]); dead = true;
         } else if (kind === 2) {                                                            // flak: burst on closest approach
           const dx = bx - ax, dy = by - ay, dz = bz - az, L2 = dx*dx + dy*dy + dz*dz, tc = L2 > 0 ? clamp(-(ax*dx + ay*dy + az*dz)/L2, 0, 1) : 0;
           const cx = ax + dx*tc, cy = ay + dy*tc, cz = az + dz*tc, dmin = Math.hypot(cx, cy, cz);
@@ -750,6 +847,9 @@ function combatStep(dt){
     const d = V.sub(e.p, C.me.p), l = V.len(d);
     if (l < 45 && l > 1e-6) { const n = V.mul(d, 1/l), vn = V.dot(V.sub(e.v, C.me.v), n); e.p = V.add(C.me.p, V.mul(n, 45)); if (vn < 0) e.v = V.sub(e.v, V.mul(n, vn)); }
   }
+  // fighters drop their trails along this frame's path; orphaned trails coast on and fade
+  for (const e of C.ents) if (e.alive && !e.arrive && !e.wreck && CMB_CLS[e.cls].fighter) cmbTrails(e, dt, h);
+  C.trails = C.trails.filter(tr => { cmbCoastPool(tr.P, CMB_TRAIL.n, 6, h); return C.t - Math.max(...tr.T) < CMB_TRAIL.life; });
   for (const a of [C.shot && C.shot.anchor, C.shotAt && C.shotAt.shot.anchor]) if (a) for (let rem = h; rem > 1e-9; rem -= 0.25) cmbCoast(a, Math.min(rem, 0.25));
   cmbTorps(dt);
   cmbBolts(dt, h);
@@ -770,7 +870,7 @@ function combatStep(dt){
     }
     // a wounded ship vents: smoke and embers off the hull (and a lot of both once it is going under)
     if ((P.crit || P.down >= 0) && C.rnd() < dt*(P.down >= 0 ? 16 : 5)) {
-      const R = C.rnd, me = C.me, q = cmbAt(me, [(R()*2 - 1)*6, (R()*2 - 1)*1.5, (R()*2 - 1)*14]);
+      const R = C.rnd, me = C.me, vb = SHIP_KIT.meinen.vents, q = cmbAt(me, [(R()*2 - 1)*vb[0], (R()*2 - 1)*vb[1], (R()*2 - 1)*vb[2]]);
       cmbFx(3, q, V.add(me.v, V.mul(cmbRandDir(), 5/TC)), 1.8 + R(), 2.5, 9, [0.42, 0.4, 0.38]);
       if (R() < 0.4) cmbFx(8, q, me.v, 0.35 + R()*0.3, 2.2, 0, [2.6, 1.1, 0.4]);
     }
@@ -782,20 +882,22 @@ function combatStep(dt){
     const c = CMB_CLS[e.cls], R = C.rnd;
     if (e.arrive) {
       if (C.t < e.arrive) continue;
-      e.arrive = 0;
+      e.arrive = 0; e.inAt = C.t;
       if (e.cls === 'drone') cmbFx(1, e.p, e.v, 0.45, 14, 0, [1.2, 1.6, 2.4]);           // the range's targets just light up
       else { cmbWarpFx(e.p, e.v, c.ext[2]*(c.capital ? 0.6 : 1.5), e.f, false); cmbEv('warp', {big: !!c.capital, cls: e.cls, dist: cmbDist(e.p, C.me.p)}); }
     }
     if (e.wreck) {                                                                          // burning, breaking up, gone once far or cold
       const l = V.len(e.spin), ax = V.mul(e.spin, 1/l); e.f = V.rot(e.f, ax, l*dt); e.u = V.rot(e.u, ax, l*dt); [e.f, e.u] = QV.ortho(e.f, e.u);
-      if (R() < dt*3) cmbFx(3, cmbAt(e, [(R()*2 - 1)*c.ext[0]*0.5, (R()*2 - 1)*c.ext[1]*0.5, (R()*2 - 1)*c.ext[2]*0.5]), e.v, 3 + R()*2, c.ext[2]*0.12*e.scale, c.ext[2]*0.25*e.scale, [0.45, 0.4, 0.37]);
-      if (R() < dt*0.9) cmbBoom(cmbAt(e, [0, 0, (R()*2 - 1)*c.ext[2]*0.5]), e.v, c.ext[2]*0.06*e.scale, {sparks: 8, smoke: 1, quiet: true});
+      const hz = e.clip ? (Math.min(e.clip[1], c.ext[2]) - Math.max(e.clip[0], -c.ext[2]))/2 : c.ext[2]*0.5;
+      if (R() < dt*3) cmbFx(3, cmbAt(e, [(R()*2 - 1)*c.ext[0]*0.5, (R()*2 - 1)*c.ext[1]*0.5, (R()*2 - 1)*hz]), e.v, 3 + R()*2, hz*0.24, hz*0.5, [0.45, 0.4, 0.37]);
+      if (R() < dt*0.9) cmbBoom(cmbAt(e, [0, 0, (R()*2 - 1)*hz]), e.v, c.ext[2]*0.06*e.scale, {sparks: 8, smoke: 1, quiet: true});
       if (C.t - e.t0 > 30 || cmbDist(e.p, C.me.p) > 16000) e.alive = false;
       continue;
     }
     if (e.dying >= 0) cmbDying(e, c, dt);
     else if (C.hot) { if (c.fighter) cmbWasp(e, c, dt); else if (c.capital) cmbCapitalAI(e, c, dt); else cmbDrone(e, c, dt); }
   }
+  for (const e of C.ents) if (!e.alive && e.tr) { e.tr.e = null; C.trails.push(e.tr); e.tr = null; }   // (a dead fighter's wake lingers)
   C.ents = C.ents.filter(e => e.alive);
   C.flash = Math.max(0, C.flash - dt/0.6);
   C.prevP = H.p;
@@ -811,13 +913,19 @@ function cmbShotView(){
   return {eye, f, u, r, fov: S.fov, kind: S.kind};
 }
 function cmbCineCancel(){ const C = COMBAT; if (C.shot) { const k = C.shot.kind; C.shot = null; cmbEv('cine', {kind: k, on: false}); } C.shotAt = null; }
-// hulls to draw: {cls (mesh), p (MILLER m), f, u, scale, damage, team, glow}
+// hulls to draw: {cls (mesh), p (MILLER m), f, u, scale, damage, team, glow, thr (engine throttle: plume length and glow)}
 function cmbDrawList(){
   const C = COMBAT, out = [];
   for (const e of C.ents) {
     if (!e.alive || e.arrive) continue;
     const c = CMB_CLS[e.cls];
-    out.push({cls: c.mesh, p: e.p, f: e.f, u: e.u, scale: e.scale || 1, damage: e.damage || 0, team: 1, glow: e.dying >= 0 || e.wreck ? 0 : 0.25, ext: c.ext});
+    const thr = e.wreck ? 0 : e.dying >= 0 ? 0.2 + 0.3*Math.random()*(Math.random() < 0.7 ? 1 : 0) : c.fighter ? (e.ai.mode === 'break' ? 1.25 : 1) : c.capital ? 0.55 : 0.3;
+    const ia = e.inAt == null ? 9 : C.t - e.inAt, stretch = ia < 0.45 && !C.rm ? Math.pow(1 - ia/0.45, 3)*(c.capital ? 40 : 18) : 0;
+    const p = e.clip ? V.sub(e.p, V.mul(e.f, e.zc)) : e.p;                              // a section spins about its middle, drawn whole-hull space
+    out.push({cls: c.mesh, p, f: e.f, u: e.u, scale: e.scale || 1, damage: e.damage || 0, team: 1, glow: e.dying >= 0 || e.wreck ? 0 : 0.25, ext: c.ext, thr, stretch, clip: e.clip});
+    const tc = SHIP_KIT[c.mesh].turretCls;                                                 // its turrets, as trained (parts: after their hull)
+    if (tc && !e.wreck) for (const T of e.tur) { const hy = T.yaw/2, hp = -T.pitch/2, a = Math.cos(hy), b = Math.sin(hy), c2 = Math.cos(hp), s2 = Math.sin(hp);
+      out.push({cls: tc, p: e.p, f: e.f, u: e.u, scale: e.scale || 1, damage: e.damage || 0, team: 1, glow: 0, stretch, pose: {q: [a*s2, b*c2, -b*s2, a*c2], pivot: T.pivot, mode: 1}}); }
   }
   for (const s of C.shards) out.push({cls: 'shard', p: s.p, f: s.f, u: s.u, scale: s.scale, damage: 1, team: s.team, glow: 0, ext: [1, 1, 1]});
   return out;
@@ -888,14 +996,20 @@ function cmbFxRows(S, Bm, eye){
     const c = CMB_CLS[e.cls];
     if (e.wreck) { const q = cmbAt(e, [0, 0, 0]); spr(q[0], q[1], q[2], c.ext[2]*0.35*e.scale, 1.8, 0.7, 0.25, 0, 0, 0); continue; }
     if (e.dying >= 0) continue;
-    if (c.fighter) { const q = cmbAt(e, [0, 0, -2.8]); spr(q[0], q[1], q[2], 8, 4.2, 1.6, 0.5, 0, 0, 0); }
+    const K = SHIP_KIT[c.mesh];
+    if (c.fighter) for (const E of K.engines) { const q = cmbAt(e, E.p); spr(q[0], q[1], q[2], 5, 3.2, 1.2, 0.4, 0, 0, 0); }
     else if (e.cls === 'drone') {                                                         // hazard strobe and fin-tip beacons
-      const bl = Math.pow(0.5 + 0.5*Math.sin(t*4.1 + e.seed*9), 12), q = cmbAt(e, [0, 3.1, 0.5]);
+      const bl = Math.pow(0.5 + 0.5*Math.sin(t*4.1 + e.seed*9), 12), q = cmbAt(e, K.strobes[0]);
       spr(q[0], q[1], q[2], 3.4, 3.2*bl + 0.1, 0.9*bl + 0.05, 0.2*bl, 1, 0, 0);
-      const q2 = cmbAt(e, [0, 0, -3.8]); spr(q2[0], q2[1], q2[2], 4, 1.2, 0.5, 0.2, 0, 0, 0);
+      for (const E of K.engines) { const q2 = cmbAt(e, E.p); spr(q2[0], q2[1], q2[2], 4, 1.2, 0.5, 0.2, 0, 0, 0); }
     } else {
       const k = c.ext[0]*0.33;
-      for (const x of [-0.5, 0, 0.5]) { const q = cmbAt(e, [x*c.ext[0]*0.6, 0, -c.ext[2]*1.04]); spr(q[0], q[1], q[2], k, 1.7, 0.62, 0.18, 0, 0, 0); }
+      for (const E of K.engines) { const q = cmbAt(e, E.p); spr(q[0], q[1], q[2], k, 1.7, 0.62, 0.18, 0, 0, 0); }
+      const bl = 0.25 + Math.pow(0.5 + 0.5*Math.sin(t*2.2 + e.seed*7), 10)*(C.rm ? 0.4 : 2.2);        // red beacons on the masts
+      for (const q0 of K.beacons || []) { const q = cmbAt(e, q0); spr(q[0], q[1], q[2], c.ext[0]*0.09, 2.4*bl, 0.25*bl, 0.12*bl, 0, 0, 0); }
+      const la = e.ai.launchT == null ? 9 : t - e.ai.launchT;                              // the hangar mouths flare when fighters launch
+      if (la < 1.6 && c.hangar) for (const hq of c.hangar) { const q = cmbAt(e, hq), k2 = (1 - la/1.6)*(1 - la/1.6);
+        spr(q[0], q[1], q[2], c.ext[0]*0.5, 2.6*k2, 1.6*k2, 0.9*k2, 0, 0, 0); }
     }
   }
   return [ns, nb];

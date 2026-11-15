@@ -161,6 +161,17 @@ const HUD = (() => {
       blip(k = 1){ const n = performance.now(); if (n - lastBlip < 45) return; lastBlip = n; tone(1320*k, 0.05, 0.035); },
       select(){ tone(660, 0.09, 0.05); tone(990, 0.12, 0.05, 'sine', 0, 0.07); },
       ping(){ tone(1760, 0.7, 0.05); tone(2637, 0.9, 0.025, 'sine', 0, 0.02); },
+      // a distant jump (a friendly formation leaving): a soft band-passed swell falling in pitch -- light, on the plain
+      // fx bus (the fight's bus, with its reverb and drones, is only built for a fight)
+      whoosh(){
+        if (!on || !ac || ac.state !== 'running') return;
+        const t = ac.currentTime, len = ac.sampleRate*1.2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = Math.random()*2 - 1;
+        const n = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 1.8;
+        bp.frequency.setValueAtTime(1800, t); bp.frequency.exponentialRampToValueAtTime(260, t + 1.0);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+        n.connect(bp); bp.connect(g); g.connect(fx); n.start(t); n.stop(t + 1.2);
+      },
       jump(){
         if (!on || !ac) return;
         const t = ac.currentTime, n = ac.createBufferSource(), len = ac.sampleRate*1.6, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
@@ -861,6 +872,7 @@ const HUD = (() => {
     else if (kind === 'zoomIn') { log('TELESCOPE DEPLOYED · ×2.6'); $('bScope').setAttribute('aria-pressed', 'true'); AUDIO.select(); }
     else if (kind === 'zoomOut') { log('TELESCOPE STOWED'); $('bScope').setAttribute('aria-pressed', 'false'); AUDIO.blip(0.8); }
     else if (kind === 'contact') { log('CONTACT · FRIENDLY ' + arg.kind.toUpperCase() + ' GROUP OVERTAKING TO ' + (arg.side < 0 ? 'PORT' : 'STARBOARD')); AUDIO.ping(); }
+    else if (kind === 'flyby:jump') { log('FRIENDLY ' + arg.name + ' GROUP · JUMPING OUT'); AUDIO.whoosh(); }
     else if (kind === 'spinMove') { log('GARGANTUA ' + (arg.to > arg.from ? 'SPINNING UP' : 'SPINNING DOWN') + ' · a ' + num(arg.from, 2) + ' → ' + num(arg.to, 2), true); AUDIO.select(); }
     else if (kind === 'spinHold') log('SPIN STEADY · a = ' + num(arg.a, 3) + ' · ISCO ' + num(KERR.isco(arg.a), 2) + ' M');
     else if (kind === 'helm:helm') { log('HELM · MANUAL CONTROL · ORBIT ASSIST ' + (HELM.assist ? 'ON' : 'OFF'), true); AUDIO.select(); }
