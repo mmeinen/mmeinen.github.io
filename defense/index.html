@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>PLANET DEFENSE · MEINEN</title>
+  <meta name="description" content="Command BASTION, the orbital fortress guarding the ocean world MILLER beside the black hole Gargantua.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23000'/><circle cx='16' cy='16' r='11' fill='none' stroke='%23ffb060' stroke-width='3'/><circle cx='16' cy='16' r='3.4' fill='%234090ff'/><path d='M16 3V9M16 23V29M3 16H9M23 16H29' stroke='%23ffb060' stroke-width='2'/></svg>">
+  <link href="css/defense.css" rel="stylesheet" type="text/css">
+ </head>
+ <body class="booting">
+  <!-- The view: BASTION over MILLER, Gargantua behind (../js/scene/*, drawn from the war in js/war.js + js/view.js). -->
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div id="space" aria-hidden="true"></div>
+  <!-- holographic symbology projected into the view (build slots, ranges, contacts, the corridor, inbound vectors) -->
+  <svg id="holo" aria-hidden="true"></svg>
+  <div id="floaters" aria-hidden="true"></div>
+
+  <div id="hud">
+    <header id="top">
+      <div class="ident">
+        <div class="logo"><span class="chev" aria-hidden="true"></span>PLANET <b>DEFENSE</b></div>
+        <div class="sub">BASTION &middot; MILLER ORBIT &middot; GARGANTUA SYSTEM</div>
+      </div>
+      <div id="wavebox" aria-live="polite">
+        <div class="wl"><span id="wLabel">WAVE</span> <b id="wNum">01</b><i id="wOf">/20</i></div>
+        <div class="wt" id="wTitle">&mdash;</div>
+        <div class="wbar"><i id="wBar"></i></div>
+        <div class="wp" id="wPhase">&mdash;</div>
+      </div>
+      <div id="res">
+        <div class="cr" title="Credits: kills, wave bonuses and the reactor pay for everything"><span class="k">CREDITS</span><span class="v" id="rCr">0</span></div>
+        <div class="meter aegis" title="AEGIS: MILLER's planetary shield. Every bomber that breaks through the drop corridor weakens it. At 0% MILLER falls.">
+          <span class="k">AEGIS</span><span class="bar"><b id="rAegis"></b></span><span class="n" id="rAegisN">100%</span></div>
+        <div class="meter st" title="BASTION: shields over hull. At 0 hull the station is lost.">
+          <span class="k">BASTION</span><span class="bar sh"><b id="rSh"></b></span><span class="bar hull"><b id="rHull"></b></span><span class="n" id="rHullN">100%</span></div>
+      </div>
+    </header>
+
+    <!-- what you have selected: BASTION's upgrade tracks, a platform's mark and sale, a contact's readout -->
+    <aside id="info" class="panel" aria-label="Selection">
+      <h2><i id="iNum">01</i><span id="iName">BASTION</span><em id="iRole">ORBITAL FORTRESS</em></h2>
+      <div id="iBody"></div>
+    </aside>
+
+    <aside id="side" class="panel" aria-label="Tactical">
+      <h2><i>02</i>TACTICAL<em id="tRange">12 KM</em></h2>
+      <svg id="radar" viewBox="-100 -100 200 200" aria-label="Tactical plot"></svg>
+      <div id="threats"></div>
+      <div id="log" role="log" aria-live="polite" aria-label="Combat log"></div>
+    </aside>
+
+    <footer id="cmd">
+      <div class="group build" role="group" aria-label="Build">
+        <button type="button" class="card" data-build="sentinel" data-key="1"><span class="ico" data-ico="sentinel"></span><span class="nm">SENTINEL</span><span class="c" data-cost></span><kbd>1</kbd></button>
+        <button type="button" class="card" data-build="hydra" data-key="2"><span class="ico" data-ico="hydra"></span><span class="nm">HYDRA</span><span class="c" data-cost></span><kbd>2</kbd></button>
+        <button type="button" class="card" data-build="longbow" data-key="3"><span class="ico" data-ico="longbow"></span><span class="nm">LONGBOW</span><span class="c" data-cost></span><kbd>3</kbd></button>
+        <button type="button" class="card" data-build="aegis" data-key="4"><span class="ico" data-ico="aegis"></span><span class="nm">AEGIS</span><span class="c" data-cost></span><kbd>4</kbd></button>
+        <button type="button" class="card" id="bSquad" data-key="5"><span class="ico" data-ico="hawk"></span><span class="nm">SQUADRON</span><span class="c" id="cSquad"></span><kbd>5</kbd></button>
+      </div>
+      <div class="group ab" role="group" aria-label="Abilities">
+        <button type="button" class="card ability" id="bNova" data-ab="nova"><span class="ring"><i></i></span><span class="nm">NOVA</span><span class="c" id="nNova">LOCKED</span><kbd>Q</kbd></button>
+        <button type="button" class="card ability" id="bLance" data-ab="lance"><span class="ring"><i></i></span><span class="nm">LANCE</span><span class="c" id="nLance">LOCKED</span><kbd>E</kbd></button>
+      </div>
+      <div class="group go">
+        <button type="button" id="bWave"><span class="t" id="bWaveT">LAUNCH WAVE</span><span class="s" id="bWaveS"></span></button>
+      </div>
+      <div class="group sys" role="group" aria-label="Controls">
+        <button type="button" class="tog" id="bSpeed" title="Game speed (Tab)">&times;1</button>
+        <button type="button" class="tog" id="bPause" title="Pause (P)" aria-pressed="false">PAUSE</button>
+        <button type="button" class="tog" id="bCine" title="Cinematic camera (C)" aria-pressed="false">CINEMA</button>
+        <button type="button" class="tog" id="bAudio" title="Sound" aria-pressed="false">AUDIO</button>
+        <button type="button" class="tog" id="bHelp" title="How to play (H)">HELP</button>
+        <a class="tog" id="bExit" href="../index.html" title="Back to the flight deck">&larr; MENU</a>
+      </div>
+    </footer>
+    <div id="tip" role="tooltip"></div>
+    <div id="mode"></div>
+  </div>
+
+  <div id="letterbox" aria-hidden="true"><i></i><i></i></div>
+  <div id="dmgv" aria-hidden="true"></div>
+  <div id="ctitle" aria-live="polite"><div class="t"></div><div class="s"></div></div>
+
+  <!-- the title screen, over the live scene -->
+  <div id="title">
+    <div class="tin">
+      <div class="kick">MEINEN &middot; GARGANTUA SYSTEM &middot; MILLER ORBIT</div>
+      <h1>PLANET<b>DEFENSE</b></h1>
+      <p class="lede">The Dominion is coming for MILLER. BASTION is all that stands in the drop corridor.
+        Build the guns. Hold the line. Twenty waves.</p>
+      <div class="diff" role="radiogroup" aria-label="Difficulty">
+        <button type="button" data-diff="recruit" role="radio"><b>RECRUIT</b><span>A gentler war</span></button>
+        <button type="button" data-diff="veteran" role="radio"><b>VETERAN</b><span>As intended</span></button>
+        <button type="button" data-diff="admiral" role="radio"><b>ADMIRAL</b><span>No mercy</span></button>
+      </div>
+      <div class="acts">
+        <button type="button" class="go" id="tNew">NEW CAMPAIGN</button>
+        <button type="button" class="go alt" id="tCont" hidden>CONTINUE</button>
+        <button type="button" class="link" id="tHelp">HOW TO PLAY</button>
+        <a class="link" href="../index.html">&larr; FLIGHT DECK</a>
+      </div>
+      <div class="best" id="tBest"></div>
+    </div>
+  </div>
+
+  <!-- victory / defeat -->
+  <div id="end">
+    <div class="ein">
+      <div class="kick" id="eKick">WAVE 00</div>
+      <h1 id="eTitle">MILLER HOLDS</h1>
+      <p class="lede" id="eLede"></p>
+      <dl id="eStats"></dl>
+      <div class="acts">
+        <button type="button" class="go" id="eAgain">NEW CAMPAIGN</button>
+        <button type="button" class="go alt" id="eOn" hidden>FIGHT ON</button>
+        <button type="button" class="link" id="eMenu">TITLE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="howto" role="dialog" aria-label="How to play">
+    <div class="hin">
+      <h2>HOW TO PLAY</h2>
+      <div class="cols">
+        <section>
+          <h3>THE WAR</h3>
+          <p>Dominion <b class="r">bombers</b> run for the <b class="a">drop corridor</b> under BASTION. Every one that dives
+            through strikes MILLER's planetary shield, <b>AEGIS</b>. Their <b class="r">fighters</b> escort them and hunt your guns;
+            <b class="r">capital ships</b> stand off and shell the station.</p>
+          <p>Lose AEGIS or lose BASTION and the war is over. Hold for twenty waves.</p>
+          <h3>BUILD</h3>
+          <p>Pick a platform (<kbd>1</kbd>&ndash;<kbd>4</kbd>), then a glowing <b class="b">slot</b>. Select a platform to refit it
+            to Mk&nbsp;II and III, or sell it. Select BASTION to upgrade the station itself.</p>
+        </section>
+        <section>
+          <h3>YOUR GUNS</h3>
+          <dl>
+            <dt>SENTINEL</dt><dd>Autocannon. Close range, fast. Kills fighters, bombers, missiles.</dd>
+            <dt>HYDRA</dt><dd>Missile salvos. Long reach against small craft.</dd>
+            <dt>LONGBOW</dt><dd>Railgun. The capital-ship killer. Slow, brutal, far.</dd>
+            <dt>AEGIS</dt><dd>Shield bubble over everything near it.</dd>
+            <dt>SQUADRON</dt><dd>Three HAWK fighters from BASTION's hangar.</dd>
+            <dt>NOVA &middot; LANCE</dt><dd>Station upgrades you fire yourself: <kbd>Q</kbd> <kbd>E</kbd>, then click a target.</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>CONTROLS</h3>
+          <dl class="keys">
+            <dt>DRAG</dt><dd>Orbit the camera</dd>
+            <dt>RIGHT DRAG &middot; SHIFT DRAG</dt><dd>Pan</dd>
+            <dt>WHEEL &middot; PINCH</dt><dd>Zoom</dd>
+            <dt>CLICK</dt><dd>Select &middot; build &middot; target</dd>
+            <dt>DOUBLE CLICK &middot; F</dt><dd>Follow the selection</dd>
+            <dt>SPACE</dt><dd>Launch the next wave</dd>
+            <dt>P &middot; TAB</dt><dd>Pause &middot; game speed</dd>
+            <dt>C</dt><dd>Cinematic camera</dd>
+            <dt>HOME</dt><dd>Back to BASTION</dd>
+            <dt>ESC</dt><dd>Cancel &middot; deselect</dd>
+          </dl>
+        </section>
+      </div>
+      <button type="button" class="go" id="hClose">BACK TO THE WAR</button>
+    </div>
+  </div>
+
+  <div id="boot" aria-hidden="true">
+    <div class="boot-in">
+      <div class="boot-logo">BASTIO<span>N</span></div>
+      <div class="boot-sub">PLANETARY DEFENCE FORCE &middot; MILLER COMMAND</div>
+      <ol class="boot-lines">
+        <li><span>REACTOR</span><b>NOMINAL</b></li>
+        <li><span>SHIELD GRID</span><b>ONLINE</b></li>
+        <li><span>FIRE CONTROL</span><b>ONLINE</b></li>
+        <li><span>GEODESIC SOLVER</span><b id="bootBake">0%</b></li>
+        <li><span>THREAT</span><b>DOMINION FLEET</b></li>
+      </ol>
+      <div class="boot-bar"><i id="bootBar"></i></div>
+    </div>
+  </div>
+
+  <noscript><div class="nojs">PLANET DEFENSE needs JavaScript and WebGL2. <a href="../index.html">&larr; Back to the flight deck</a></div></noscript>
+
+  <!-- classic scripts, in dependency order: the page must open from file://. The renderer is the flight deck's, shared;
+       kit.js adds this game's ships and liveries and must load before ships.js (which freezes the liveries). -->
+  <script src="../js/scene/gl.js"></script>
+  <script src="../js/scene/kerr.js"></script>
+  <script src="../js/scene/gargantua.js"></script>
+  <script src="../js/scene/planet.js"></script>
+  <script src="../js/scene/post.js"></script>
+  <script src="../js/scene/orbit.js"></script>
+  <script src="../js/scene/shipkit.js"></script>
+  <script src="js/kit.js"></script>
+  <script src="../js/scene/flight.js"></script>
+  <script src="../js/scene/ships.js"></script>
+  <script src="js/war.js"></script>
+  <script src="js/view.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+ </body>
+</html>
