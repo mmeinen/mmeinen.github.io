@@ -1,7 +1,9 @@
 # Isle of Wandering
 
-A browser-based 3D adventure world built with [Three.js](https://threejs.org/).
-An **endless**, procedurally generated world of smooth mountains, forests,
+A browser-based 3D **survival** adventure built with [Three.js](https://threejs.org/).
+You wake up in your own house in a seaside village and have to survive: keep
+your health, hunger, thirst and warmth up, gather and craft, trade with the
+villagers, and get warm before the cold night. The world is an **endless**, procedurally generated world of smooth mountains, forests,
 beaches and an open sea scattered with islands — populated with real animated
 3D animals and sailboats — that you explore on foot in first-person, or by
 boarding a boat and sailing to the next island. There is no edge: the terrain
@@ -20,7 +22,7 @@ no build step, no install.
 > and decoded in-page, so they need no network at all. This is deliberate:
 > browsers block `fetch()`/`XHR` from `file://` pages, so models *cannot* be
 > downloaded at runtime — embedding them is what makes the wildlife work when
-> you just double-click the file. (This is why `index.html` is ~2.4 MB.)
+> you just double-click the file. (This is why `index.html` is ~2.8 MB.)
 
 ## Controls
 
@@ -29,9 +31,40 @@ no build step, no install.
 | Move | `W` `A` `S` `D` or arrow keys |
 | Run | hold `Shift` |
 | Look | move the mouse (pointer is captured) |
-| Board / leave a boat | `E` (when standing next to a moored boat) |
+| Use what you're looking at | `E` or left click — open doors, talk, chop, pick, drink, cook, board a boat |
+| Eat / use the item in your hand | `F` or right click — eat, drink, place a campfire, fish |
+| Pick an item | `1`–`9` or the mouse wheel |
+| Craft | `C` |
 | Steer a boat | `W` / `S` throttle, `A` / `D` turn |
-| Release mouse | `Esc` |
+| Pause (and save) | `Esc` |
+
+## Surviving
+
+- **Your house**: you start beside your bed. Open the door with `E`. The chest
+  holds spare things; sleep in the bed once it gets dark (that also saves).
+- **Bars**: ❤️ health, 🍗 hunger, 💧 thirst, 🔥 warmth. Hunger and thirst drop all
+  the time; warmth drops at night outdoors (and fast in the sea). An empty bar
+  hurts your health; fairly full bars heal it. At 0 health you faint and wake
+  up in your bed the next morning, keeping your things.
+- **Food**: berries (round bushes), mushrooms (under trees), apples and bread
+  (trades), fish (craft a rod, face the sea, press `F`). Cook fish and
+  mushrooms on a campfire for much more food.
+- **Water**: drink at any village **well** — the sea is salty. Craft a flask
+  and fill it at a well to carry water.
+- **Gather**: chop trees for wood (5 swings, 2 with an axe), pick up sticks and
+  stones, break big rocks with a pickaxe. Everything grows back after a while.
+- **Craft** (`C`): axe, pickaxe, torch (light + warmth while held), campfire,
+  flask, fishing rod.
+- **Day & night**: a day lasts 12 minutes (about 7½ of daylight). Villagers go
+  home at night and their windows light up.
+- **Villages** sit on most islands (one per ~520 m of land): a well, market
+  stalls and people — baker, fisher, smith, potter, farmer, elder and kids.
+  Talk to them (`E`) for tips and trades; the elder gives you bread once a day.
+- **Saving** is automatic (every minute, on sleep, on pause) in the browser's
+  local storage. The start screen offers *Continue* or *Start a new game*.
+- Tuning lives in `index.html`: `DAY_SEC`, the drain rates in
+  `createSurvival().update`, `RECIPES`, `TRADES`, and `villageAt` (village
+  density: the `0.85` chance per cell).
 
 There are no invisible walls. On foot you can wade into the sea, but it's slow —
 the open water is best crossed by boat. Walk up to one of the sailboats moored
@@ -39,6 +72,12 @@ near the shore and press `E` to climb aboard, then steer it across to another
 island and press `E` again to step onto the beach.
 
 ## What's in the world
+
+- **Villages and people** — procedural low-poly houses (doors that open, beds,
+  tables, windows that glow at night), wells, market stalls and lantern posts.
+  Each village is pure data computed from its patch of the world, so its walls
+  are solid and the forest leaves a clearing. Villagers are built from boxes and
+  stroll between the well, the stalls and their homes.
 
 - **Endless procedural terrain** — a seeded simplex-noise world where a
   low-frequency "continent" field decides where land and sea are, so islands
@@ -51,6 +90,7 @@ island and press `E` again to step onto the beach.
 - **Animated wildlife** (imported glTF models, not hand-built):
   - **Deer** — Quaternius *Stag*, rigged with Walk/Idle animations
   - **Rabbits** — Quaternius *Bunny*, rigged with Walk/Idle animations
+  - **Foxes** — Khronos glTF sample *Fox*, rigged with Walk/Survey animations
   - **Cats** — prowling the meadows
   - **Birds** — three.js *Parrot* and *Flamingo* wheeling overhead with flapping wings
 - **Sailboats** bobbing on the water near the spawn island — walk up and press
@@ -61,10 +101,14 @@ island and press `E` again to step onto the beach.
 
 The animals wander the grassland, follow the terrain, steer away from water and
 cliffs, and blend between their walk and idle animations as they move and stop.
-Because the world is endless, wildlife and idle boats are **recycled around
-you**: anything that falls far behind as you travel is quietly respawned on
-valid ground (or open water) out in the fog ahead, so every island you reach is
-populated and the total entity count never grows.
+Because the world is endless, the wildlife lives in a **bubble around you**
+(~100 ground animals within 240 m, 30 birds): an animal that ends up outside it
+is moved to fresh land inside it, out of sight, so while you sail the whole
+pool gathers on the island ahead and every island you land on is teeming. If
+fewer than two animals are in view (within 60 m, ahead, not behind a hill) for
+a moment, the furthest one trots out of the trees in front of you. Tune it in
+`createWildlife`: `POOL`, `BIRDS`, `NEAR`, `SEE2`, `WANT`. Idle boats are
+recycled the same way, 1 km out.
 
 ## Tweaking
 
@@ -96,4 +140,5 @@ All models load at runtime from [poly.pizza](https://poly.pizza) and the
 
 - **Stag, Bunny, Sail Boat** by **Quaternius** — CC0 (public domain)
 - **Cat** by **Poly by Google** — CC BY
+- **Fox** by **PixelMannen** (CC0), rigged and animated by **tomkranis** (CC BY 4.0), from the Khronos glTF sample models
 - **Parrot, Flamingo** — from the three.js examples

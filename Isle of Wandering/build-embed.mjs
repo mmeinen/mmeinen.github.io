@@ -21,6 +21,7 @@ const SOURCES = {
   boat:   'https://static.poly.pizza/b1d42c7e-152a-4d56-a754-cca000a5abad.glb',
   bird1:  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Parrot.glb',
   bird2:  'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Flamingo.glb',
+  fox:    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Fox/glTF-Binary/Fox.glb',
 };
 
 const CACHE = path.join(ROOT, '_models');
